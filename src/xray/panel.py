@@ -9,9 +9,13 @@ Two blocks of features:
 - bank: always present, every company has transactions.
 - ERP: null when the company had not issued an invoice yet, 39% of companies never do.
 
-Debt and balances are deliberately absent. `debt_products.outstanding` and `balances.balance` are
-snapshots taken at extraction, so they only describe month 24 and would leak into every earlier
-row. Debt behaviour enters through the `debt_repayment` transaction category instead.
+Debt is deliberately absent. `debt_products.outstanding` is a snapshot taken at extraction, so it
+only describes month 24 and would leak into every earlier row. Debt behaviour enters through the
+`debt_repayment` transaction category instead.
+
+`balances.balance` is the same kind of snapshot, but it is dated and the transactions that moved it
+are dated too, so `xray.cash` rolls it back into a monthly series. This module consumes that series
+rather than the snapshot.
 """
 
 import logging
@@ -20,14 +24,23 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from xray.config import PROCESSED_DATA_DIR, WINDOW_FIRST_MONTH, WINDOW_LAST_MONTH
+from xray.config import (
+    MARTS_DIR,
+    PROCESSED_DATA_DIR,
+    WINDOW_FIRST_MONTH,
+    WINDOW_LAST_MONTH,
+)
+from xray.lineage import publish
 
 logger = logging.getLogger(__name__)
 
 TREND_WINDOW_MONTHS = 3
 
+SOURCES = ("companies", "transactions", "invoices", "cash_monthly")
+
 # Additive columns, summed as they are when companies roll up into their group.
 _ADDITIVE = (
+    "cash",
     "n_tx",
     "inflow",
     "outflow",
@@ -49,13 +62,17 @@ _ADDITIVE = (
 )
 
 
-def _base_sql(tx_path: Path, inv_path: Path, companies_path: Path) -> str:
+def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
     """Company-by-month SQL with additive columns only.
 
     An invoice counts as open at month end when it was issued by then and either was never paid
     or was paid later. `status` and `pending_amount` are never read: both describe the state at
     extraction, not the state at month `t`.
     """
+    tx_path = processed_dir / "transactions.parquet"
+    inv_path = processed_dir / "invoices.parquet"
+    companies_path = processed_dir / "companies.parquet"
+    cash_path = marts_dir / "cash_monthly.parquet"
     return f"""
     with months as (
         select unnest(generate_series(
@@ -122,6 +139,7 @@ def _base_sql(tx_path: Path, inv_path: Path, companies_path: Path) -> str:
         where payment_date is not null and payment_date >= issuance_date
         group by 1, 2
     ),
+    cash as (select * from read_parquet('{cash_path}')),
     inv_issued as (
         select
             company_id,
@@ -151,13 +169,16 @@ def _base_sql(tx_path: Path, inv_path: Path, companies_path: Path) -> str:
         coalesce(p.ar_collected_days, 0) as ar_collected_days,
         coalesce(p.ap_paid_days, 0) as ap_paid_days,
         coalesce(i.n_invoices_issued, 0) as n_invoices_issued,
-        coalesce(i.n_invoices_received, 0) as n_invoices_received
+        coalesce(i.n_invoices_received, 0) as n_invoices_received,
+        coalesce(ch.cash, 0) as cash,
+        coalesce(ch.cash_is_extrapolated, true) as cash_is_extrapolated
     from spine s
     left join tx_month t on t.company_id = s.company_id and t.month = s.month
     left join inv_open o on o.company_id = s.company_id and o.month = s.month
     left join inv_settled p on p.company_id = s.company_id and p.month = s.month
     left join inv_issued i on i.company_id = s.company_id and i.month = s.month
     left join erp_start e on e.company_id = s.company_id
+    left join cash ch on ch.company_id = s.company_id and ch.month::date = s.month
     """
 
 
@@ -182,6 +203,7 @@ def _finalize_sql(source: str, key: str) -> str:
         case when ar_collected > 0 then ar_collected_days / ar_collected end as dso_days,
         case when ap_paid > 0 then ap_paid_days / ap_paid end as dpo_days,
         case when outflow > 0 then inflow / outflow end as inflow_cover,
+        case when outflow > 0 then cash / outflow end as runway_months,
         sum(case when is_covered then 1 else 0 end) over (
             {win} rows between unbounded preceding and current row
         ) as months_observed
@@ -189,20 +211,19 @@ def _finalize_sql(source: str, key: str) -> str:
     """
 
 
-def build(processed_dir: Path = PROCESSED_DATA_DIR) -> dict[str, pd.DataFrame]:
-    """Build the company and group panels from the cleaned parquet tables.
+def build(
+    processed_dir: Path = PROCESSED_DATA_DIR, marts_dir: Path = MARTS_DIR
+) -> dict[str, pd.DataFrame]:
+    """Build the company and group panels.
 
     Args:
-        processed_dir: Directory holding the output of ``xray.clean``.
+        processed_dir: Staging tables, the output of ``xray.clean``.
+        marts_dir: Mart tables, where ``xray.cash`` wrote ``cash_monthly``.
 
     Returns:
         The two panels, keyed ``"panel_company"`` and ``"panel_group"``.
     """
-    base = _base_sql(
-        processed_dir / "transactions.parquet",
-        processed_dir / "invoices.parquet",
-        processed_dir / "companies.parquet",
-    )
+    base = _base_sql(processed_dir, marts_dir)
     con = duckdb.connect()
     company = con.sql(_finalize_sql(base, "company_id")).df()
 
@@ -212,6 +233,7 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> dict[str, pd.DataFrame]:
             count(*) as n_companies,
             bool_or(has_erp) as has_erp,
             bool_or(is_covered) as is_covered,
+            bool_or(cash_is_extrapolated) as cash_is_extrapolated,
             {additive}
         from ({base}) group by 1, 2
     """
@@ -221,12 +243,10 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> dict[str, pd.DataFrame]:
 
 
 def main() -> None:
-    """Build both panels and write them to data/processed."""
+    """Build both panels and publish them to the mart."""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     for name, df in build().items():
-        path = PROCESSED_DATA_DIR / f"{name}.parquet"
-        df.to_parquet(path, index=False)
-        logger.info("%-16s %6d rows x %2d cols -> %s", name, len(df), df.shape[1], path)
+        publish(name, df, sources=list(SOURCES), marts_dir=MARTS_DIR)
 
 
 if __name__ == "__main__":

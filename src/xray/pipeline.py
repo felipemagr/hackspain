@@ -1,11 +1,19 @@
-"""Run the whole pipeline: raw CSVs to the monthly panel."""
+"""Run the whole pipeline: raw CSVs to the marts.
 
-from xray import clean, panel
+Three layers, each depending only on the one above it:
+
+    data/raw        the nine source CSVs, never modified
+    data/processed  staging, one parquet per source table   (xray.clean)
+    data/marts      business-facing tables + _lineage.json  (xray.cash, xray.panel)
+"""
+
+from xray import cash, clean, panel
 
 
 def main() -> None:
-    """Clean the raw tables, then build the panels."""
+    """Clean the raw tables, reconstruct cash, then build the panels."""
     clean.main()
+    cash.main()
     panel.main()
 
 

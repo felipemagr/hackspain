@@ -6,15 +6,26 @@ from xray.panel import build
 M1, M2, M3 = "2024-09-01", "2024-10-01", "2024-11-01"
 
 
-def _write(tmp_path, companies, transactions, invoices):
-    """Write the three cleaned tables the panel reads."""
+def _write(tmp_path, companies, transactions, invoices, cash=None):
+    """Write the staging tables and the cash mart the panel reads.
+
+    Returns the (staging, marts) pair `build` takes.
+    """
+    staging, marts = tmp_path / "staging", tmp_path / "marts"
+    staging.mkdir(exist_ok=True)
+    marts.mkdir(exist_ok=True)
     for name, df in [
         ("companies", companies),
         ("transactions", transactions),
         ("invoices", invoices),
     ]:
-        df.to_parquet(tmp_path / f"{name}.parquet", index=False)
-    return tmp_path
+        df.to_parquet(staging / f"{name}.parquet", index=False)
+    if cash is None:
+        cash = pd.DataFrame(
+            [], columns=["company_id", "month", "cash", "n_cash_accounts", "cash_is_extrapolated"]
+        )
+    cash.to_parquet(marts / "cash_monthly.parquet", index=False)
+    return staging, marts
 
 
 def _tx(company_id, month, amount, category="payment"):
@@ -51,7 +62,7 @@ def one_company(tmp_path):
 
 class TestAsOf:
     def test_invoice_is_open_until_it_is_paid(self, one_company):
-        panel = build(one_company)["panel_group"].set_index("month")
+        panel = build(*one_company)["panel_group"].set_index("month")
 
         assert panel.loc[M1, "ar_open"] == 500.0
         assert panel.loc[M2, "ar_open"] == 0.0
@@ -61,16 +72,16 @@ class TestAsOf:
         companies = pd.DataFrame([{"company_id": "c1", "group_id": "g1"}])
         transactions = pd.DataFrame([_tx("c1", M1, 100.0)])
         invoices = pd.DataFrame([_invoice("c1", "receivable", 500.0, "2024-11-10", "2024-12-10")])
-        panel = build(_write(tmp_path, companies, transactions, invoices))["panel_group"].set_index(
-            "month"
-        )
+        panel = build(*_write(tmp_path, companies, transactions, invoices))[
+            "panel_group"
+        ].set_index("month")
 
         assert not panel.loc[M1, "has_erp"]
         assert panel.loc[M3, "has_erp"]
         assert pd.isna(panel.loc[M1, "dso_days"])
 
     def test_month_without_transactions_is_marked_uncovered(self, one_company):
-        panel = build(one_company)["panel_group"].set_index("month")
+        panel = build(*one_company)["panel_group"].set_index("month")
 
         assert panel.loc[M1, "is_covered"]
         assert not panel.loc[M3, "is_covered"]
@@ -82,17 +93,18 @@ class TestNoLeakage:
 
     @pytest.mark.parametrize("cutoff", [M1, M2, M3])
     def test_row_matches_a_rebuild_that_never_saw_the_future(self, one_company, cutoff):
-        full = build(one_company)["panel_group"].set_index("month").loc[cutoff]
+        full = build(*one_company)["panel_group"].set_index("month").loc[cutoff]
 
         month_end = pd.Timestamp(cutoff) + pd.offsets.MonthEnd(0)
-        tx = pd.read_parquet(one_company / "transactions.parquet")
-        inv = pd.read_parquet(one_company / "invoices.parquet")
-        tx[tx["month"] <= month_end].to_parquet(one_company / "transactions.parquet", index=False)
+        staging = one_company[0]
+        tx = pd.read_parquet(staging / "transactions.parquet")
+        inv = pd.read_parquet(staging / "invoices.parquet")
+        tx[tx["month"] <= month_end].to_parquet(staging / "transactions.parquet", index=False)
         past = inv[inv["issuance_date"] <= month_end].copy()
         past["payment_date"] = past["payment_date"].where(past["payment_date"] <= month_end)
-        past.to_parquet(one_company / "invoices.parquet", index=False)
+        past.to_parquet(staging / "invoices.parquet", index=False)
 
-        truncated = build(one_company)["panel_group"].set_index("month").loc[cutoff]
+        truncated = build(*one_company)["panel_group"].set_index("month").loc[cutoff]
 
         pd.testing.assert_series_equal(full, truncated, check_names=False)
 
@@ -112,7 +124,7 @@ class TestGroupRollup:
                 _invoice("c2", "receivable", 100.0, "2024-09-01", "2024-09-30", "2024-09-21"),
             ]
         )
-        panel = build(_write(tmp_path, companies, transactions, invoices))["panel_group"]
+        panel = build(*_write(tmp_path, companies, transactions, invoices))["panel_group"]
 
         # 10 days on 900 and 20 days on 100 is 11 days, not the 15 a plain average would give.
         assert panel.set_index("month").loc[M1, "dso_days"] == 11.0
@@ -126,9 +138,9 @@ class TestGroupRollup:
         )
         transactions = pd.DataFrame([_tx("c1", M1, 100.0)])
         invoices = pd.DataFrame([_invoice("c1", "receivable", 1.0, M1, M1)]).iloc[0:0]
-        panel = build(_write(tmp_path, companies, transactions, invoices))["panel_group"].set_index(
-            "month"
-        )
+        panel = build(*_write(tmp_path, companies, transactions, invoices))[
+            "panel_group"
+        ].set_index("month")
 
         assert panel.loc[M1, "is_covered"]
         assert panel.loc[M1, "n_companies"] == 2
