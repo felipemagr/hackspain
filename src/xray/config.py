@@ -5,7 +5,12 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_DIR = Path(os.environ.get("XRAY_DATA_DIR", PROJECT_ROOT / "data" / "raw"))
-PROCESSED_DATA_DIR = PROJECT_ROOT / "data" / "processed"
+PROCESSED_DATA_DIR = Path(os.environ.get("XRAY_PROCESSED_DIR", PROJECT_ROOT / "data" / "processed"))
+LAKE_DIR = Path(os.environ.get("XRAY_LAKE_DIR", PROJECT_ROOT / "data" / "lake"))
+
+# Full months only: 2026-09 holds a single day, the balances snapshot.
+WINDOW_FIRST_MONTH = "2024-09-01"
+WINDOW_LAST_MONTH = "2026-08-01"
 
 TABLES = (
     "groups",
