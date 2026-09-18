@@ -204,10 +204,15 @@ above does not get built.
 
 ## 8. Mapping deliverables to the repo
 
+Pipeline shape, the panel contract and the reasoning behind both: `docs/architecture.md`.
+
 | Deliverable | Where it lives |
 |---|---|
 | Load and validate the nine CSVs | `src/xray/data.py`, `src/xray/config.py` |
-| Monthly features per group, no look-ahead | `src/xray/features.py` |
+| Clean the raw tables to parquet | `src/xray/clean.py` |
+| Monthly panel per group, no look-ahead | `src/xray/panel.py` |
+| Daily extracts, as-of reads | `src/xray/lake.py` |
+| Whole pipeline end to end | `src/xray/pipeline.py`, `make panel` |
 | Score, level and trend | `src/xray/score.py` |
 | Named driver decomposition | `src/xray/explain.py` |
 | Bump vs fall, alerting | `src/xray/monitor.py` |
@@ -215,6 +220,11 @@ above does not get built.
 | Hidden-test predictions for the leaderboard | `src/xray/submit.py` |
 | API for the demo | `src/xray/api/` (see `.claude/rules/api-design.md`) |
 | Demo front end | to be decided, deployed, not localhost-only |
+| Reproducible build on any laptop | `Dockerfile`, `make docker-build`, `make docker-pipeline` |
+
+The model team codes against `data/processed/panel_group.parquet`: 250 groups x 24 months, every
+column computed from data at or before that month. Check `has_erp` before touching the invoice
+columns, and `is_covered` before reading a level.
 
 ---
 
@@ -228,6 +238,9 @@ above does not get built.
   deliverable, not a nice-to-have.
 - **Separate level from trend**, and a one-month dip from a sustained move. The monitor depends on
   this distinction and so does a whole scoring sub-block.
+- **`status` and `pending_amount` on invoices are as-of-extraction, not as-of-month-`t`.** An
+  invoice reading `paid` today was `pending` in month 10. Derive state from dates instead. The
+  panel already does; anything reading the raw invoices must too.
 
 ---
 
@@ -249,6 +262,13 @@ guessing.
    it that way in the pitch.
 5. **Per-month scores or only the final month?** Trajectory is mandatory, so we produce all 24
    either way, but the submission may only take one.
+6. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
+   positive as receivable and negative as payable, which gives a plausible 13-day median DSO and
+   21-day DPO, but confirm it before the score depends on it.
+7. **Does the open-invoice book need a censoring correction?** An invoice never paid inside the
+   window stays open forever, so `ar_overdue_ratio` drifts from 0.21 to 0.78 across the 24 months
+   for everyone. Part real, part an artifact of a 24-month window. Compare each group against the
+   cross-sectional median for that month rather than against its own past level.
 
 ---
 

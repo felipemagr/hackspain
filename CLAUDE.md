@@ -1,6 +1,7 @@
 # HackSpain 2026: X Ray (Embat challenge)
 
 Full brief, product decision, demo script and open questions: [`docs/brief.md`](docs/brief.md). Read it first.
+Pipeline, the panel contract and the data traps it works around: [`docs/architecture.md`](docs/architecture.md).
 
 Hackathon project, 18-20 September 2026. Build a **financial health score** from the financial trail of companies, and a **sellable product on top of it**. The score is the engine; the score alone is not the deliverable.
 
