@@ -15,6 +15,7 @@ __pycache__/
 data/raw/*
 data/processed/*
 !data/**/.gitkeep
+output/
 
 # Local
 .DS_Store

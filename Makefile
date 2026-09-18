@@ -1,5 +1,12 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data notebook test test-quick lint format quality ci clean
+.PHONY: help install inspect clean-data panel pipeline notebook docker-build docker-pipeline \
+        test test-quick lint format quality ci clean
+
+RAW_DIR ?= data/raw
+PROCESSED_DIR := data/processed
+CLEAN_STAMP := $(PROCESSED_DIR)/.clean.stamp
+PANEL := $(PROCESSED_DIR)/panel_group.parquet
+IMAGE ?= xray:latest
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -13,8 +20,29 @@ install: ## Install dependencies and the notebook output stripper
 inspect: ## Print shape and dtypes of every CSV in data/raw
 	uv run python -m xray.data
 
-clean-data: ## Clean data/raw and write parquet tables to data/processed
+$(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/clean.py
 	uv run python -m xray.clean
+	@touch $@
+
+$(PANEL): $(CLEAN_STAMP) src/xray/panel.py
+	uv run python -m xray.panel
+
+clean-data: $(CLEAN_STAMP) ## Clean data/raw and write parquet tables to data/processed
+
+panel: $(PANEL) ## Build the monthly panel, cleaning first if the raw data changed
+
+pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
+	uv run python -m xray.pipeline
+
+# Docker
+docker-build: ## Build the pipeline image
+	docker build -t $(IMAGE) .
+
+docker-pipeline: ## Run the pipeline in Docker over ./data/raw
+	docker run --rm \
+		-v "$(PWD)/$(RAW_DIR):/data/raw:ro" \
+		-v "$(PWD)/$(PROCESSED_DIR):/data/processed" \
+		$(IMAGE)
 
 notebook: ## Register the project venv as a Jupyter kernel
 	uv run python -m ipykernel install --user --name xray --display-name "xray"
