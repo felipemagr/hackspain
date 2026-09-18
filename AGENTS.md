@@ -64,3 +64,27 @@ data/processed/  derived tables, not in git
 ```
 
 Other people and agents work in this same checkout at the same time (product and infra). Stage only the files you changed, never `git add -A`, and do not switch branches or rewrite history without asking.
+
+## 6. Before every push: update `docs/brief.md`
+
+`docs/brief.md` is the shared context file. Every agent and teammate reads it first, so it has to
+describe the project as it is right now.
+
+Every time you push, check these sections and fix what your work made wrong, in the same push:
+
+| Section | Update it when you changed |
+|---|---|
+| 7. What we are building | the product, the buyer, the layers or the demo script |
+| 8. Mapping deliverables to the repo | which module owns a deliverable, or added a new one |
+| 9. Modelling guardrails | a decision about splits, leakage, units or the score's shape |
+| 10. Open questions | you answered one, or found a new one |
+
+How to write the edit:
+
+- Facts only. What is true now. Not what changed, not who changed it, not when.
+- Edit the line or table row that is already there. Never append a changelog, a "recent updates"
+  section or a date stamp. History is the git log's job.
+- One line per fact. No adjectives, no hedging, no filler.
+- An answered open question gets deleted from section 10 and its answer written into the section
+  it affects.
+- Nothing in those sections became wrong: push without touching the file. Do not pad it.
