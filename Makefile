@@ -1,11 +1,13 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data panel pipeline sql notebook docker-build docker-pipeline \
+.PHONY: help install inspect clean-data cash panel pipeline sql notebook docker-build docker-pipeline \
         test test-quick lint format quality ci clean
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
+MARTS_DIR := data/marts
 CLEAN_STAMP := $(PROCESSED_DIR)/.clean.stamp
-PANEL := $(PROCESSED_DIR)/panel_group.parquet
+CASH := $(MARTS_DIR)/cash_monthly.parquet
+PANEL := $(MARTS_DIR)/panel_group.parquet
 IMAGE ?= xray:latest
 
 help: ## Show this help
@@ -24,12 +26,17 @@ $(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/clean.py
 	uv run python -m xray.clean
 	@touch $@
 
-$(PANEL): $(CLEAN_STAMP) src/xray/panel.py
+$(CASH): $(CLEAN_STAMP) src/xray/cash.py
+	uv run python -m xray.cash
+
+$(PANEL): $(CASH) src/xray/panel.py
 	uv run python -m xray.panel
 
-clean-data: $(CLEAN_STAMP) ## Clean data/raw and write parquet tables to data/processed
+clean-data: $(CLEAN_STAMP) ## Stage data/raw as parquet in data/processed
 
-panel: $(PANEL) ## Build the monthly panel, cleaning first if the raw data changed
+cash: $(CASH) ## Reconstruct the monthly cash mart
+
+panel: $(PANEL) ## Build the monthly panel mart, rebuilding upstream layers as needed
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
 	uv run python -m xray.pipeline
@@ -44,7 +51,7 @@ docker-pipeline: ## Run the pipeline in Docker over ./data/raw
 		-v "$(PWD)/$(PROCESSED_DIR):/data/processed" \
 		$(IMAGE)
 
-sql: ## Open a DuckDB shell with views over data/processed
+sql: ## Open a DuckDB shell with views over the marts
 	duckdb -init .duckdbrc
 
 notebook: ## Register the project venv as a Jupyter kernel

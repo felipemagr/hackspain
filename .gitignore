@@ -14,6 +14,8 @@ __pycache__/
 # Data: the dataset stays out of git, only the folders are tracked
 data/raw/*
 data/processed/*
+data/marts/*
+data/lake/*
 !data/**/.gitkeep
 output/
 
