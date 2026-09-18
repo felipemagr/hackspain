@@ -56,9 +56,9 @@ async def get_group(
     return result
 ```
 
-## Request Validation: Be Lenient, Not Brittle
+## Forgiving Request Models
 
-Accept anything you can reasonably process. Reserve `422` for input that is genuinely unprocessable.
+Accept whatever can be processed sensibly. Keep `422` for input that truly cannot be handled.
 
 - Don't add length/size caps that aren't about correctness. Truncate over-long free text in a `mode="before"` validator instead of rejecting it.
 - Normalize alternate shapes in a `before` validator instead of rejecting them.

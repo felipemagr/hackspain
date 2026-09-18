@@ -43,11 +43,12 @@ If a rule conflicts with an explicit user request, the user wins. If two rules c
 ## 4. Commands
 
 ```bash
-make install   # uv sync + notebook output stripping
-make inspect   # print shape and dtypes of every CSV in data/raw
-make test      # pytest
-make quality   # ruff check + format check
-make format    # ruff autofix + format
+make              # list every target
+make install      # uv sync + notebook output stripping
+make inspect      # print shape and dtypes of every CSV in data/raw
+make test-quick   # pytest, stop at first failure
+make format       # ruff autofix + format
+make ci           # lint, format check and tests: run before pushing
 ```
 
 Always go through `uv` (`uv run ...`, `uv add ...`), never bare `pip` or `python`.

@@ -1,95 +1,78 @@
 # Coding Guidelines
 
-Behavioral guidelines to reduce common LLM coding mistakes.
+How we want agents and teammates to write code in this repo. It is a hackathon: the goal is a working score and a demo that opens, so use judgment on small tasks.
 
-**Tradeoff:** this is a hackathon. Bias toward shipping something that works and demos well. For trivial tasks, use judgment.
+## 1. Understand before you type
 
-## 1. Think Before Coding
+- Say which assumptions you are making. When one of them is shaky, ask.
+- When a request can be read two ways, show both readings and let the user choose.
+- When there is a cheaper way to reach the same result, propose it, even if it contradicts the request.
+- When you are confused, stop and say exactly what is confusing.
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+## 2. Build the smallest thing that works
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them, don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+- Implement what was requested and nothing else.
+- A helper earns its place on the second or third use, not the first. Repeating a few lines is fine.
+- Skip options, flags and extension points nobody asked for.
+- Skip defensive code for cases that cannot happen. Internal code and the framework can be trusted.
+- A flat module or a script is a valid design. Add layers only when the problem forces you to.
+- When a solution feels long, look for the version that is a quarter of the size.
 
-## 2. Simplicity First
+Check: would an experienced engineer call this overbuilt? Then cut it down.
 
-**Minimum code that solves the problem. Nothing speculative.**
+## 3. Keep diffs narrow
 
-- No features beyond what was asked.
-- No abstractions for single-use code. Three similar lines are better than a premature helper.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios. Trust internal code and framework guarantees.
-- Don't add architecture layers unless the complexity warrants it. A script or a flat module is fine.
-- If you write 200 lines and it could be 50, rewrite it.
+In existing code:
+- Leave neighbouring code, comments and formatting alone.
+- Working code does not get refactored on the way past.
+- Code you did not change does not get new docstrings, types or comments.
+- Follow the style that is already there. Formatting is the formatter's job.
+- Unrelated dead code gets reported, not removed.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+After your own change:
+- Delete the imports, variables and functions that your change left unused.
+- Older leftovers stay unless the user asks.
 
-## 3. Surgical Changes
+Check: can each changed line be justified by the request?
 
-**Touch only what you must. Clean up only your own mess.**
+## 4. Comments and docstrings
 
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Don't add docstrings, type annotations, or comments to code you didn't change.
-- Match existing style, even if you'd do it differently. Let the formatter handle formatting.
-- If you notice unrelated dead code, mention it, don't delete it.
+Write down only what the code cannot say by itself.
 
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+Worth writing:
+- A one-line summary on public functions and classes.
+- `Args:`, `Returns:`, `Raises:` when the caller benefits.
+- Preconditions and invariants that are invisible in the code, such as "rows must be sorted by month".
+- A short reason for a choice that looks wrong at first sight.
 
-The test: every changed line should trace directly to the user's request.
+Not worth writing:
+- The history of the change. That goes in the commit message.
+- A paraphrase of the signature or of the next line.
+- The story of a past bug. State the invariant and move on.
+- Long docstrings on small internal functions.
+- A running commentary on plain control flow.
 
-## 4. Docstrings & Comments: Lean by Default
+Check: if the comment vanished, would the next reader be lost? If not, remove it.
 
-**Less prose, more signal. Args/Returns stay; narrative goes.**
+Style: no em dashes in code, comments or docstrings; use a colon, a comma or a new line. No emoji there either, unless asked. Text that is content rather than code (prompts, UI copy, demo strings) is exempt.
 
-Keep:
-- One-line summary on every public function/class.
-- `Args:` / `Returns:` / `Raises:` sections when they aid the caller.
-- Invariants not derivable from the code (e.g. "input must be sorted by month").
-- Counter-intuitive design choices explained briefly.
+## 5. Decide how you will know it works
 
-Trim aggressively:
-- Narrative of "why this commit changed it": that's the commit message, not the file.
-- Restating what the code already says.
-- War-story comments referencing past bugs: keep the invariant, drop the story.
-- Multi-paragraph docstrings on internal one-use functions.
-- Step-by-step narration of obvious control flow.
+Turn the task into something checkable before starting:
+- New feature or signal: compare the validation metric before and after.
+- Bug: reproduce it first, then make the reproduction pass.
+- Refactor: outputs are identical before and after.
 
-Ask yourself: "If I delete this comment, would a reader of the code be confused?" If no, delete it.
-
-**No em dashes in code, docstrings, or comments.** Use a colon, a comma, or a line break. (Prompts and other LLM-facing string data are exempt: those are content, not code.)
-
-**Avoid emoji in code, docstrings, and comments** unless explicitly asked (UI strings and demo copy are fine).
-
-## 5. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add a feature/signal" -> "Measure the validation metric before and after"
-- "Fix the bug" -> "Reproduce it, then make the reproduction pass"
-- "Refactor X" -> "Same outputs before and after"
-
-For multi-step tasks, state a brief plan:
+For work with several steps, write the plan as steps with a check each:
 ```
-1. [Step] -> verify: [check]
-2. [Step] -> verify: [check]
+1. [step] -> check: [how]
+2. [step] -> check: [how]
 ```
 
-Before calling something done: run it, run the tests that exist, and run the linter/formatter.
+Before saying "done": run the code, then `make ci`.
 
-## 6. Data & Secrets
+## 6. Data and secrets
 
-- Never commit secrets, API keys or `.env` files.
-- The challenge dataset is synthetic, but check size before committing data files; ask before adding anything large to git.
-- Strip notebook outputs before committing notebooks.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+- Secrets, API keys and `.env` files never go into git.
+- The challenge dataset is synthetic, but it stays out of git anyway (`data/` is ignored). Ask before committing any large file.
+- Notebooks are committed without outputs (`make install` sets up the stripper).
