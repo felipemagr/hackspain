@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect notebook test test-quick lint format quality ci clean
+.PHONY: help install inspect clean-data notebook test test-quick lint format quality ci clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -12,6 +12,9 @@ install: ## Install dependencies and the notebook output stripper
 # Data
 inspect: ## Print shape and dtypes of every CSV in data/raw
 	uv run python -m xray.data
+
+clean-data: ## Clean data/raw and write parquet tables to data/processed
+	uv run python -m xray.clean
 
 notebook: ## Register the project venv as a Jupyter kernel
 	uv run python -m ipykernel install --user --name xray --display-name "xray"
