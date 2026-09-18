@@ -216,15 +216,21 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Score, level and trend | `src/xray/score.py` |
 | Named driver decomposition | `src/xray/explain.py` |
 | Bump vs fall, alerting | `src/xray/monitor.py` |
+| Alert delivery to Slack | `src/xray/notify.py` |
 | Limit, price, ranked actions | `src/xray/offer.py` |
 | Hidden-test predictions for the leaderboard | `src/xray/submit.py` |
+| Precomputed results the demo reads | parquet in `data/serving/`, written by the pipeline, read by the API through in-memory DuckDB |
 | API for the demo | `src/xray/api/` (see `.claude/rules/api-design.md`) |
+| Runtime settings from `.env`, `XRAY_` prefix | `src/xray/settings.py`, `.env.example` |
+| API container, CI | `Dockerfile` (target `api`), `docker-compose.yml`, `.github/workflows/ci.yml` |
 | Demo front end | to be decided, deployed, not localhost-only |
 | Reproducible build on any laptop | `Dockerfile`, `make docker-build`, `make docker-pipeline` |
 
 The model team codes against `data/processed/panel_group.parquet`: 250 groups x 24 months, every
 column computed from data at or before that month. Check `has_erp` before touching the invoice
 columns, and `is_covered` before reading a level.
+
+Score design and data constraints: `docs/health-score-research.md`. Infrastructure flow: `docs/infra.md`.
 
 ---
 
@@ -234,6 +240,12 @@ columns, and `is_covered` before reading a level.
   group**, never by row or by month, to mimic the hidden test.
 - **No look-ahead.** A feature for month `t` uses only data up to `t`. `balances.csv` is a final
   snapshot at 1 Sep 2026, so it is month-24 information only and cannot feed any earlier month.
+- **Debt fields are extraction-time too.** `debt_products.outstanding`, `granted` and `liquidity`
+  describe 1 Sep 2026. For month `t` use the dated debt flows in transactions.
+- **Monthly balances are reconstructed backwards**: final balance minus the flows after `t`, per
+  account.
+- **Invoices cover 167 of 250 groups.** Invoice pillars are optional and weights renormalise; the
+  score works on transactions alone.
 - **Every score decomposes into named drivers.** No black box: the explanation layer is a graded
   deliverable, not a nice-to-have.
 - **Separate level from trend**, and a one-month dip from a sustained move. The monitor depends on
@@ -254,18 +266,23 @@ guessing.
    in the scoring script settles it. Until then assume groups.
 2. **What is the target and the leaderboard metric?** The brief never names either. The scoring
    script lands Friday. Everything about model choice waits for this.
-3. **Is there a label at all, or is the score unsupervised?** "empresas sin resultado" implies
-   there is a ground-truth result per company. Find out what it is.
+3. **What is the ground-truth result?** No file in the dataset carries a label, so the score is a
+   fixed-rule scorecard validated on proxy events. "empresas sin resultado" implies the scoring
+   script holds a result per company. Find out what it is.
 4. **Who exactly is the buyer, in their reading?** The brief says both "the company that hands you
    the data" (Embat) and "the company that generates the data, which is the first one interested in
    knowing what it says about it" (the SME). Our answer covers both: Embat pays, the SME uses. Say
    it that way in the pitch.
-5. **Per-month scores or only the final month?** Trajectory is mandatory, so we produce all 24
+5. **Which way does `exchange_rate` convert?** Multiply or divide to reach the company currency.
+   Needed before summing a multi-currency group.
+6. **What does `accounting_status = DISCARDED` mean?** 308k transactions. If they are rejected
+   movements they leave operating flow.
+7. **Per-month scores or only the final month?** Trajectory is mandatory, so we produce all 24
    either way, but the submission may only take one.
-6. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
+8. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
    positive as receivable and negative as payable, which gives a plausible 13-day median DSO and
    21-day DPO, but confirm it before the score depends on it.
-7. **Does the open-invoice book need a censoring correction?** An invoice never paid inside the
+9. **Does the open-invoice book need a censoring correction?** An invoice never paid inside the
    window stays open forever, so `ar_overdue_ratio` drifts from 0.21 to 0.78 across the 24 months
    for everyone. Part real, part an artifact of a 24-month window. Compare each group against the
    cross-sectional median for that month rather than against its own past level.

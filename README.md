@@ -87,6 +87,11 @@ make inspect     # shape, columns and dtypes of every table found
 make test
 make quality     # ruff check + format check
 make format
+
+cp .env.example .env   # optional: Slack webhook, CORS origins, port
+make api         # API with reload on http://localhost:8000 (docs at /docs)
+make api-up      # same API in Docker, reads data/serving/*.parquet
+make slack-test  # send a test alert to the Slack webhook
 ```
 
 ## Repo layout
@@ -95,12 +100,18 @@ make format
 src/xray/
   config.py        paths and table names
   data.py          CSV loading, date parsing
+  settings.py      runtime settings from .env (XRAY_ prefix)
+  notify.py        Slack alert delivery
+  api/             FastAPI demo backend
 tests/             lean pytest suite
 notebooks/         exploration only, outputs stripped on commit
 data/raw/          the dataset (git-ignored)
 data/processed/    derived tables (git-ignored)
+data/serving/      parquet written by the pipeline, read by the API (git-ignored)
 .claude/rules/     coding, testing, API and commit conventions
 ```
+
+Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/infra.md). The score design is in [`docs/health-score-research.md`](docs/health-score-research.md).
 
 Planned modules: `features` → `score` → `explain` → `monitor` → `offer` → `api`, plus the demo front end.
 
