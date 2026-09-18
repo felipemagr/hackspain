@@ -53,6 +53,7 @@ Bonus:
 - No leakage from the future: a feature for month `t` uses only data up to `t`. `balances.csv` is a final snapshot, so treat it as month-24 information only.
 - Every score must be decomposable into named drivers so it can be explained.
 - Distinguish level from trend, and a one-month dip from a sustained move.
+- Before working on features, scoring, explanation or the monitor, read `docs/health-score-research.md`: data constraints (no labels, snapshot fields, invoice coverage), the pillar design, anchors, state rules and the validation plan.
 
 ## Working rules
 
