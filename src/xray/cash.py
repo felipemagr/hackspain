@@ -91,9 +91,12 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> pd.DataFrame:
         left join flow fl on fl.product_id = f.product_id and fl.month = m.month
         left join total t on t.product_id = f.product_id
     ),
+    -- Visibility into the cash series starts with the first movement on a cash account, not
+    -- with the company's first transaction anywhere: a card-only month tells us nothing here.
     first_activity as (
-        select company_id, min(month)::date as first_month
-        from read_parquet('{processed_dir / "transactions.parquet"}')
+        select t.company_id, min(t.month)::date as first_month
+        from read_parquet('{processed_dir / "transactions.parquet"}') t
+        join accounts using (product_id)
         group by 1
     )
     select

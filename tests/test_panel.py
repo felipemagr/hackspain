@@ -1,7 +1,18 @@
+from pathlib import Path
+from typing import NamedTuple
+
 import pandas as pd
 import pytest
 
 from xray.panel import build
+
+
+class Dirs(NamedTuple):
+    """The staging and mart directories ``build`` reads."""
+
+    staging: Path
+    marts: Path
+
 
 M1, M2, M3 = "2024-09-01", "2024-10-01", "2024-11-01"
 
@@ -25,7 +36,7 @@ def _write(tmp_path, companies, transactions, invoices, cash=None):
             [], columns=["company_id", "month", "cash", "n_cash_accounts", "cash_is_extrapolated"]
         )
     cash.to_parquet(marts / "cash_monthly.parquet", index=False)
-    return staging, marts
+    return Dirs(staging, marts)
 
 
 def _tx(company_id, month, amount, category="payment"):
@@ -96,7 +107,7 @@ class TestNoLeakage:
         full = build(*one_company)["panel_group"].set_index("month").loc[cutoff]
 
         month_end = pd.Timestamp(cutoff) + pd.offsets.MonthEnd(0)
-        staging = one_company[0]
+        staging = one_company.staging
         tx = pd.read_parquet(staging / "transactions.parquet")
         inv = pd.read_parquet(staging / "invoices.parquet")
         tx[tx["month"] <= month_end].to_parquet(staging / "transactions.parquet", index=False)

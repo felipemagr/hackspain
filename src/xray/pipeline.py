@@ -1,10 +1,14 @@
 """Run the whole pipeline: raw CSVs to the marts.
 
-Three layers, each depending only on the one above it:
+Three layers, each reading only the layer above it:
 
     data/raw        the nine source CSVs, never modified
     data/processed  staging, one parquet per source table   (xray.clean)
     data/marts      business-facing tables + _lineage.json  (xray.cash, xray.panel)
+
+Inside the mart layer the order matters: `cash_monthly` is built first because the panels read it.
+`_lineage.json` records that edge, so the build order is derivable from the data rather than only
+from this docstring.
 """
 
 from xray import cash, clean, panel

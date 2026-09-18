@@ -29,7 +29,7 @@ def _git_commit() -> str:
             text=True,
             check=True,
         )
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
+    except (subprocess.CalledProcessError, OSError) as e:
         logger.warning("Could not read the git commit, recording it as unknown: %s", e)
         return "unknown"
     return result.stdout.strip()

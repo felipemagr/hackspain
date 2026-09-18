@@ -116,9 +116,10 @@ knew at the end of that month.
 | `is_covered` | bool | At least one transaction this month |
 | `months_observed` | float | Covered months so far |
 | `n_tx`, `n_counterparties` | float | Bank activity |
-| `cash` | float | Reconstructed closing balance, checking and saving only |
-| `runway_months` | float | `cash / outflow`. Negative when overdrawn |
-| `cash_is_extrapolated` | bool | Month precedes the first transaction, so cash is a flat estimate |
+| `cash` | float | Reconstructed closing balance, checking and saving only. Null when unknown |
+| `has_cash` | bool | A cash account was found. False for 20 companies, 480 rows |
+| `runway_months` | float | `cash / outflow`. Negative when overdrawn, null when `has_cash` is false |
+| `cash_is_extrapolated` | bool | Month precedes the first cash-account movement, so cash is a flat estimate |
 | `inflow`, `outflow`, `net_flow` | float | Money in, out, and the difference |
 | `salary_outflow`, `tax_outflow`, `debt_repayment_outflow`, `fee_outflow` | float | Outflow by category |
 | `inflow_3m`, `net_flow_3m`, `inflow_mom` | float | Trend, not level |
@@ -158,8 +159,9 @@ practical consequence is that the truncation test does not constrain `cash`, so 
 separately in `tests/test_cash.py` against a hand-built series.
 
 Two limits, both flagged in the data rather than hidden. Before a company's first transaction the
-series is flat at the implied opening balance, marked by `cash_is_extrapolated`, which is 27.6% of
-company-months. And the roll-back uses cleaned transactions, so the level carries a small error
+series is flat at the implied opening balance, marked by `cash_is_extrapolated`, which is 27.8% of
+company-months. Twenty companies have no cash account at all: their `cash` is null and `has_cash`
+is false, never zero, because "no account" and "no money" must not look alike to a score. And the roll-back uses cleaned transactions, so the level carries a small error
 from the rows `clean.py` drops. Ranking within a month is unaffected, which is what the score uses.
 
 Only checking and saving accounts count. Cards are a liability, and TPV accounts sweep to zero and

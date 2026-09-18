@@ -85,6 +85,7 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
     ),
     tx as (select * from read_parquet('{tx_path}')),
     inv as (select * from read_parquet('{inv_path}')),
+    cash as (select * from read_parquet('{cash_path}')),
     tx_month as (
         select
             company_id,
@@ -139,7 +140,6 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         where payment_date is not null and payment_date >= issuance_date
         group by 1, 2
     ),
-    cash as (select * from read_parquet('{cash_path}')),
     inv_issued as (
         select
             company_id,
@@ -170,7 +170,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(p.ap_paid_days, 0) as ap_paid_days,
         coalesce(i.n_invoices_issued, 0) as n_invoices_issued,
         coalesce(i.n_invoices_received, 0) as n_invoices_received,
-        coalesce(ch.cash, 0) as cash,
+        ch.cash as cash,
+        ch.cash is not null as has_cash,
         coalesce(ch.cash_is_extrapolated, true) as cash_is_extrapolated
     from spine s
     left join tx_month t on t.company_id = s.company_id and t.month = s.month
@@ -203,7 +204,7 @@ def _finalize_sql(source: str, key: str) -> str:
         case when ar_collected > 0 then ar_collected_days / ar_collected end as dso_days,
         case when ap_paid > 0 then ap_paid_days / ap_paid end as dpo_days,
         case when outflow > 0 then inflow / outflow end as inflow_cover,
-        case when outflow > 0 then cash / outflow end as runway_months,
+        case when outflow > 0 and has_cash then cash / outflow end as runway_months,
         sum(case when is_covered then 1 else 0 end) over (
             {win} rows between unbounded preceding and current row
         ) as months_observed
@@ -233,6 +234,7 @@ def build(
             count(*) as n_companies,
             bool_or(has_erp) as has_erp,
             bool_or(is_covered) as is_covered,
+            bool_and(has_cash) as has_cash,
             bool_or(cash_is_extrapolated) as cash_is_extrapolated,
             {additive}
         from ({base}) group by 1, 2
