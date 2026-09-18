@@ -4,14 +4,21 @@ version = "0.1.0"
 description = "Financial health score from a company's financial trail"
 requires-python = ">=3.12"
 dependencies = [
-    "duckdb>=1.1",
+    "duckdb>=1.5.5",
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.15.0",
+    "uvicorn[standard]>=0.53.0",
+]
+
+[dependency-groups]
+# Batch pipeline only: kept out of the API image.
+pipeline = [
     "numpy>=2.0",
     "pandas>=2.2",
     "pyarrow>=25.0.1",
     "scikit-learn>=1.5",
 ]
-
-[dependency-groups]
 dev = [
     "ipykernel>=6.29",
     "matplotlib>=3.11.2",
@@ -19,6 +26,9 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
 ]
+
+[tool.uv]
+default-groups = ["dev", "pipeline"]
 
 [build-system]
 requires = ["hatchling"]
