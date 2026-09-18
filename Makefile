@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data panel pipeline notebook docker-build docker-pipeline \
+.PHONY: help install inspect clean-data panel pipeline sql notebook docker-build docker-pipeline \
         test test-quick lint format quality ci clean
 
 RAW_DIR ?= data/raw
@@ -43,6 +43,9 @@ docker-pipeline: ## Run the pipeline in Docker over ./data/raw
 		-v "$(PWD)/$(RAW_DIR):/data/raw:ro" \
 		-v "$(PWD)/$(PROCESSED_DIR):/data/processed" \
 		$(IMAGE)
+
+sql: ## Open a DuckDB shell with views over data/processed
+	duckdb -init .duckdbrc
 
 notebook: ## Register the project venv as a Jupyter kernel
 	uv run python -m ipykernel install --user --name xray --display-name "xray"

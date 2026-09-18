@@ -1,0 +1,10 @@
+-- Short names for the parquet tables. Views cost nothing: each query reads the file.
+create or replace view panel         as select * from 'data/processed/panel_group.parquet';
+create or replace view panel_company as select * from 'data/processed/panel_company.parquet';
+create or replace view transactions  as select * from 'data/processed/transactions.parquet';
+create or replace view invoices      as select * from 'data/processed/invoices.parquet';
+create or replace view companies     as select * from 'data/processed/companies.parquet';
+create or replace view groups        as select * from 'data/processed/groups.parquet';
+create or replace view balances      as select * from 'data/processed/balances.parquet';
+create or replace view debt          as select * from 'data/processed/debt_products.parquet';
+.prompt 'xray> '
