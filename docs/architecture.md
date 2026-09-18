@@ -182,11 +182,15 @@ One image, built from the repo, with the raw data mounted rather than baked in: 
 does not belong in an image.
 
 ```bash
-make docker-build      # build xray:latest
-make docker-pipeline   # run clean + panel over ./data/raw, write ./data/processed
+make docker-build      # build xray:latest, 754 MB, about 90 s cold
+make docker-pipeline   # run clean + panel over ./data/raw, write ./data/processed, 11 s
 ```
 
-The image carries no data, so it is small and rebuilds in seconds when only the source changes.
+Point it at a dump somewhere else with `make docker-pipeline RAW_DIR=output`.
+
+The image carries no data, so it rebuilds in seconds when only the source changes. `UV_NO_CACHE=1`
+keeps uv's download cache out of the layer, which is worth 480 MB. The 552 MB that remain are
+numpy, scipy, pandas, pyarrow and scikit-learn.
 The demo image, which is the one that matters in front of the jury, comes when the API lands: it
 bakes the processed parquet, which is a few MB, and needs no volume, no network and no database.
 Adding it is a second stage on this Dockerfile plus a `CMD`.
