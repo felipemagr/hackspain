@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data panel pipeline sql notebook docker-build docker-pipeline \
-        test test-quick lint format quality ci clean
+        api api-up api-down slack-test test test-quick lint format quality ci clean
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
@@ -49,6 +49,19 @@ sql: ## Open a DuckDB shell with views over data/processed
 
 notebook: ## Register the project venv as a Jupyter kernel
 	uv run python -m ipykernel install --user --name xray --display-name "xray"
+
+# API
+api: ## Run the API locally with reload on http://localhost:8000
+	uv run uvicorn xray.api.main:app --reload
+
+api-up: ## Start the API container in the background
+	docker compose up -d --build
+
+api-down: ## Stop the API container
+	docker compose down
+
+slack-test: ## Send a test alert to the Slack webhook in .env
+	uv run python -m xray.notify
 
 # Tests
 test: ## Run all tests

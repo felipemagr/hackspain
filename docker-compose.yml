@@ -1,0 +1,16 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    image: xray-api
+    ports:
+      - "${XRAY_PORT:-8000}:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      XRAY_SERVING_DIR: /app/data/serving
+    volumes:
+      - ./data/serving:/app/data/serving:ro
+    restart: unless-stopped
