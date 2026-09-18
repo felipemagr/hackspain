@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Secrets
+.env
+.env.*
+
+# Data: the dataset stays out of git, only the folders are tracked
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+
+# Local
+.DS_Store
+.claude/settings.local.json
