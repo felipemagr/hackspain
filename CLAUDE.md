@@ -66,5 +66,6 @@ See `.claude/rules/`:
 - `testing-patterns.md`: lean, targeted tests.
 - `api-design.md`: FastAPI conventions for the demo backend.
 - `git-commits.md`: conventional commits.
+- `frontend-design.md`: UI work goes through the `impeccable` skill; which skill owns what and in which order.
 
 Keep time for the pitch: the demo counts as much as the product.
