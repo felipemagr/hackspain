@@ -132,13 +132,11 @@ DEMO_DIR := data/demo
 demo-data: ## Generate the synthetic Spanish scale-up dump (nine CSVs, invented figures) in data/demo/raw
 	uv run python -m xray.pipeline.synth --out $(DEMO_DIR)/raw
 
-# The named groups join the challenge groups in one portfolio: nothing disappears when the demo
-# starts. Without CSVs in RAW_DIR the portfolio is the synthetic one alone.
-demo: demo-data ## Live demo: the named synthetic groups join the portfolio and a month lands every PAUSE s into data/serving. make lighthouse first; make serve restores the challenge tables after
-	uv run python -m xray.pipeline.replay $(if $(wildcard $(RAW_DIR)/*.csv),--raw-dir $(RAW_DIR)) \
-		--raw-dir $(DEMO_DIR)/raw --lake-dir $(DEMO_DIR)/lake --reset \
-		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) --pause $(or $(PAUSE),8) \
-		$(if $(CHANNEL),--channel $(CHANNEL))
+# Companies connecting to the platform: the portfolio make lighthouse built stays as it is, the
+# named groups arrive on top of it in batches, each scored on the spot with its whole history.
+demo: demo-data ## Live demo: the named groups connect in BATCHES (2) arrivals GAP (20) s apart, on top of the current portfolio. make lighthouse first; make serve restores the tables after
+	uv run python -m xray.pipeline.onboard --new $(DEMO_DIR)/raw \
+		--batches $(or $(BATCHES),2) --gap $(or $(GAP),20) $(if $(CHANNEL),--channel $(CHANNEL))
 
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock

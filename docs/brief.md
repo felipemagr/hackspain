@@ -185,8 +185,10 @@ for:
 
 ### The demo, five minutes
 
-It runs live. `make lighthouse` brings the whole thing up in one terminal (data, API, web);
-`make replay FROM=2025-01 PAUSE=8 CHANNEL=slack` in a second one is started before walking on:
+It runs live. `make lighthouse` brings the whole thing up in one terminal (data, API, web).
+`make demo CHANNEL=slack` in a second one connects 24 named scale-ups to the portfolio in two
+arrivals, scored the second they land, with a Slack message naming each newcomer's state; or
+`make replay FROM=2025-01 PAUSE=8 CHANNEL=slack`, started before walking on:
 every eight seconds a month of data lands, the score is recomputed from what was known by then,
 the web refreshes on its own and the month's alerts arrive in the Slack channel on the projector.
 Nobody clicks anything to make the portfolio move.
@@ -232,7 +234,8 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |
-| Live demo: months land one at a time, the web and Slack follow | `src/xray/pipeline/replay.py` (`make replay`), `src/xray/pipeline/synth.py` (`make demo`, named Spanish scale-ups on synthetic trails), `serve.publish`, `api/routers/version.py`, `api/routers/tables.py`, polling in `web/src/App.tsx` |
+| Live demo: months land one at a time, the web and Slack follow | `src/xray/pipeline/replay.py` (`make replay`), `serve.publish`, `api/routers/version.py`, `api/routers/tables.py`, polling in `web/src/App.tsx` |
+| Live demo: named companies connect to the platform in batches and are scored on the spot | `src/xray/pipeline/synth.py` (the synthetic dump), `src/xray/pipeline/onboard.py` (`make demo`) |
 | Precomputed results the demo reads | parquet in `data/serving/`, written by `src/xray/scoring/serve.py` (`make serve`), read by the API through in-memory DuckDB |
 | API for the demo | `src/xray/api/`, one router per resource in `routers/` (see `.claude/rules/api-design.md`) |
 | Runtime settings from `.env`, `XRAY_` prefix | `src/xray/settings.py`, `.env.example` |
