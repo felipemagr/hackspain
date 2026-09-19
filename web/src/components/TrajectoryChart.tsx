@@ -317,7 +317,8 @@ export function TrajectoryChart({
 
           {config.type === "area" && <>
             <path d={areaPath(a)} fill="url(#wash)" />
-            {others.map(series => <path key={series.color} d={areaPath(series.vals)} fill={series.color} opacity={.06} />)}
+            {/* One comparison reads better with a wash under it; several washes overlap into mud. */}
+            {others.length === 1 && <path d={areaPath(others[0].vals)} fill={others[0].color} opacity={.06} />}
           </>}
 
           {config.type !== "bar" && <>

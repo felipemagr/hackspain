@@ -906,6 +906,7 @@ h1 {
 .section-title {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   gap: 2px;
 }
 
@@ -945,7 +946,7 @@ h2 {
 
 .compare {
   display: flex;
-  flex: 1;
+  flex: 1 1 340px;
   min-width: 0;
   align-items: center;
   justify-content: flex-end;
@@ -954,12 +955,12 @@ h2 {
 
 .legend {
   display: inline-flex;
-  flex: 0 0 auto;
-  flex-wrap: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 2px 12px;
-  white-space: nowrap;
   font-size: 12.5px;
   color: var(--ink-2);
 }
@@ -968,6 +969,7 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   padding: 2px 0;
   border: 0;
   background: none;
