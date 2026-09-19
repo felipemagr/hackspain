@@ -11,7 +11,22 @@ import type {
   State,
 } from "./types";
 
+// The API serves the live tables; the static JSON under /data is the build-time copy the site
+// falls back to when no API answers (the deployed static site, or the API asleep).
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+
+export interface Version {
+  build_id: string;
+  built_at: string;
+  as_of: string | null;
+  latest_month: string | null;
+  n_alerts: number | null;
+  tables: string[];
+}
+
 export interface Store {
+  /** Which build the tables came from; null when read from the static copy. */
+  version: Version | null;
   groups: GroupRow[];
   groupById: Map<string, GroupRow>;
   months: string[];
@@ -26,8 +41,21 @@ export interface Store {
   driversAt: (groupId: string, month: string) => DriverRow[];
 }
 
-async function fetchTable<T>(name: string): Promise<T[]> {
-  const res = await fetch(`/data/${name}.json`);
+/** The live build, or null when the API is not reachable. Cheap: the front end polls it. */
+export async function fetchVersion(): Promise<Version | null> {
+  try {
+    const res = await fetch(`${API_URL}/api/v1/version`, { signal: AbortSignal.timeout(2500) });
+    if (!res.ok) return null;
+    const v = (await res.json()) as Version;
+    return v.tables.includes("scores") ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchTable<T>(name: string, live: boolean): Promise<T[]> {
+  const url = live ? `${API_URL}/api/v1/tables/${name}` : `/data/${name}.json`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`table ${name}: ${res.status}`);
   return res.json() as Promise<T[]>;
 }
@@ -36,15 +64,16 @@ function byMonth<T extends { month: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((r) => [r.month, r]));
 }
 
-export async function loadStore(): Promise<Store> {
+export async function loadStore(version?: Version | null): Promise<Store> {
+  const live = version === undefined ? await fetchVersion() : version;
   const [groups, scores, alerts, offers, actions, companies, drivers] = await Promise.all([
-    fetchTable<GroupRow>("groups"),
-    fetchTable<ScoreRow>("scores"),
-    fetchTable<AlertRow>("alerts"),
-    fetchTable<OfferRow>("offers"),
-    fetchTable<ActionRow>("actions"),
-    fetchTable<CompanyRow>("companies"),
-    fetchTable<DriverRow>("drivers"),
+    fetchTable<GroupRow>("groups", !!live),
+    fetchTable<ScoreRow>("scores", !!live),
+    fetchTable<AlertRow>("alerts", !!live),
+    fetchTable<OfferRow>("offers", !!live),
+    fetchTable<ActionRow>("actions", !!live),
+    fetchTable<CompanyRow>("companies", !!live),
+    fetchTable<DriverRow>("drivers", !!live),
   ]);
 
   const norm = (m: string) => m.slice(0, 10);
@@ -125,6 +154,7 @@ export async function loadStore(): Promise<Store> {
   const alertsSorted = [...alerts].sort((a, b) => b.month.localeCompare(a.month));
 
   return {
+    version: live,
     groups,
     groupById,
     months,

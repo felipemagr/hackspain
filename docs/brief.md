@@ -185,6 +185,11 @@ for:
 
 ### The demo, five minutes
 
+It runs live. `make replay FROM=2025-01 PAUSE=8 CHANNEL=slack` is started before walking on:
+every eight seconds a month of data lands, the score is recomputed from what was known by then,
+the web refreshes on its own and the month's alerts arrive in the Slack channel on the projector.
+Nobody clicks anything to make the portfolio move.
+
 1. Open on Northbrook (45 -> 65) and Velasco (82 -> 68) side by side at month 24. Three points
    apart, opposite bets.
 2. Pull the trajectory. The two curves cross.
@@ -224,6 +229,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |
+| Live demo: months land one at a time, the web and Slack follow | `src/xray/pipeline/replay.py` (`make replay`), `serve.publish`, `api/routers/version.py`, `api/routers/tables.py`, polling in `web/src/App.tsx` |
 | Precomputed results the demo reads | parquet in `data/serving/`, written by `src/xray/scoring/serve.py` (`make serve`), read by the API through in-memory DuckDB |
 | API for the demo | `src/xray/api/`, one router per resource in `routers/` (see `.claude/rules/api-design.md`) |
 | Runtime settings from `.env`, `XRAY_` prefix | `src/xray/settings.py`, `.env.example` |
@@ -265,9 +271,9 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
   operating flows show it 11bn in deficit. Intragroup transfers were masking the deficit.
 - **The score is calibrated and validated against proxy events, never trained on them.** With
   ~244 labelable groups and ~50 positives, a fitted model would memorise the training groups.
-- **`cash_negative` is the event the data supports.** The level reaches 0.903 AUC against it on
-  held-out groups (bottom level quintile 49.7% forward negative cash, top 0.6%). `missed_payroll`
-  (0.586) and `inflow_collapse` (0.395) are not predictable from the financial trail and are
+- **`cash_negative` is the event the data supports.** The level reaches 0.906 AUC against it on
+  held-out groups (bottom level quintile 51.0% forward negative cash, top 0.6%). `missed_payroll`
+  (0.581) and `inflow_collapse` (0.406) are not predictable from the financial trail and are
   reported beside the score, not folded into it.
 - **Weights follow measured discrimination, not the opening guess.** Liquidity 0.40, payment
   discipline 0.20, cash generation 0.20, collections 0.10, debt burden 0.10. Only liquidity and
@@ -275,7 +281,7 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
   for the explanation and for whatever the hidden metric turns out to reward.
 - **Every flow indicator is a ratio of trailing sums**, never one month's ratio: margin over 6
   months, lateness over 3, growth as the 3-month run rate against the trailing 12. Monthly flows
-  swing several-fold for an ordinary group. This alone took the level from 4.07 to 2.70 median
+  swing several-fold for an ordinary group. This alone took the level from 4.07 to 2.68 median
   points of month-on-month change.
 - **Overdue invoices count only while under 90 days past due.** The open-book overdue ratio
   drifts towards 1 for every group because unpaid rows never close; the 90-day version is flat

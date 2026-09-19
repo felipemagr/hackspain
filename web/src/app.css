@@ -100,6 +100,35 @@ ol {
   padding: 20px 20px 16px;
 }
 
+/* Shown only when the tables come from the API, which republishes as months land. */
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--good-ink);
+}
+
+.live__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--good);
+  animation: live-pulse 1.6s var(--ease) infinite alternate;
+}
+
+@keyframes live-pulse {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .brand {
   display: flex;
   align-items: center;

@@ -1,12 +1,21 @@
-"""Assemble the serving tables the product reads, from the real score.
+"""Assemble the serving tables the product reads, from the real score, and publish them.
 
 One entry point turns the marts into the tables of `docs/serving-contract.md` and writes them to
 `data/serving`. Nothing here is invented: the level comes from `score`, direction and alerts from
 `monitor`, the decomposition from `explain`, the offer from `offer`. `mock.py` writes the same
 tables from made-up groups and retires once this runs.
+
+Publishing is a swap, not a write in place: the tables land in `.next/` and are moved over the
+live ones file by file, then `_version.json` is written last. A reader that polls the version
+therefore never fetches a set of tables older than the version it saw, and the API, whose DuckDB
+views re-read the parquet on every query, serves the new numbers without a restart.
 """
 
+import json
 import logging
+import os
+import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -23,6 +32,8 @@ logger = logging.getLogger(__name__)
 KEYS = ["group_id", "month"]
 MONTHS_PER_QUARTER = 3
 PILLARS = list(explain.PILLAR_WEIGHTS)
+VERSION_FILE = "_version.json"
+STAGING_DIR = ".next"
 
 # Serving name -> engine name, in the order the contract lists them.
 SCORE_COLUMNS = {
@@ -104,10 +115,17 @@ def build(
     marts_dir: Path = MARTS_DIR, processed_dir: Path = PROCESSED_DATA_DIR
 ) -> dict[str, pd.DataFrame]:
     """Every serving table, keyed by the file name it is written to."""
-    panel = pd.read_parquet(marts_dir / "panel_group.parquet")
-    panel_company = pd.read_parquet(marts_dir / "panel_company.parquet")
-    companies = pd.read_parquet(processed_dir / "companies.parquet")
+    return assemble(
+        pd.read_parquet(marts_dir / "panel_group.parquet"),
+        pd.read_parquet(marts_dir / "panel_company.parquet"),
+        pd.read_parquet(processed_dir / "companies.parquet"),
+    )
 
+
+def assemble(
+    panel: pd.DataFrame, panel_company: pd.DataFrame, companies: pd.DataFrame
+) -> dict[str, pd.DataFrame]:
+    """Every serving table from in-memory panels, for callers that never touch the marts."""
     scores = _with_panel(score(panel), panel)
     trajectory, alerts = detect(scores)
     scores = scores.merge(trajectory.drop(columns=["onset_month"]), on=KEYS)
@@ -129,14 +147,48 @@ def _rounded(table: pd.DataFrame) -> pd.DataFrame:
     return table.assign(**{c: table[c].round(2) for c in numeric})
 
 
-def main() -> None:
-    """Write every serving table to the configured serving directory."""
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    serving_dir = get_settings().serving_dir
-    serving_dir.mkdir(parents=True, exist_ok=True)
-    for name, table in build().items():
-        table.to_parquet(serving_dir / f"{name}.parquet", index=False)
+def publish(tables: dict[str, pd.DataFrame], serving_dir: Path, as_of: str | None = None) -> dict:
+    """Swap a new set of serving tables in and stamp the version.
+
+    Args:
+        tables: Output of ``build`` or ``assemble``.
+        serving_dir: The live serving directory the API reads.
+        as_of: Last month of data the build saw, ``YYYY-MM-DD``. Defaults to the last scored month.
+
+    Returns:
+        The version record written to ``_version.json``.
+    """
+    staging = serving_dir / STAGING_DIR
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True)
+    for name, table in tables.items():
+        table.to_parquet(staging / f"{name}.parquet", index=False)
+    for path in sorted(staging.glob("*.parquet")):
+        os.replace(path, serving_dir / path.name)
+    staging.rmdir()
+
+    scores = tables["scores"]
+    latest = scores["month"].max()
+    version = {
+        "build_id": datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%f"),
+        "built_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "as_of": as_of or latest.strftime("%Y-%m-%d"),
+        "latest_month": latest.strftime("%Y-%m-%d"),
+        "n_groups": int(scores["group_id"].nunique()),
+        "n_alerts": int(len(tables["alerts"])),
+        "tables": sorted(tables),
+    }
+    (serving_dir / VERSION_FILE).write_text(json.dumps(version, indent=2) + "\n")
+    for name, table in tables.items():
         logger.info("%-10s %6d rows -> %s", name, len(table), serving_dir / f"{name}.parquet")
+    logger.info("published build %s, data as of %s", version["build_id"], version["as_of"])
+    return version
+
+
+def main() -> None:
+    """Build every serving table and publish it to the configured serving directory."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    publish(build(), get_settings().serving_dir)
 
 
 if __name__ == "__main__":

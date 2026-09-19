@@ -8,7 +8,8 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from xray.api.routers import alerts, chat, client_errors, health
+from xray.api.db import refresh_views
+from xray.api.routers import alerts, chat, client_errors, health, tables, version
 from xray.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -22,10 +23,7 @@ async def lifespan(app: FastAPI):
     # The API starts with zero tables so the container can run before the pipeline has.
     app.state.db = duckdb.connect()
     app.state.tables = []
-    for path in sorted(settings.serving_dir.glob("*.parquet")):
-        app.state.db.sql(f"create view {path.stem} as select * from '{path}'")
-        app.state.tables.append(path.stem)
-    if not app.state.tables:
+    if not refresh_views(app):
         logger.warning("No parquet tables found in %s", settings.serving_dir)
     yield
     app.state.db.close()
@@ -50,6 +48,8 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
 
 
 app.include_router(health.router)
+app.include_router(version.router)
+app.include_router(tables.router)
 app.include_router(alerts.router)
 app.include_router(chat.router)
 app.include_router(client_errors.router)

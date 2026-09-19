@@ -132,7 +132,11 @@ def clean_debt_schedule(schedule: pd.DataFrame) -> pd.DataFrame:
 
 def build(raw_dir: Path = RAW_DATA_DIR) -> dict[str, pd.DataFrame]:
     """Clean every table found in ``raw_dir``, keyed by table name."""
-    raw = load_all(raw_dir)
+    return build_from(load_all(raw_dir))
+
+
+def build_from(raw: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Clean raw tables already in memory, keyed by table name."""
     companies = clean_companies(raw["companies"])
     currencies = product_currencies(raw["banking_products"], raw["debt_products"])
     clean = {
