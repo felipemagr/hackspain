@@ -196,7 +196,7 @@ async function init() {
     const result = await response.json();
     if (!result.available) {
       $("group-count").textContent = "Sin datos calculados";
-      showStatus("Aún no hay scores reales. Ejecuta «make score» en la raíz del proyecto y reinicia la API.");
+      showStatus("Aún no hay scores reales. Ejecuta «make score-baseline» en la raíz del proyecto y reinicia la API.");
       return;
     }
     groups = result.data;

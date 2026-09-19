@@ -1,0 +1,30 @@
+{
+  "key": "sector Mobility Spain",
+  "stored_at": "2026-09-19T10:24:19.845064+00:00",
+  "payload": {
+    "report": {
+      "agent": "sector",
+      "summary": "Mobility in Spain, mixed. Spanish mobility demand indicators are broadly positive: new-car registrations grew 7.5% year-on-year in February 2026 and vehicle renting grew 8.04% to 1,063,492 vehicles in H1 2026, while electrification consolidates. However, there is sector-wide financial pressure: deferred purchase-incentive funding (MOVES III/Flotas) is stalling fleet-renewal deals, consumer car-purchase spending fell 11%, running costs exceed 200 euros/month, and public transport faces a structural financing challenge under the new Mobility Law. The mixed sector backdrop means Cabify's improved score cannot be clearly attributed to a sector-wide tailwind; the gains in debt burden, liquidity and payment discipline look more company-specific.",
+      "findings": [
+        "Car ownership running costs in Spain exceed 200 euros per month, and only 19% of non-owners expect to buy a car in the future, per Amovens' 2026 mobility study. [seen 2026-07-31, hurts]",
+        "Delays in approving and funding the MOVES III, MOVES Flotas and Auto+ purchase-incentive plans are holding up thousands of purchase and renting operations and complicating fleet renewal in Spain. [seen 2026-07-30, hurts]",
+        "Vehicle renting in Spain grew 8.04% year-on-year to 1,063,492 vehicles at the close of H1 2026, with self-employed drivers leading the growth. [seen 2026-07-16, helps]",
+        "Spain's car market reached 1,148,650 registrations in 2025, the best figure since the pandemic, but financing the market has become much more complex as renting now accounts for one in four registrations. [seen 2026-06-23, helps]",
+        "Public transport in Spain faces a structural financial challenge driven by the ecological transition and the new Sustainable Mobility Law and European regulatory framework, per Afi consultant Ricardo Pedraz in June 2026. [seen 2026-06-03, hurts]",
+        "Consumer spending on car purchases in Spain fell 11% in the year to 2026, with greater price sensitivity and a shift toward used vehicles, while electric-vehicle purchase intent gained 5 points. [seen 2026-04-07, hurts]",
+        "Spain's new-car market grew 7.5% year-on-year in February 2026 with 97,082 registrations, its second consecutive month of growth. [seen 2026-03-04, helps]",
+        "Electric mobility consolidated in Spain in 2025 and enters a decisive maturity phase in 2026, positioned as key to industrial competitiveness, per AEDIVE's 2025-2026 yearbook. [seen 2026-02-24, helps]"
+      ],
+      "sources": [
+        "https://autovista24.autovistagroup.com/news/spains-new-car-market-remains-strong-as-new-incentives-take-shape/",
+        "https://carrilbus.com/el-transporte-publico-encara-un-reto-financiero-estructural-ante-la-ley-de-movilidad-sostenible",
+        "https://economia3.com/2026/07/16/758324-el-renting-de-vehiculos-crece-un-8-en-espana-y-son-los-autonomos-quienes-protagonizan-el-impulso/",
+        "https://elobservatoriocetelem.es/el-gasto-en-compra-de-coches-baja-un-11-en-el-ultimo-ano-y-el-electrico-gana-5-puntos-en-intencion-de-compra/",
+        "https://renting-automocion.com/el-coste-del-retraso-las-ayudas-a-la-compra-vuelven-a-frenar-el-mercado-del-automovil-y-complican-la-renovacion-de-flotas/",
+        "https://www.abc.es/motor/economia/coste-mantener-coche-supera-200-euros-mensuales-20260731111501-nt.html",
+        "https://www.provenir.com/es/whitepaper-financiacion-automoviles-espana/",
+        "https://www.smartgridsinfo.es/2026/02/24/movilidad-electrica-consolida-espana-2025-entra-fase-decisiva-madurez-2026"
+      ]
+    }
+  }
+}

@@ -1,8 +1,11 @@
 """The seam where a language model plugs in, and the client we use behind it."""
 
+import json
+from collections.abc import Iterator
 from typing import Protocol
 
 import httpx
+from pydantic import BaseModel
 
 from xray.settings import Settings
 
@@ -16,35 +19,65 @@ class LLM(Protocol):
 class OpenAICompatibleLLM:
     """Chat completions over any OpenAI-compatible endpoint. Helmcode by default."""
 
-    def __init__(self, api_key: str, model: str, base_url: str):
+    def __init__(
+        self, api_key: str, model: str, base_url: str, reasoning_effort: str | None = None
+    ):
         self.api_key = api_key
         self.model = model
         self.base_url = base_url.rstrip("/")
+        self.reasoning_effort = reasoning_effort
 
-    def complete(self, system: str, user: str) -> str:
-        response = httpx.post(
+    def stream(self, system: str, user: str) -> Iterator[str]:
+        """The answer piece by piece. Always streamed: Helmcode drops a connection that stays
+        silent while a reasoning model thinks for more than a minute."""
+        body = {
+            "model": self.model,
+            "temperature": 0.2,
+            "stream": True,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
+        with httpx.stream(
+            "POST",
             f"{self.base_url}/chat/completions",
             headers={"Authorization": f"Bearer {self.api_key}"},
-            json={
-                "model": self.model,
-                "temperature": 0.2,
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            },
+            json=body,
             timeout=REQUEST_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line.startswith("data:") or line.endswith("[DONE]"):
+                    continue
+                choices = json.loads(line.removeprefix("data:"))["choices"]
+                if choices and (text := choices[0]["delta"].get("content")):
+                    yield text
+
+    def complete(self, system: str, user: str) -> str:
+        return "".join(self.stream(system, user))
 
 
-def build_llm(settings: Settings) -> LLM | None:
-    """The configured model, or None when no key is set so agents fall back to raw output."""
+def complete_json[T: BaseModel](llm: LLM, system: str, user: str, schema: type[T]) -> T:
+    """Ask for JSON and validate it. Models wrap JSON in a code fence even when told not to."""
+    text = llm.complete(system, user).strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
+    return schema.model_validate_json(text.strip())
+
+
+def build_llm(settings: Settings, reasoning_effort: str | None = None) -> LLM | None:
+    """The configured model, or None when no key is set so agents fall back to raw output.
+
+    `reasoning_effort="low"` is for the chat: first token in about 3 s instead of 25 s.
+    """
     if not settings.helmcode_api_key:
         return None
     return OpenAICompatibleLLM(
         api_key=settings.helmcode_api_key,
         model=settings.llm_model,
         base_url=settings.helmcode_base_url,
+        reasoning_effort=reasoning_effort,
     )

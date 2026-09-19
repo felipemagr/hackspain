@@ -1,6 +1,6 @@
 # First real score baseline
 
-Run `make score` after the raw CSVs are in `data/raw`. It builds the monthly panel and writes
+Run `make score-baseline` after the raw CSVs are in `data/raw`. It builds the monthly panel and writes
 `data/marts/real_scores.parquet` and `real_drivers.parquet`. The demo still reads its separate mock
 serving tables; this baseline does not replace them.
 

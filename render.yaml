@@ -1,0 +1,41 @@
+# Render Blueprint: New > Blueprint > pick this repo. Both services are free, no card.
+services:
+  # The demo. Static on a CDN, never sleeps. Reads web/public/data/*.json (run `make web-data`
+  # and commit after the serving tables change).
+  - type: web
+    name: xray
+    runtime: static
+    rootDir: web
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # Vite bakes it in at build time: the Agents tab calls the API, nothing else does.
+      - key: VITE_API_URL
+        value: https://xray-api-w2uy.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  # The API. Free instances sleep after 15 min idle and take about a minute to wake.
+  - type: web
+    name: xray-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    # One deploy per push, and only once GitHub Actions is green.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: XRAY_ENV
+        value: prod
+      # Only the Agents chat needs these. Set the values in the Render dashboard.
+      - key: HELMCODE_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: XRAY_CORS_ORIGINS
+        value: '["https://xray-b5hv.onrender.com"]'

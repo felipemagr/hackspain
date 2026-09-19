@@ -27,7 +27,7 @@ flowchart LR
     end
 
     SERV ==>|"mounted (local)<br/>baked in (deploy)"| API
-    API -->|JSON /api/v1| FRONT["demo front end<br/>(not chosen yet)"]
+    API -->|JSON /api/v1| FRONT["demo front end<br/><code>web/</code>"]
     SCORE -.->|"state change:<br/>Bending, Falling, Improving"| SLACK["Slack webhook<br/><code>xray.integrations.slack</code>"]
     SCORE -.-> SUB["hidden-test<br/>predictions"]
 
@@ -35,8 +35,8 @@ flowchart LR
     classDef built fill:#064e3b,stroke:#34d399,color:#f9fafb
     classDef todo fill:#3f3f46,stroke:#a1a1aa,color:#e4e4e7,stroke-dasharray:4 3
     class RAW,PROC,SERV store
-    class CLEAN,FEAT,API,SLACK built
-    class SCORE,FRONT,SUB todo
+    class CLEAN,FEAT,SCORE,SUB,API,SLACK built
+    class FRONT todo
 ```
 
 Green is built, dashed grey is still to come, blue is data at rest.
@@ -48,6 +48,8 @@ The contract between the two halves is **one folder**: `data/serving/*.parquet`.
 | Piece | Runs on | Started with | Needs |
 |---|---|---|---|
 | Pipeline (clean, panel, then score) | laptop with `uv`, or Docker | `make panel`, `make pipeline`, `make docker-pipeline` | `pipeline` dependency group (pandas, pyarrow, scikit-learn) |
+| Score, alerts, serving tables | laptop with `uv`, or Docker | `make score`, `make monitor`, `make serve` | same |
+| Hidden-test submission | laptop with `uv`, or Docker | `make submit RAW=path/to/csvs` | same |
 | API, dev mode | laptop, `uv` | `make api` (auto-reload, docs at `/docs`) | core dependencies only |
 | API, container | Docker, target `api` | `make api-up` / `make api-down` | Docker |
 | Alerts | wherever the pipeline runs | `make slack-test` to try it | `XRAY_SLACK_WEBHOOK_URL` |
@@ -91,7 +93,7 @@ Everything is read by `src/xray/settings.py` with the `XRAY_` prefix. Precedence
 
 ## The images
 
-One `Dockerfile`, two targets. `pipeline` is the default (`make docker-build`, documented in `architecture.md` section 10). `api` is what compose builds, in two stages from the lockfile:
+One `Dockerfile`, two targets. `pipeline` is built with `make docker-build` (`--target pipeline`, documented in `architecture.md` section 10). `api` is the last stage, so it is what a plain `docker build .` produces: Render cannot pick a target and builds the last one. Compose builds it too, in two stages from the lockfile:
 
 1. **builder**: installs dependencies (cached layer, rebuilt only when `uv.lock` changes), then the package.
 2. **runtime**: `python:3.12-slim`, the virtualenv copied over, a non-root user, a `HEALTHCHECK` on `/health`, and `uvicorn` listening on `$PORT` (hosts inject it) or 8000.
@@ -110,10 +112,27 @@ flowchart LR
     B --> OK
 ```
 
-Both jobs run in parallel and use no secrets. CD is deliberately absent until a host is chosen; Render deploys from git by itself, so it may never be needed.
+Both jobs run in parallel and use no secrets. There is no CD job: the API has `autoDeployTrigger: checksPass` in `render.yaml`, so Render deploys a push to `main` once these checks are green. The static site deploys on every push.
 
-## Still open
+## Deploy: Render, free, no card
 
-- **Serving schema**: the parquet files in `data/serving/` (scores, drivers, alerts per group and month). Decide it together with the first routes, then write it here.
-- **Host for the API**: Render (free, sleeps after 15 min, needs a keep-warm ping before the demo) or Cloud Run (free tier, fast cold start, needs a card).
-- **Front end**: not chosen. Vercel only fits if it ends up being Next.js.
+`render.yaml` at the repo root is a Blueprint with two services. In Render: New > Blueprint, pick the repo, apply.
+
+| Service | What | Sleeps |
+|---|---|---|
+| `xray` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
+| `xray-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
+
+- The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables or the agent cache change, run `make publish` (re-exports the JSON and stages what Render serves), then commit and push.
+- `data/serving/context/*.json` (agent context cache) is in git for the same reason: a git build has no other way to get it.
+- Only the Agents chat needs secrets: set `HELMCODE_API_KEY`, `EXA_API_KEY` and `TAVILY_API_KEY` on
+  `xray-api` in the Render dashboard (`sync: false` in `render.yaml`). The static site gets the
+  API address at build time through `VITE_API_URL`; locally it defaults to `http://localhost:8000`.
+- Nothing else on the API needs secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
+- Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
+- Fallback on stage: `make api-up` plus `cloudflared tunnel --url http://localhost:8000`.
+
+## Serving schema
+
+`docs/serving-contract.md`. Written by `make serve` from the real score; `make web-data` re-exports it as JSON for the static front end.
+

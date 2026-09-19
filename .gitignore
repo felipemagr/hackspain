@@ -21,8 +21,18 @@ data/lake/*
 data/serving/*
 # Serving tables are a few hundred KB and everyone builds the product against the same ones
 !data/serving/*.parquet
+# Cached agent context: the deployed API has no other way to get it
+!data/serving/context/
+!data/serving/context/*.json
 !data/**/.gitkeep
 output/
+
+# Web demo
+web/node_modules/
+web/dist/
+
+# Impeccable working files
+.impeccable/
 
 # Local
 .DS_Store

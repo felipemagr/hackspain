@@ -1,9 +1,15 @@
-"""The score engine, computed over the panel and written to data/serving for the API.
+"""The score engine, computed over the panel and written to data/marts and data/serving.
 
-Planned modules, one deliverable each:
-- score: level and trend per group per month
+- anchors: the breakpoint table every indicator maps through, and the pillar weights
+- events: proxy distress labels, the ruler the score is calibrated and measured against
+- score: indicators, pillars and the level per group per month (or per company)
+- validate: discrimination, trajectory, stability and pillar ablation, split by group
+- trend: smoothing, slope, CUSUM state machine over a level series
+- monitor: jumps and sustained shifts on the level, the alert feed
+- notify: alert rows to Slack or email messages, idempotent
 - explain: additive driver decomposition, what moved since last month
-- monitor: bump vs fall, when to raise an alert
 - offer: working-capital limit, price and ranked actions
-- submit: predictions for the hidden test
+- serve: assemble every serving table from the real score
+- submit: score a directory of CSVs the system has never seen
+- mock: invented serving tables, kept for the product to develop against archetypes
 """

@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from xray.config import WINDOW_FIRST_MONTH, WINDOW_LAST_MONTH
+from xray.scoring.monitor import detect
 from xray.settings import get_settings
 
 SEED = 2026
@@ -23,10 +24,7 @@ WEIGHTS = {
 }
 PILLARS = list(WEIGHTS)
 INVOICE_PILLARS = ["payment_discipline", "collections"]
-MIN_HISTORY = 6
 COUNTRIES = ["ES", "ES", "PT", "FR", "IT"]
-# Compound score: the level projected this many months along its trend.
-HORIZON_MONTHS = 4
 
 # archetype -> (n groups, start level range, total level shift range)
 ARCHETYPES = {
@@ -110,11 +108,6 @@ ACTIONS = {
 }
 
 
-def _theil_sen(y: np.ndarray) -> float:
-    i, j = np.triu_indices(len(y), k=1)
-    return float(np.median((y[j] - y[i]) / (j - i)))
-
-
 def _pillar_paths(
     rng, archetype: str, start: float, shift: float, onset: int, width: float
 ) -> pd.DataFrame:
@@ -153,37 +146,6 @@ def _level(pillars: pd.DataFrame) -> pd.DataFrame:
     return out.join(contrib.add_prefix("contrib_"))
 
 
-def _states(level: np.ndarray) -> pd.DataFrame:
-    """Trend, robust CUSUM in both directions and the state table of the research doc."""
-    rows, s_dn, s_up, zero_dn, zero_up = [], 0.0, 0.0, 0, 0
-    down = up = False
-    for t in range(len(level)):
-        if t + 1 < MIN_HISTORY:
-            rows.append((np.nan, "not_enough_data", None))
-            continue
-        changes = np.diff(level[: t + 1])
-        sigma = max(1.4826 * np.median(np.abs(changes - np.median(changes))), 1.5)
-        ref = np.median(level[max(0, t - 12) : t])
-        # Deviation clipped at 2 sigma so one outlier month cannot raise the alarm alone.
-        dev = np.clip((ref - level[t]) / sigma, -2, 2)
-        s_dn, s_up = max(0.0, s_dn + dev - 0.75), max(0.0, s_up - dev - 0.75)
-        zero_dn, zero_up = (t if s_dn == 0 else zero_dn), (t if s_up == 0 else zero_up)
-        slope = _theil_sen(level[t - MIN_HISTORY + 1 : t + 1])
-        # Latched: once raised, an alarm holds until its CUSUM is back at zero.
-        down, up = s_dn > 4 or (down and s_dn > 0), s_up > 4 or (up and s_up > 0)
-        if down:
-            state, onset = ("falling" if level[t] < 60 else "bending"), zero_dn + 1
-        elif up or slope >= 1.5:
-            state, onset = "improving", zero_up + 1 if up else t - MIN_HISTORY + 1
-        elif dev >= 2:
-            state, onset = "bump", None
-        else:
-            state = "healthy" if level[t] >= 70 else "stable" if level[t] >= 40 else "weak"
-            onset = None
-        rows.append((slope, state, onset))
-    return pd.DataFrame(rows, columns=["trend", "state", "onset_idx"])
-
-
 def _tier(level: pd.Series) -> pd.Series:
     return pd.cut(level, [-1, 40, 70, 101], right=False, labels=["vulnerable", "coping", "healthy"])
 
@@ -200,41 +162,6 @@ def _indicators(p: pd.DataFrame) -> pd.DataFrame:
             "dscr": np.interp(p["debt_burden"], [10, 35, 60, 90], [0.8, 1.0, 1.25, 2.0]),
         }
     ).round(2)
-
-
-def _alerts(g: pd.DataFrame) -> list[dict]:
-    """One alert per transition into bending, falling or improving, with measured anticipation."""
-    out = []
-    level, tier = g["level"].to_numpy(), g["tier"].astype(str).to_numpy()
-    for t in range(1, len(g)):
-        state, prev = g["state"].iat[t], g["state"].iat[t - 1]
-        if state == prev or state not in ("bending", "falling", "improving"):
-            continue
-        onset = int(g["onset_idx"].iat[t])
-        moved = (
-            g[[f"contrib_{p}" for p in PILLARS]].iloc[t]
-            - g.iloc[onset][[f"contrib_{p}" for p in PILLARS]]
-        ).astype(float)
-        moved.index = PILLARS
-        top = (moved.nsmallest(2) if state != "improving" else moved.nlargest(2)).index.tolist()
-        # Anticipation: months until the tier itself changes, the point a snapshot would notice.
-        crossed = [k for k in range(t, len(g)) if tier[k] != tier[onset]]
-        out.append(
-            {
-                "group_id": g["group_id"].iat[t],
-                "month": g["month"].iat[t],
-                "state_from": prev,
-                "state_to": state,
-                "onset_month": g["month"].iat[onset],
-                "level_at_onset": round(level[onset], 1),
-                "level_at_alert": round(level[t], 1),
-                "driver_1": top[0],
-                "driver_2": top[1],
-                "tier_change_month": g["month"].iat[crossed[0]] if crossed else pd.NaT,
-                "anticipation_months": crossed[0] - t if crossed else np.nan,
-            }
-        )
-    return out
 
 
 def build(seed: int = SEED) -> dict[str, pd.DataFrame]:
@@ -264,12 +191,10 @@ def build(seed: int = SEED) -> dict[str, pd.DataFrame]:
             pillars[INVOICE_PILLARS] = np.nan
         pillars = pillars.iloc[first:].reset_index(drop=True)
         g = pd.concat([pillars.round(1), _level(pillars), _indicators(pillars)], axis=1)
-        g = g.join(_states(g["level"].to_numpy()))
         g.insert(0, "group_id", gid)
         g.insert(1, "month", MONTHS[first:])
         g["months_observed"] = np.arange(1, len(g) + 1)
-        g["compound"] = (g["level"] + HORIZON_MONTHS * g["trend"].fillna(0)).clip(0, 100)
-        g["tier"] = _tier(g["level"])
+        g["tier"] = _tier(g["level"]).astype(str)
         # Inflow follows the cash generation pillar, with a yearly season.
         revenue = float(np.exp(rng.normal(np.log(12e6), 0.9)))
         season = 1 + 0.08 * np.sin(2 * np.pi * (g["month"].dt.month / 12 + rng.random()))
@@ -304,8 +229,11 @@ def build(seed: int = SEED) -> dict[str, pd.DataFrame]:
             }
         )
 
+    # The invented scores go through the same detector as the real ones, so the product cannot
+    # be built against a monitor that does not exist.
     scores = pd.concat(scores, ignore_index=True)
-    alerts = pd.DataFrame([a for _, g in scores.groupby("group_id") for a in _alerts(g)])
+    trajectory, alerts = detect(scores)
+    scores = scores.merge(trajectory.drop(columns=["onset_month"]), on=["group_id", "month"])
 
     # Working-capital offer, repriced monthly from the compound score. No offer under 40.
     offers = scores[["group_id", "month", "compound", "monthly_inflow_eur"]].copy()
@@ -350,8 +278,7 @@ def build(seed: int = SEED) -> dict[str, pd.DataFrame]:
     drivers["delta_score"] = drivers.groupby(["group_id", "pillar"])["score"].diff()
     drivers["delta_contribution"] = drivers.groupby(["group_id", "pillar"])["contribution"].diff()
 
-    scores = scores.drop(columns=["onset_idx"] + [f"contrib_{p}" for p in PILLARS])
-    scores["tier"] = scores["tier"].astype(str)
+    scores = scores.drop(columns=[f"contrib_{p}" for p in PILLARS])
     round_cols = ["level", "level_uncapped", "compound", "trend", "coverage"]
     scores[round_cols] = scores[round_cols].round(2)
     return {

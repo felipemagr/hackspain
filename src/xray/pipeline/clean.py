@@ -1,11 +1,12 @@
 """Clean the raw tables and write them as parquet to data/processed."""
 
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from xray.config import PROCESSED_DATA_DIR
+from xray.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
 from xray.pipeline.data import load_all
 
 logger = logging.getLogger(__name__)
@@ -86,10 +87,9 @@ def clean_balances(bal: pd.DataFrame) -> pd.DataFrame:
     return bal[bal["balance"].abs() < MAX_ABS_BALANCE].drop(columns="available")
 
 
-def main() -> None:
-    """Clean every table and write it to data/processed as parquet."""
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
-    raw = load_all()
+def build(raw_dir: Path = RAW_DATA_DIR) -> dict[str, pd.DataFrame]:
+    """Clean every table found in ``raw_dir``, keyed by table name."""
+    raw = load_all(raw_dir)
     companies = clean_companies(raw["companies"])
     clean = {
         **raw,
@@ -100,8 +100,15 @@ def main() -> None:
         "balances": clean_balances(raw["balances"]),
     }
     for name, df in clean.items():
-        df.to_parquet(PROCESSED_DATA_DIR / f"{name}.parquet", index=False)
         logger.info("%-22s %9d -> %9d rows", name, len(raw[name]), len(df))
+    return clean
+
+
+def main() -> None:
+    """Clean every table and write it to data/processed as parquet."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    for name, df in build().items():
+        df.to_parquet(PROCESSED_DATA_DIR / f"{name}.parquet", index=False)
 
 
 if __name__ == "__main__":

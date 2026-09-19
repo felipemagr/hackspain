@@ -26,7 +26,7 @@ flowchart LR
 | Package | Job | Runs | Talks to the network |
 |---|---|---|---|
 | `xray.pipeline` | raw CSVs to parquet to the monthly panel | batch, `make panel` | no |
-| `xray.scoring` | level, trend, drivers, monitor, offer, over the panel | batch | no |
+| `xray.scoring` | level, trend, drivers, monitor, offer, serving tables and the hidden-test submission, over the panel. Formulas in `docs/scoring.md` | batch, `make serve`, `make submit` | no |
 | `xray.agents` | public context, macro and narrative around a score | batch or on demand, cached | yes: search and model |
 | `xray.integrations` | outbound clients, one module per service | called by scoring | yes: Slack |
 | `xray.api` | serves `data/serving` to the demo | long-running container | no |
@@ -38,6 +38,9 @@ Two rules hold the shape together:
 - **Everything the demo shows is precomputed into `data/serving`.** The API never calls the
   pipeline, the model or the web during a request. It imports no pandas, so its image stays small
   and it cannot fail on stage because a third party is slow.
+  The one exception is the Agents chat (`POST /api/v1/chats`): it plans, searches and writes
+  during the request. It is a separate tab, so when the model or the network is slow the rest
+  of the demo is untouched.
 
 Runtime configuration is `xray.settings` (environment, `XRAY_` prefix, see `docs/infra.md`).
 Paths and dataset constants are `xray.config`.
@@ -82,8 +85,15 @@ data/processed/*.parquet     staging: same grain as the source
 panel_company.parquet        1,286 x 24
 panel_group.parquet            250 x 24   <- the contract
    |
-   v                         score, explain, monitor, offer, api
+   v  xray.scoring.score     indicators -> anchors -> pillars -> level, per group (and per company)
+scores.parquet                 4,114 covered group-months
+   |
+   +--> xray.scoring.monitor  trend, states, jumps and shifts        alerts.parquet, trajectory.parquet
+   +--> xray.scoring.serve    + explain, offer                       data/serving/*.parquet
+   +--> xray.scoring.submit   same chain over a hidden-test dump     predictions_*.csv
 ```
+
+`docs/scoring.md` is the reference for everything under `scores.parquet`.
 
 `make panel` runs it. Make tracks the file dependencies, so an unchanged raw dump rebuilds
 nothing and a touched `clean.py` rebuilds from there down.
@@ -168,7 +178,10 @@ knew at the end of that month.
 | `inflow_cover` | float | `inflow / outflow` |
 | `ar_open`, `ap_open` | float | Receivable and payable still open at month end |
 | `ar_overdue`, `ap_overdue` | float | Of those, past due |
+| `ar_overdue_90d`, `ap_overdue_90d` | float | Of those, due within the last 90 days. The score uses these: the uncapped book drifts towards all-overdue because unpaid rows never close |
 | `ar_overdue_ratio`, `ap_overdue_ratio` | float | Overdue over open |
+| `ar_late_days`, `ap_late_days` | float | Amount-weighted days beyond due on invoices settled that month, floored at zero per invoice |
+| `ar_days_late`, `ap_days_late` | float | `ar_late_days / ar_collected`, `ap_late_days / ap_paid` |
 | `ar_collected`, `ap_paid` | float | Settled during the month |
 | `ar_late_days`, `ap_late_days` | float | Amount-weighted positive days beyond due date, summed over settled invoices |
 | `dso_days`, `dpo_days` | float | Value-weighted days to settle |
@@ -322,7 +335,7 @@ name -> 3 searches in parallel -> drop social, off-topic, low score -> dedupe by
   never to guess; an unknown date stays null.
 - **Model.** `agents/llm.py` holds the `LLM` protocol and one client for any OpenAI-compatible
   endpoint, over httpx. `build_llm(settings)` points it at Helmcode (`HELMCODE_API_KEY`,
-  `XRAY_LLM_MODEL`, default `deepseek-v4-flash`). With no key the agent returns the raw hits.
+  `XRAY_LLM_MODEL`, default `glm5.3`). With no key the agent returns the raw hits.
 - **Cache.** `agents/cache.py`, one JSON file per company in `data/serving/context/`, holding the
   raw hits and the report, valid for `XRAY_CONTEXT_TTL_DAYS` (default 7). A cached company costs
   no credits, no model call and no latency. `make context NAME="Cabify"` fills it,
@@ -349,7 +362,7 @@ about 250 uncached companies a month.
 an in-memory DuckDB and creates one view per parquet file it finds; with no files it still
 starts, so the container can come up before the pipeline has run. One router per resource under
 `api/routers/`, registered in `api/main.py`. The local `/viewer` and
-`/api/v1/real-groups` read the real score and driver marts separately from serving tables.
+`/api/v1/real-groups` read the provisional baseline score and driver marts separately from serving tables.
 A global handler
 turns any unexpected error into a plain 500: a demo must not show a stack trace. Conventions are
 in `.claude/rules/api-design.md`.

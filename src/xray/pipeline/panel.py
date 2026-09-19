@@ -35,6 +35,23 @@ from xray.pipeline.lineage import publish
 logger = logging.getLogger(__name__)
 
 TREND_WINDOW_MONTHS = 3
+# Overdue invoices older than this are mostly stale rows that never got a payment date: the
+# open-book overdue ratio drifts towards 1 for every group over the window. Capping the age
+# gives a level that does not drift and rank-orders forward negative cash just as well.
+OVERDUE_MAX_AGE_DAYS = 90
+
+# Categories that move money without being operating activity. Intragroup `transfer` nets to
+# +21bn across the dataset, so the two sides do not cancel and both flows are inflated.
+# Debt service is excluded as well, so operating net flow stays a valid DSCR numerator.
+NON_OPERATING_CATEGORIES = (
+    "transfer",
+    "investment_deployment",
+    "investment_return",
+    "cash_settlement",
+    "cash_withdrawal",
+    "debt_repayment",
+    "interest_charge",
+)
 
 SOURCES = ("companies", "transactions", "invoices", "cash_monthly")
 
@@ -47,6 +64,8 @@ _ADDITIVE = (
     "operating_inflow",
     "operating_outflow",
     "uncategorized_amount",
+    "inflow_op",
+    "outflow_op",
     "salary_outflow",
     "tax_outflow",
     "debt_repayment_outflow",
@@ -57,6 +76,8 @@ _ADDITIVE = (
     "ap_open",
     "ar_overdue",
     "ap_overdue",
+    "ar_overdue_90d",
+    "ap_overdue_90d",
     "ar_collected",
     "ap_paid",
     "ar_collected_days",
@@ -79,6 +100,7 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
     inv_path = processed_dir / "invoices.parquet"
     companies_path = processed_dir / "companies.parquet"
     cash_path = marts_dir / "cash_monthly.parquet"
+    ops = str(NON_OPERATING_CATEGORIES)
     return f"""
     with months as (
         select unnest(generate_series(
@@ -108,6 +130,10 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
                 then -amount else 0 end) as operating_outflow,
             sum(case when category = 'uncategorized' then abs(amount) else 0 end)
                 as uncategorized_amount,
+            sum(case when amount > 0 and category not in {ops} then amount else 0 end)
+                as inflow_op,
+            sum(case when amount < 0 and category not in {ops} then -amount else 0 end)
+                as outflow_op,
             sum(case when amount < 0 and category = 'salary' then -amount else 0 end)
                 as salary_outflow,
             sum(case when amount < 0 and category = 'tax' then -amount else 0 end)
@@ -131,7 +157,13 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
             sum(case when i.side = 'receivable' and i.due_date < s.month_end
                      then abs(i.amount) else 0 end) as ar_overdue,
             sum(case when i.side = 'payable' and i.due_date < s.month_end
-                     then abs(i.amount) else 0 end) as ap_overdue
+                     then abs(i.amount) else 0 end) as ap_overdue,
+            sum(case when i.side = 'receivable' and i.due_date < s.month_end
+                     and i.due_date >= s.month_end - interval {OVERDUE_MAX_AGE_DAYS} day
+                     then abs(i.amount) else 0 end) as ar_overdue_90d,
+            sum(case when i.side = 'payable' and i.due_date < s.month_end
+                     and i.due_date >= s.month_end - interval {OVERDUE_MAX_AGE_DAYS} day
+                     then abs(i.amount) else 0 end) as ap_overdue_90d
         from spine s join inv i
             on i.company_id = s.company_id
            and i.issuance_date <= s.month_end
@@ -150,6 +182,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
             sum(case when side = 'payable'
                      then abs(amount) * date_diff('day', issuance_date, payment_date)
                      else 0 end) as ap_paid_days,
+            -- Days beyond due, floored at zero per Paydex: paying one invoice early must not
+            -- cancel out paying another late. Lateness is a tail signal, not an average.
             sum(case when side = 'receivable'
                      then abs(amount) * greatest(date_diff('day', due_date, payment_date), 0)
                      else 0 end) as ar_late_days,
@@ -181,6 +215,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(t.operating_inflow, 0) as operating_inflow,
         coalesce(t.operating_outflow, 0) as operating_outflow,
         coalesce(t.uncategorized_amount, 0) as uncategorized_amount,
+        coalesce(t.inflow_op, 0) as inflow_op,
+        coalesce(t.outflow_op, 0) as outflow_op,
         coalesce(t.salary_outflow, 0) as salary_outflow,
         coalesce(t.tax_outflow, 0) as tax_outflow,
         coalesce(t.debt_repayment_outflow, 0) as debt_repayment_outflow,
@@ -190,6 +226,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(o.ap_open, 0) as ap_open,
         coalesce(o.ar_overdue, 0) as ar_overdue,
         coalesce(o.ap_overdue, 0) as ap_overdue,
+        coalesce(o.ar_overdue_90d, 0) as ar_overdue_90d,
+        coalesce(o.ap_overdue_90d, 0) as ap_overdue_90d,
         coalesce(p.ar_collected, 0) as ar_collected,
         coalesce(p.ap_paid, 0) as ap_paid,
         coalesce(p.ar_collected_days, 0) as ar_collected_days,
@@ -221,6 +259,18 @@ def _finalize_sql(source: str, key: str) -> str:
     return f"""
     select *,
         inflow - outflow as net_flow,
+        inflow_op - outflow_op as net_flow_op,
+        sum(inflow_op) over (
+            {win} rows between {TREND_WINDOW_MONTHS - 1} preceding and current row
+        ) as opin_3m,
+        sum(outflow_op) over (
+            {win} rows between {TREND_WINDOW_MONTHS - 1} preceding and current row
+        ) as opout_3m,
+        sum(inflow_op) over ({win} rows between 11 preceding and current row) as opin_12m,
+        sum(outflow_op) over ({win} rows between 11 preceding and current row) as opout_12m,
+        sum(debt_repayment_outflow + interest_outflow) over (
+            {win} rows between 11 preceding and current row
+        ) as debt_service_12m,
         avg(inflow) over ({win} rows between {TREND_WINDOW_MONTHS - 1} preceding and current row)
             as inflow_{TREND_WINDOW_MONTHS}m,
         avg(inflow - outflow) over (
@@ -231,6 +281,8 @@ def _finalize_sql(source: str, key: str) -> str:
         case when ap_open > 0 then ap_overdue / ap_open end as ap_overdue_ratio,
         case when ar_collected > 0 then ar_collected_days / ar_collected end as dso_days,
         case when ap_paid > 0 then ap_paid_days / ap_paid end as dpo_days,
+        case when ar_collected > 0 then ar_late_days / ar_collected end as ar_days_late,
+        case when ap_paid > 0 then ap_late_days / ap_paid end as ap_days_late,
         case when outflow > 0 then inflow / outflow end as inflow_cover,
         case when outflow > 0 and has_cash then cash / outflow end as runway_months,
         sum(case when is_covered then 1 else 0 end) over (

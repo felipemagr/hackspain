@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from xray.api.routers import health, real_groups
+from xray.api.routers import alerts, chat, health, real_groups
 from xray.config import MARTS_DIR
 from xray.settings import get_settings
 
@@ -62,6 +62,8 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
 
 app.include_router(health.router)
 app.include_router(real_groups.router)
+app.include_router(alerts.router)
+app.include_router(chat.router)
 app.mount("/viewer/assets", StaticFiles(directory=STATIC_DIR), name="viewer-assets")
 
 

@@ -1,194 +1,206 @@
-"""Explainable monthly health score from the observed group panel."""
+"""The level score: panel columns -> indicators -> pillars -> one 0-100 number per group-month.
+
+The chain is deliberately additive so it can be explained without SHAP. Contribution of pillar
+`p` is `w_p * (pillar_p - 50)` and `level = 50 + sum(contributions)` before the cap, so a
+month-on-month change decomposes exactly into the pillars that moved it.
+
+Weights renormalise over the pillars a group actually has: 39% of companies never issue an
+invoice, so the two invoice pillars are simply absent for them and `coverage` records how much of
+the weight was available.
+
+The level is the slow half of the score: every flow indicator is a ratio of trailing sums, so a
+single lumpy month moves it by a fraction. Direction is measured separately on the level series
+by `xray.scoring.trend`, which is why no trend indicator lives here.
+"""
+
+import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from xray.config import MARTS_DIR
 from xray.pipeline.lineage import publish
+from xray.scoring.anchors import (
+    ANCHORS,
+    CAP_LEVEL,
+    CAP_PILLAR_SCORE,
+    CAP_PILLARS,
+    PILLAR_WEIGHTS,
+    TIER_BOUNDS,
+)
 
-WEIGHTS = {
-    "liquidity": 0.25,
-    "cash_generation": 0.25,
-    "payment_discipline": 0.20,
-    "collections": 0.15,
-    "debt_burden": 0.15,
-}
-PILLARS = tuple(WEIGHTS)
-MIN_SCORE_MONTHS = 3
-MIN_TREND_MONTHS = 6
+logger = logging.getLogger(__name__)
+
+SOURCES = ("panel_group",)
+
+# Windows, in covered months. Monthly operating flows swing several-fold for an ordinary group,
+# so margin and lateness are ratios of sums over a window rather than one month's ratio.
+CASH_WINDOW_MONTHS = 3
+NEGATIVE_CASH_WINDOW = 3
+LATENESS_WINDOW_MONTHS = 3
+MARGIN_WINDOW_MONTHS = 6
+MARGIN_MIN_MONTHS = 3
+GROWTH_SHORT_MONTHS = 3
+GROWTH_LONG_MONTHS = 12
+GROWTH_MIN_MONTHS = 6
+DAYS_PER_MONTH = 365 / 12
+# Reconstructed cash is a long sum of flows, so an emptied account lands at +-1e-10 rather than
+# zero. Overdrawn means below this, not below the sign bit.
+OVERDRAWN_BELOW = -1.0
+
+INVOICE_INDICATORS = ("ap_overdue_months", "ap_days_late", "ar_overdue_months", "ar_days_late")
 
 
-def _band(value: pd.Series, x: list[float], y: list[float]) -> pd.Series:
-    """Map an observed ratio onto fixed 0-100 anchors, preserving missing values."""
-    return pd.Series(np.interp(value, x, y), index=value.index).where(value.notna())
+def _ratio(num, den) -> np.ndarray:
+    return np.where(den > 0, num / den, np.nan)
 
 
-def _theil_sen(values: np.ndarray) -> float:
-    """Median pairwise monthly slope for six consecutive level observations."""
-    i, j = np.triu_indices(len(values), k=1)
-    return float(np.median((values[j] - values[i]) / (j - i)))
+def indicators(panel: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
+    """Raw indicator values per entity-month, on the operating-flow columns of the panel.
 
+    Args:
+        panel: ``panel_group`` (or ``panel_company``), covered rows only, sorted arbitrarily.
+        key: Entity column, ``group_id`` or ``company_id``.
 
-def _score_group(group: pd.DataFrame) -> pd.DataFrame:
-    """Score one group in month order, using only the current and preceding rows."""
-    g = group.sort_values("month").copy()
-    for col in (
-        "operating_inflow",
-        "operating_outflow",
-        "uncategorized_amount",
-        "inflow",
-        "outflow",
-        "debt_repayment_outflow",
-        "interest_outflow",
-        "ar_collected",
-        "ap_paid",
-        "ar_late_days",
-        "ap_late_days",
-    ):
-        g[f"{col}_3m"] = g[col].rolling(3, min_periods=1).sum()
+    Returns:
+        The panel keys plus one column per indicator in ``ANCHORS``. NaN where a group has no
+        basis for that indicator, which the pillar step then renormalises around.
+    """
+    p = panel.sort_values([key, "month"]).reset_index(drop=True)
+    by = p.groupby(key)
 
-    known_in = g["operating_inflow_3m"]
-    known_out = g["operating_outflow_3m"]
-    total_volume = g["inflow_3m"] + g["outflow_3m"]
-    g["uncategorized_share"] = g["uncategorized_amount_3m"].div(
-        total_volume.where(total_volume > 0)
+    def rolling_sum(col: str, window: int, min_periods: int = 1) -> pd.Series:
+        return (
+            by[col].rolling(window, min_periods=min_periods).sum().reset_index(level=0, drop=True)
+        )
+
+    def rolling_mean(col: str, window: int, min_periods: int = 1) -> pd.Series:
+        return (
+            by[col].rolling(window, min_periods=min_periods).mean().reset_index(level=0, drop=True)
+        )
+
+    out = p[[key, "month"]].copy()
+    # Month-end cash is a stock and swings hard month to month, so the buffer uses a 3-month mean
+    # over a 3-month mean of daily operating outflow.
+    smoothed_cash = rolling_mean("cash", CASH_WINDOW_MONTHS)
+    out["buffer_days"] = _ratio(
+        smoothed_cash, rolling_mean("outflow_op", CASH_WINDOW_MONTHS) / DAYS_PER_MONTH
     )
-    g["currency_mixed"] = g["n_currencies"] > 1
-    margin = ((known_in - known_out) / known_in.where(known_in > 0)).clip(-1, 1)
-    margin = margin.where(known_in > 0, -1).where(known_in + known_out > 0)
-    growth = (known_in / known_in.shift(3).where(known_in.shift(3) > 0) - 1).clip(-1, 1)
-    margin_score = _band(margin, [-0.5, -0.1, 0, 0.1, 0.25], [0, 25, 50, 75, 100])
-    growth_score = _band(growth, [-0.5, -0.15, 0, 0.15, 0.5], [0, 35, 60, 80, 100])
-    g["cash_generation"] = margin_score.where(
-        growth_score.isna(), 0.7 * margin_score + 0.3 * growth_score
+    out["negative_cash_share"] = (
+        by["cash"]
+        .rolling(NEGATIVE_CASH_WINDOW, min_periods=1)
+        .apply(lambda w: (w < OVERDRAWN_BELOW).mean(), raw=True)
+        .reset_index(level=0, drop=True)
     )
-    g["operating_margin"] = margin
-
-    buffer_days = g["cash"].div(known_out.where(known_out > 0) / 91)
-    cash_valid = g["has_cash"] & ~g["cash_is_extrapolated"] & (known_out > 0)
-    g["buffer_days"] = buffer_days.where(cash_valid)
-    g["liquidity"] = _band(g["buffer_days"], [0, 13, 27, 62, 120], [0, 35, 60, 85, 100])
-
-    g["ap_days_beyond_terms"] = g["ap_late_days_3m"].div(g["ap_paid_3m"].where(g["ap_paid_3m"] > 0))
-    g["ar_days_beyond_terms"] = g["ar_late_days_3m"].div(
-        g["ar_collected_3m"].where(g["ar_collected_3m"] > 0)
+    opin = rolling_sum("inflow_op", MARGIN_WINDOW_MONTHS, MARGIN_MIN_MONTHS)
+    opout = rolling_sum("outflow_op", MARGIN_WINDOW_MONTHS, MARGIN_MIN_MONTHS)
+    out["op_margin"] = _ratio(opin - opout, opin)
+    # Run rate against the trailing year: shrinkage is invisible to ratio indicators otherwise.
+    out["inflow_growth"] = _ratio(
+        rolling_mean("inflow_op", GROWTH_SHORT_MONTHS),
+        rolling_mean("inflow_op", GROWTH_LONG_MONTHS, GROWTH_MIN_MONTHS),
     )
-    late_days = [0, 15, 22, 30, 60, 90, 120]
-    late_scores = [80, 70, 60, 50, 40, 30, 20]
-    g["payment_discipline"] = _band(g["ap_days_beyond_terms"], late_days, late_scores).where(
-        g["has_erp"]
-    )
-    g["collections"] = _band(g["ar_days_beyond_terms"], late_days, late_scores).where(g["has_erp"])
-
-    debt_service = g["debt_repayment_outflow_3m"] + g["interest_outflow_3m"]
-    debt_ratio = debt_service.div(known_in.where(known_in > 0))
-    g["debt_burden"] = _band(debt_ratio, [0, 0.1, 0.25, 0.5, 1], [90, 75, 50, 20, 0])
-    g["debt_burden"] = g["debt_burden"].where(known_in > 0)
-
-    available = g[list(PILLARS)].notna()
-    base_weights = pd.Series(WEIGHTS)
-    g["coverage"] = available.mul(base_weights).sum(axis=1)
-    weights = available.mul(base_weights).div(g["coverage"].replace(0, np.nan), axis=0)
-    contributions = weights.mul(g[list(PILLARS)].fillna(50).sub(50))
-    for pillar in PILLARS:
-        g[f"contrib_{pillar}"] = contributions[pillar].fillna(0)
-    g["level_uncapped"] = 50 + contributions.sum(axis=1)
-    enough = (
-        g["is_covered"]
-        & (g["months_observed"] >= MIN_SCORE_MONTHS)
-        & (g["is_covered"].rolling(3, min_periods=1).sum() >= 2)
-        & (known_in + known_out > 0)
-        & (g["coverage"] > 0)
-    )
-    g["level_uncapped"] = g["level_uncapped"].where(enough)
-    g["is_capped"] = ((g["liquidity"] < 25) | (g["payment_discipline"] < 25)) & (
-        g["level_uncapped"] > 50
-    )
-    g["level"] = g["level_uncapped"].where(~g["is_capped"], 50)
-
-    levels = g["level"].to_numpy(dtype=float)
-    slopes = np.full(len(g), np.nan)
-    for end in range(MIN_TREND_MONTHS, len(g) + 1):
-        window = levels[end - MIN_TREND_MONTHS : end]
-        if np.isfinite(window).all():
-            slopes[end - 1] = _theil_sen(window)
-    g["trend"] = slopes
-    g["compound"] = (g["level"] + 4 * g["trend"].fillna(0)).clip(0, 100)
-    g["state"] = np.select(
-        [
-            g["trend"] >= 1.5,
-            (g["trend"] <= -1.5) & (g["level"] >= 60),
-            g["trend"] <= -1.5,
-            g["level"] >= 70,
-            g["level"] < 40,
-        ],
-        ["improving", "bending", "falling", "healthy", "weak"],
-        default="stable",
-    )
-    g.loc[g["trend"].isna(), "state"] = "not_enough_data"
-    g["tier"] = pd.cut(
-        g["level"],
-        [-1, 40, 70, 101],
-        right=False,
-        labels=["vulnerable", "coping", "healthy"],
-    ).astype("string")
-    return g
+    ap_paid = rolling_sum("ap_paid", LATENESS_WINDOW_MONTHS)
+    ar_collected = rolling_sum("ar_collected", LATENESS_WINDOW_MONTHS)
+    out["ap_days_late"] = _ratio(rolling_sum("ap_late_days", LATENESS_WINDOW_MONTHS), ap_paid)
+    out["ar_days_late"] = _ratio(rolling_sum("ar_late_days", LATENESS_WINDOW_MONTHS), ar_collected)
+    out["ap_overdue_months"] = _ratio(p["ap_overdue_90d"], ap_paid / LATENESS_WINDOW_MONTHS)
+    out["ar_overdue_months"] = _ratio(p["ar_overdue_90d"], ar_collected / LATENESS_WINDOW_MONTHS)
+    out["debt_service_ratio"] = _ratio(p["debt_service_12m"], p["opin_12m"])
+    # Cash is reconstructed for every group, so a liquidity indicator is never missing for a
+    # reason the group controls. The invoice indicators are: absent ERP means absent pillar.
+    out.loc[~p["has_erp"].to_numpy(), list(INVOICE_INDICATORS)] = np.nan
+    return out
 
 
-def build(panel: pd.DataFrame) -> dict[str, pd.DataFrame]:
-    """Build real group scores and additive pillar drivers from the monthly panel."""
-    scored = pd.concat(
-        [_score_group(group) for _, group in panel.groupby("group_id", sort=False)],
-        ignore_index=True,
+def sub_scores(raw: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
+    """Map each raw indicator onto 0-100 through its anchor curve."""
+    out = raw[[key, "month"]].copy()
+    for name, (_, _, curve) in ANCHORS.items():
+        xs, ys = zip(*curve, strict=True)
+        out[name] = np.interp(raw[name], xs, ys, left=ys[0], right=ys[-1])
+        out.loc[raw[name].isna(), name] = np.nan
+    return out
+
+
+def pillars(subs: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
+    """Weighted mean of the available indicators of each pillar."""
+    out = subs[[key, "month"]].copy()
+    for pillar in PILLAR_WEIGHTS:
+        members = {n: w for n, (p, w, _) in ANCHORS.items() if p == pillar}
+        block, weights = subs[list(members)], pd.Series(members)
+        available = weights * block.notna()
+        out[pillar] = (block.fillna(0) * available).sum(axis=1) / available.sum(axis=1).replace(
+            0, np.nan
+        )
+    return out
+
+
+def level(pil: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
+    """Renormalised weighted level, additive pillar contributions, coverage and the cap rule."""
+    names = list(PILLAR_WEIGHTS)
+    block = pil[names]
+    weights = pd.Series(PILLAR_WEIGHTS)
+    available = weights * block.notna()
+    coverage = available.sum(axis=1)
+    renormalised = available.div(coverage.replace(0, np.nan), axis=0)
+
+    contrib = renormalised * (block.fillna(50) - 50)
+    out = pil[[key, "month"]].copy()
+    out["level_uncapped"] = 50 + contrib.sum(axis=1)
+    out["is_capped"] = (block[list(CAP_PILLARS)] < CAP_PILLAR_SCORE).any(axis=1) & (
+        out["level_uncapped"] > CAP_LEVEL
     )
-    score_cols = [
-        "group_id",
-        "month",
-        *PILLARS,
-        "level",
-        "level_uncapped",
-        "is_capped",
-        "coverage",
-        "uncategorized_share",
-        "currency_mixed",
-        "trend",
-        "compound",
-        "state",
-        "tier",
-        "months_observed",
-        "buffer_days",
-        "operating_margin",
-        "ap_days_beyond_terms",
-        "ar_days_beyond_terms",
-        "operating_inflow_3m",
-    ]
-    scores = scored[score_cols].rename(columns={"operating_inflow_3m": "known_inflow_3m"})
-    drivers = scored.melt(
-        id_vars=["group_id", "month"],
-        value_vars=list(PILLARS),
-        var_name="pillar",
-        value_name="score",
+    out["level"] = out["level_uncapped"].where(~out["is_capped"], CAP_LEVEL)
+    out["coverage"] = coverage
+    out["tier"] = [next(t for bound, t in TIER_BOUNDS if v >= bound) for v in out["level"]]
+    return out.join(contrib.add_prefix("contrib_"))
+
+
+def score(panel: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
+    """Score every covered row of a panel.
+
+    Args:
+        panel: ``panel_group`` or ``panel_company`` as written by ``xray.pipeline.panel``.
+        key: Entity column, ``group_id`` or ``company_id``.
+
+    Returns:
+        One row per covered entity-month: indicators, sub-scores, pillars, level, tier and
+        contributions.
+    """
+    panel = panel[panel["is_covered"]]
+    raw = indicators(panel, key)
+    subs = sub_scores(raw, key)
+    pil = pillars(subs, key)
+    lvl = level(pil, key)
+    keys = [key, "month"]
+    extra = [c for c in ("months_observed", "has_erp", "n_companies", "group_id") if c in panel]
+    # Indicator and pillar names are disjoint, so the pillar columns keep their plain names.
+    return (
+        raw.merge(subs, on=keys, suffixes=("", "_score"))
+        .merge(pil, on=keys)
+        .merge(lvl, on=keys)
+        .merge(panel[keys + [c for c in extra if c != key]], on=keys)
     )
-    contributions = scored.melt(
-        id_vars=["group_id", "month"],
-        value_vars=[f"contrib_{pillar}" for pillar in PILLARS],
-        var_name="pillar",
-        value_name="contribution",
-    )
-    contributions["pillar"] = contributions["pillar"].str.removeprefix("contrib_")
-    drivers = drivers.merge(contributions, on=["group_id", "month", "pillar"])
-    drivers.loc[drivers["score"].isna(), "contribution"] = 0
-    drivers = drivers.sort_values(["group_id", "pillar", "month"])
-    drivers["delta_score"] = drivers.groupby(["group_id", "pillar"])["score"].diff()
-    drivers["delta_contribution"] = drivers.groupby(["group_id", "pillar"])["contribution"].diff()
-    return {"scores": scores, "drivers": drivers}
+
+
+def build(marts_dir: Path = MARTS_DIR) -> pd.DataFrame:
+    """Score every covered group-month of the published panel."""
+    return score(pd.read_parquet(marts_dir / "panel_group.parquet"))
 
 
 def main() -> None:
-    """Read the group panel and publish scores and drivers to the mart."""
-    panel = pd.read_parquet(MARTS_DIR / "panel_group.parquet")
-    for name, table in build(panel).items():
-        publish(f"real_{name}", table, sources=["panel_group"], marts_dir=MARTS_DIR)
+    """Score the panel and publish the table to the mart."""
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    scores = build()
+    publish("scores", scores, sources=list(SOURCES))
+    logger.info(
+        "level median %.1f, capped %.1f%%, mean coverage %.2f",
+        scores["level"].median(),
+        100 * scores["is_capped"].mean(),
+        scores["coverage"].mean(),
+    )
 
 
 if __name__ == "__main__":

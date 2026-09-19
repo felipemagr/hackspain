@@ -1,0 +1,42 @@
+{
+  "key": "Cabify peers",
+  "stored_at": "2026-09-19T09:54:53.021266+00:00",
+  "payload": {
+    "sector": "ride-hailing mobility platforms",
+    "sector_direction": "improving",
+    "peers": [
+      "Uber",
+      "Bolt",
+      "Free Now",
+      "DiDi"
+    ],
+    "report": {
+      "agent": "peers",
+      "summary": "ride-hailing mobility platforms, sector improving. The most recent peer signals are broadly positive: Uber grew Q2 2026 gross bookings 22% year over year with a 13.3% margin (though its net debt rose sharply), Bolt posted its first-ever annual profit in 2025 and beat Kenya's government in court over commission caps, and DiDi swung back to a Q2 2026 quarterly profit after a Q1 loss. Remaining negatives are mostly unit- or market-specific: Uber's rising net debt, DiDi's first-half loss from overseas expansion, and the near-wipeout of Bolt's UK profit on legal costs. With no score move reported for Cabify this month, its static 50/100 looks company-specific rather than a reflection of sector-wide deterioration, since the peer group is if anything improving.",
+      "findings": [
+        "Bolt: Bolt defeated the Kenyan government in court over commission caps and licence rules, easing regulatory pressure on its take rate in that market. [seen 2026-09-15, helps]",
+        "Uber: Uber's margin improved year over year to 13.3% in Q2 2026. [seen 2026-09-11, helps]",
+        "Uber: Uber's net debt rose sharply sequentially, offsetting its year-over-year improvement in revenue, EPS and pre-tax margin. [seen 2026-09-11, hurts]",
+        "Uber: Uber announced organizational changes removing management layers and simplifying team structures to refocus people and investments. [seen 2026-09-08, neutral]",
+        "DiDi: Didi returned to a net profit of 869 million yuan in Q2 2026, swinging to profit from a year earlier. [seen 2026-08-14, helps]",
+        "DiDi: Didi remained in the red for the first half of 2026 as aggressive overseas expansion weighed on results. [seen 2026-08-14, hurts]",
+        "Uber: Uber's Q2 2026 gross bookings grew 22% year over year on a constant-currency basis with trips up 18%, GAAP income from operations of $1.9 billion and non-GAAP operating income of $2.1 billion, up 40% year over year. [seen 2026-08-05, helps]",
+        "Bolt: Bolt posted its first-ever net profit of €900,000 for 2025, with revenue up 14% year over year to €2.27 billion. [seen 2026-06-29, helps]",
+        "DiDi: Didi swung to a Q1 2026 net loss of 1.2 billion yuan ($177.43 million) as higher losses from its international business weighed on profitability. [seen 2026-06-02, hurts]",
+        "Bolt: Bolt's UK arm reported a pre-tax profit of £133,355 for 2024, down from £8.2 million in 2023, as ongoing legal battles consumed considerable resources. [seen 2025-09-18, hurts]",
+        "FreeNow: Lyft agreed to acquire European taxi app FreeNow for $199 million, its first acquisition in the highly competitive European ride-hailing market. [seen 2025-04-16, neutral]"
+      ],
+      "sources": [
+        "https://hk.marketscreener.com/news/china-ride-hailing-giant-didi-swings-to-q1-loss-ce7f5dded981f422",
+        "https://last10k.com/sec-filings/uber/0001543151-26-000032.htm",
+        "https://news.err.ee/1610065420/estonian-mobility-unicorn-bolt-reaches-profit-for-the-first-time",
+        "https://sagenoodle.com/research/uber-margin-improves-as-net-debt-rises",
+        "https://www.caixinglobal.com/2026-08-14/didi-swings-to-quarterly-profit-but-overseas-push-weighs-on-first-half-results-102474321.html",
+        "https://www.cityam.com/bolt-uber-rivals-profit-almost-wiped-out-as-legal-battles-drag-on/",
+        "https://www.cnbc.com/2025/04/16/lyft-to-buy-taxi-app-free-now-for-200-million-to-expand-into-europe.html",
+        "https://www.standardmedia.co.ke/business/business/article/2001557787/bolt-beats-government-in-a-clash-in-court-over-commission-caps-license-rules",
+        "https://www.uber.com/us/en/newsroom/simplerfasteruber/"
+      ]
+    }
+  }
+}

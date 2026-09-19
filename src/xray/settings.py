@@ -19,14 +19,23 @@ class Settings(BaseSettings):
     serving_dir: Path = PROJECT_ROOT / "data" / "serving"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     slack_webhook_url: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    alert_email_from: str = "xray@localhost"
+    alert_email_to: str | None = None
     tavily_api_key: str | None = Field(
         default=None, validation_alias=AliasChoices("XRAY_TAVILY_API_KEY", "TAVILY_API_KEY")
+    )
+    exa_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("XRAY_EXA_API_KEY", "EXA_API_KEY")
     )
     helmcode_api_key: str | None = Field(
         default=None, validation_alias=AliasChoices("XRAY_HELMCODE_API_KEY", "HELMCODE_API_KEY")
     )
     helmcode_base_url: str = "https://api.helmcode.com/v1"
-    llm_model: str = "deepseek-v4-flash"
+    llm_model: str = "glm5.3"
     context_ttl_days: int = 7
 
 

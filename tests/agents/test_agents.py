@@ -1,3 +1,4 @@
+import contextlib
 from datetime import timedelta
 
 import httpx
@@ -126,12 +127,22 @@ class TestContextRetrieval:
         assert ContextRetrievalAgent("key", None).run(snapshot).findings == []
 
 
-def test_openai_compatible_llm_returns_message_content(monkeypatch):
-    def fake_post(url, **kwargs):
+def test_openai_compatible_llm_joins_streamed_content(monkeypatch):
+    lines = [
+        'data: {"choices": [{"delta": {"role": "assistant", "reasoning_content": "hm"}}]}',
+        'data: {"choices": [{"delta": {"content": "hel"}}]}',
+        "",
+        'data: {"choices": [{"delta": {"content": "lo"}}]}',
+        'data: {"choices": [], "usage": {}}',
+        "data: [DONE]",
+    ]
+
+    def fake_stream(method, url, **kwargs):
         assert url == "https://llm.example/v1/chat/completions"
         assert kwargs["json"]["messages"][0] == {"role": "system", "content": "sys"}
-        return json_response(url, {"choices": [{"message": {"content": "hello"}}]})
+        request = httpx.Request(method, url)
+        return contextlib.nullcontext(httpx.Response(200, text="\n".join(lines), request=request))
 
-    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setattr(httpx, "stream", fake_stream)
     llm = OpenAICompatibleLLM(api_key="k", model="m", base_url="https://llm.example/v1/")
     assert llm.complete("sys", "usr") == "hello"

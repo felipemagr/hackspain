@@ -53,13 +53,41 @@ make ci           # lint, format check and tests: run before pushing
 
 Always go through `uv` (`uv run ...`, `uv add ...`), never bare `pip` or `python`.
 
+### Querying the data
+
+`data/` is not in git and `uv` is not always on a non-interactive agent's `PATH`. Two routes that
+read the parquet files in place, both verified to work with no local Python environment.
+
+**SQL, for anything expressible as a query.** The DuckDB CLI with `.duckdbrc`, which defines a view
+per table. The init banner goes to stderr, so send it to `/dev/null`:
+
+```bash
+duckdb -init .duckdbrc -box -c "select count(*) from panel" 2>/dev/null   # -box to read
+duckdb -init .duckdbrc -csv -c "select * from panel limit 5" 2>/dev/null  # -csv to parse
+```
+
+Views: `panel` (one row per group per month), `panel_company`, `cash`, `transactions`, `invoices`,
+`companies`, `groups`, `balances`, `debt`.
+
+**Python, when SQL is not enough.** The pipeline image carries pandas, numpy and duckdb. Build it
+once with `make docker-build`:
+
+```bash
+docker run --rm -v "$PWD/data:/app/data" -w /app xray:latest python -c "..."
+docker run --rm -v "$PWD/data:/app/data" -v "$PWD/src:/app/src" -w /app xray:latest \
+  python -m xray.pipeline
+```
+
+Exploration is read-only. Do not write to `data/` from an ad-hoc query, and never commit anything
+under it.
+
 ## 5. Repo layout
 
 ```
 src/xray/
   config.py, settings.py   paths, constants, runtime settings
   pipeline/                raw CSVs -> parquet -> monthly panel (pandas lives only here)
-  scoring/                 score, explain, monitor, offer, submit
+  scoring/                 score, trend, monitor, explain, offer, serve, submit (formulas: docs/scoring.md)
   agents/                  research, macro and narrator agents, tools under agents/tools
   integrations/            outbound clients, one module per service
   api/                     FastAPI backend, one router per resource in api/routers

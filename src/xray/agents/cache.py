@@ -38,8 +38,12 @@ class JsonCache:
         return entry["payload"]
 
     def put(self, key: str, payload: dict[str, Any]) -> Path:
-        self.directory.mkdir(parents=True, exist_ok=True)
+        """Store the payload. A read-only folder (the deployed image) only costs the caching."""
         path = self.path(key)
         entry = {"key": key, "stored_at": datetime.now(UTC).isoformat(), "payload": payload}
-        path.write_text(json.dumps(entry, indent=2, ensure_ascii=False))
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(entry, indent=2, ensure_ascii=False))
+        except OSError as e:
+            logger.warning("Could not cache %s: %s", key, e)
         return path

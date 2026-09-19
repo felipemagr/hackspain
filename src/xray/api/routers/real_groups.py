@@ -120,7 +120,7 @@ def get_group(request: Request, group_id: str) -> GroupDetail:
     if "real_scores" not in request.app.state.real_tables:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Real scores are not available. Run make score first.",
+            detail="Baseline scores are not available. Run make score-baseline first.",
         )
     scores = _rows(
         request.app.state.db,
