@@ -34,7 +34,7 @@ function align(months: string[], history: ScoreRow[]): number[] {
 }
 
 export function TrajectoryChart({
-  months,
+  months: timeline,
   month,
   onMonth,
   primary,
@@ -53,7 +53,11 @@ export function TrajectoryChart({
     return () => ro.disconnect();
   }, []);
 
+  // The axis opens where the oldest drawn series starts, not where the portfolio does.
+  const oldest = [primary, ...compare].flatMap((c) => c?.history[0]?.month ?? []).sort()[0];
+  const months = oldest ? timeline.slice(timeline.indexOf(oldest)) : timeline;
   const n = months.length;
+  const span = Math.max(n - 1, 1);
   const cursor = months.indexOf(month);
   const a = useTween(align(months, primary.history));
   // All slots tween as one flat array, so the hook count does not depend on the selection.
@@ -64,7 +68,7 @@ export function TrajectoryChart({
     c ? [{ ...c, color: SERIES_COLORS[k], vals: flat.slice(k * n, (k + 1) * n) }] : [],
   );
 
-  const x = (i: number) => M.left + (i / (n - 1)) * (width - M.left - M.right);
+  const x = (i: number) => M.left + (i / span) * (width - M.left - M.right);
   const y = (v: number) => M.top + (1 - v / 100) * (H - M.top - M.bottom);
   const path = (vals: number[], from: number, to: number) => {
     let d = "";
@@ -81,7 +85,7 @@ export function TrajectoryChart({
   };
   const indexAt = (clientX: number) => {
     const rect = wrap.current!.getBoundingClientRect();
-    const i = Math.round(((clientX - rect.left - M.left) / (width - M.left - M.right)) * (n - 1));
+    const i = Math.round(((clientX - rect.left - M.left) / (width - M.left - M.right)) * span);
     return Math.max(0, Math.min(n - 1, i));
   };
 
