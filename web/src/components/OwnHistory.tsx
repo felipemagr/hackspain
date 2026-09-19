@@ -1,6 +1,5 @@
 import { monthLong, monthShort } from "../lib/format";
-import { PILLARS } from "../lib/meta";
-import type { Pillar, ScoreRow } from "../lib/types";
+import type { ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
 
 interface OwnHistoryProps {
@@ -44,20 +43,6 @@ const ordinal = (n: number) => `${n}${suffix(n)}`;
 /** Position counted from the best month down, so 1st is the group's own record. */
 function rankOf(values: number[], v: number): number {
   return values.filter((x) => x > v).length + 1;
-}
-
-function pillarStrip(measured: ScoreRow[], today: ScoreRow, key: Pillar) {
-  const points = measured
-    .map((s) => ({ month: s.month, value: s[key] }))
-    .filter((p): p is { month: string; value: number } => p.value != null);
-  const value = today[key];
-  if (points.length < 2 || value == null) return null;
-  const values = points.map((p) => p.value);
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  // A pillar that never moved has nothing to place or rank.
-  if (hi === lo) return null;
-  return { points, value, lo, hi, rank: rankOf(values, value) };
 }
 
 export function OwnHistory({ history, month }: OwnHistoryProps) {
@@ -208,41 +193,6 @@ export function OwnHistory({ history, month }: OwnHistoryProps) {
           )}
         </div>
       </div>
-
-      <div className="own__strips">
-        {PILLARS.map((p) => {
-          const strip = pillarStrip(measured, today, p.key);
-          if (!strip) return null;
-          const place = (v: number) => (v - strip.lo) / (strip.hi - strip.lo);
-          return (
-            <div className="own__row" key={p.key}>
-              <span className="own__label">
-                {p.label}
-                <span className="own__range">
-                  {strip.lo.toFixed(1)} – {strip.hi.toFixed(1)} · today {strip.value.toFixed(1)}
-                </span>
-              </span>
-              <span className="own__track">
-                {strip.points.map((pointRow) => (
-                  <span
-                    key={pointRow.month}
-                    className={`own__dot${pointRow.month === month ? " is-today" : ""}`}
-                    // 12px clear of each end so the extreme months do not sit on the round cap.
-                    style={{ left: `calc(12px + (100% - 24px) * ${place(pointRow.value)})` }}
-                  />
-                ))}
-              </span>
-              <span className="own__place">{ordinal(strip.rank)}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="own__note">
-        Each dot on a strip is one of its {measured.length} scored months; the big one is today.
-        The rank counts only the months the engine speaks about: the first five of every group come
-        out without enough history and do not enter.
-      </p>
     </section>
   );
 }
