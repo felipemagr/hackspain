@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data panel pipeline sql notebook docker-build docker-pipeline \
+.PHONY: help install inspect clean-data panel pipeline mock sql notebook docker-build docker-pipeline \
         api api-up api-down slack-test test test-quick lint format quality ci clean
 
 RAW_DIR ?= data/raw
@@ -33,6 +33,9 @@ panel: $(PANEL) ## Build the monthly panel, cleaning first if the raw data chang
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
 	uv run python -m xray.pipeline
+
+mock: ## Write invented serving tables to data/serving so the product can be built before the score
+	uv run python -m xray.scoring.mock
 
 # Docker
 docker-build: ## Build the pipeline image

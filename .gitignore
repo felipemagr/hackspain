@@ -17,6 +17,8 @@ data/*.zip
 data/raw/*
 data/processed/*
 data/serving/*
+# Serving tables are a few hundred KB and everyone builds the product against the same ones
+!data/serving/*.parquet
 !data/**/.gitkeep
 output/
 
