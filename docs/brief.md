@@ -213,7 +213,10 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Monthly panel per group, no look-ahead | `src/xray/pipeline/panel.py` |
 | Daily extracts, as-of reads | `src/xray/pipeline/lake.py` |
 | Whole pipeline end to end | `python -m xray.pipeline`, `make panel` |
+| Anchor table: raw ratio to 0-100 | `src/xray/scoring/anchors.py` |
 | Score, level and trend | `src/xray/scoring/score.py` |
+| Proxy distress labels for validation | `src/xray/scoring/events.py` |
+| Discrimination, trajectory, stability, ablation | `src/xray/scoring/validate.py` |
 | Named driver decomposition | `src/xray/scoring/explain.py` |
 | Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
 | Alert delivery to Slack | `src/xray/integrations/slack.py` |
@@ -227,9 +230,11 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Demo front end | to be decided, deployed, not localhost-only |
 | Reproducible build on any laptop | `Dockerfile`, `make docker-build`, `make docker-pipeline` |
 
-The model team codes against `data/processed/panel_group.parquet`: 250 groups x 24 months, every
+The model team codes against `data/marts/panel_group.parquet`: 250 groups x 24 months, every
 column computed from data at or before that month. Check `has_erp` before touching the invoice
-columns, and `is_covered` before reading a level.
+columns, and `is_covered` before reading a level. Operating flows are `inflow_op`/`outflow_op`
+and their `opin_3m`, `opout_3m`, `opin_12m`, `opout_12m` windows: use those, not `inflow` and
+`outflow`, which include intragroup transfers and net to the wrong sign at portfolio level.
 
 Score design and data constraints: `docs/health-score-research.md`. Infrastructure flow: `docs/infra.md`.
 
@@ -254,6 +259,16 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
 - **`status` and `pending_amount` on invoices are as-of-extraction, not as-of-month-`t`.** An
   invoice reading `paid` today was `pending` in month 10. Derive state from dates instead. The
   panel already does; anything reading the raw invoices must too.
+- **Operating flow excludes `transfer`, the two `investment_*` categories, `cash_settlement`,
+  `cash_withdrawal` and debt service.** All-in flows show the portfolio 8.5bn in surplus;
+  operating flows show it 11bn in deficit. Intragroup transfers were masking the deficit.
+- **The score is calibrated and validated against proxy events, never trained on them.** With
+  ~244 labelable groups and ~50 positives, a fitted model would memorise the training groups.
+- **`cash_negative` is the event the data supports.** The level reaches 0.876 AUC against it on
+  held-out groups. `missed_payroll` (0.600) and `inflow_collapse` (0.413) are not predictable
+  from the financial trail and are reported beside the score, not folded into it.
+- **Weights follow measured discrimination, not the opening guess.** Liquidity 0.35, payment
+  discipline 0.25, cash generation 0.15, collections 0.15, debt burden 0.10.
 
 ---
 
@@ -283,10 +298,19 @@ guessing.
 8. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
    positive as receivable and negative as payable, which gives a plausible 13-day median DSO and
    21-day DPO, but confirm it before the score depends on it.
-9. **Does the open-invoice book need a censoring correction?** An invoice never paid inside the
-   window stays open forever, so `ar_overdue_ratio` drifts from 0.21 to 0.78 across the 24 months
-   for everyone. Part real, part an artifact of a 24-month window. Compare each group against the
-   cross-sectional median for that month rather than against its own past level.
+9. **Does the open-invoice book need a censoring correction?** `ap_overdue_ratio` drifts upward
+   across the window for everyone, yet still rank-orders forward negative cash monotonically
+   (8.6% to 19.0% across quintiles), so it is scored on fixed anchors like everything else. A
+   cross-sectional correction would break the rule that a hidden-test group scores the same
+   whoever else is in the file. Revisit only if the drift shows up in the hidden test.
+10. **Two pillars do not yet earn their weight.** Dropping payment discipline moves held-out AUC
+    +0.024 and dropping collections +0.012, so the invoice pillars cost accuracy on liquidity
+    events while carrying the explanation the product sells. Decide whether to reweight or to
+    keep them for the narrative.
+11. **The level is not calm enough yet.** Median month-on-month change is 4.07 points against a
+    target under 3, p90 is 14.1. The trend only separates improvement (rising 1.7% vs falling
+    5.1% within the middle of the level band); deterioration is not yet distinguishable from
+    flat. Smoothing the level further is the prerequisite for the monitor.
 
 ---
 
