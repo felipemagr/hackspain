@@ -109,47 +109,6 @@ ol {
   letter-spacing: -0.02em;
 }
 
-.stepper {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 500;
-}
-
-.stepper span {
-  min-width: 112px;
-  text-align: center;
-}
-
-.stepper button {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 6px;
-  background: none;
-  cursor: pointer;
-  transition: background 0.18s var(--ease);
-}
-
-.stepper button:hover:not(:disabled) {
-  background: var(--hover);
-}
-
-.stepper button:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.stepper path {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
 .tabs {
   display: flex;
   gap: 16px;

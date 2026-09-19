@@ -41,7 +41,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 
 ## Layout
 
-- Two panes: a 372px side rail (brand, month stepper, Groups / Alerts tabs, list) and the detail.
+- Two panes: a 372px side rail (brand, Groups / Alerts tabs, list) and the detail.
 - Detail content is capped at 1080px: header (name left, score sentence right), chart, then two
   columns: what drives the score and companies on the left, next moves and the line on the right.
 - Sections are a 14px heading with a right-aligned hint over a hairline. Rows have no borders
@@ -100,7 +100,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   button on the tab, "Sign". Anything that moves money is a draft until a person signs it.
 - **Agent dot**: hollow at rest, blue and pulsing while working, ink once it reported, red when
   it failed. The only motion on the tab besides the streaming caret.
-- **Controls**: borderless icon buttons for the stepper, underline tabs, bordered selects and
+- **Controls**: borderless icon buttons, underline tabs, bordered selects and
   menu buttons, underlined text links for secondary actions (Clear all, Clear filters).
 
 ## Motion

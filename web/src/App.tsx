@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertList } from "./components/AlertList";
 import { Chat } from "./components/Chat";
 import { CurrencyToggle } from "./components/CurrencyToggle";
@@ -7,7 +7,6 @@ import { GroupDetail } from "./components/GroupDetail";
 import { GroupList } from "./components/GroupList";
 import { useChat } from "./lib/chat";
 import { useDisplayCurrency } from "./lib/currency";
-import { monthLong } from "./lib/format";
 import { DEFAULT_VIEW } from "./lib/listView";
 import { fetchVersion, loadStore, type Store } from "./lib/load";
 import { alertKey } from "./lib/meta";
@@ -104,30 +103,6 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [store]);
 
-  const stepMonth = useCallback(
-    (dir: -1 | 1) => {
-      if (!store) return;
-      const next = store.months[store.months.indexOf(month) + dir];
-      if (next) setMonth(next);
-    },
-    [store, month],
-  );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLInputElement
-      )
-        return;
-      if (e.key === "ArrowLeft") stepMonth(-1);
-      if (e.key === "ArrowRight") stepMonth(1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [stepMonth]);
-
   if (error) {
     return (
       <p className="splash">
@@ -153,7 +128,6 @@ export default function App() {
     updateFavorites((next) => {
       if (!next.delete(groupId)) next.add(groupId);
     });
-  const i = store.months.indexOf(month);
   const alertCount = store.alerts.filter(
     (a) => a.month <= month && !cleared.has(alertKey(a)),
   ).length;
@@ -175,23 +149,6 @@ export default function App() {
             </svg>
             Lighthouse
           </span>
-          <div className="stepper">
-            <button onClick={() => stepMonth(-1)} disabled={i <= 0} aria-label="Previous month">
-              <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden>
-                <path d="M6 1 L1 6 L6 11" />
-              </svg>
-            </button>
-            <span aria-live="polite">{monthLong(month)}</span>
-            <button
-              onClick={() => stepMonth(1)}
-              disabled={i >= store.months.length - 1}
-              aria-label="Next month"
-            >
-              <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden>
-                <path d="M1 1 L6 6 L1 11" />
-              </svg>
-            </button>
-          </div>
         </div>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === "groups"} onClick={() => setTab("groups")}>
