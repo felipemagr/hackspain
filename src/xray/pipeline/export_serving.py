@@ -24,6 +24,16 @@ REQUIRED_COLUMNS: dict[str, set[str]] = {
     "actions": {"group_id", "month", "rank", "pillar", "action"},
     "companies": {"company_id", "group_id", "name", "inflow_share", "level"},
     "drivers": {"group_id", "month", "pillar", "score", "contribution"},
+    "promptpay": {
+        "group_id",
+        "month",
+        "window_days",
+        "due_eur",
+        "expected_eur",
+        "variance",
+        "payable_eur",
+    },
+    "promptpay_customers": {"group_id", "month", "counterparty_id", "name", "n_paid", "solid"},
 }
 
 VALID_STATES = {

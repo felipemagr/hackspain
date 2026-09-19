@@ -81,9 +81,10 @@ alerts: $(ALERTS) ## Show the alerts not yet sent, send nothing: make alerts [MO
 notify: $(ALERTS) ## Send the pending alerts: make notify [MONTH=2026-05] [CHANNEL=slack|email]
 	uv run python -m xray.scoring.notify --channel $(or $(CHANNEL),slack) $(if $(MONTH),--month $(MONTH))
 
-serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offers, actions, payers) to data/serving
+serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offers, actions, payers, promptpay) to data/serving
 	uv run python -m xray.scoring.serve
 	uv run python -m xray.scoring.payers
+	uv run python -m xray.scoring.promptpay
 
 submit: ## Score a hidden-test dump end to end: make submit RAW=path/to/csvs [OUT=submission]
 	uv run python -m xray.scoring.submit --raw-dir $(RAW) --out $(or $(OUT),submission)
