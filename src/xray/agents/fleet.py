@@ -9,6 +9,7 @@ token, done. Agents run in threads and report through one queue. Searches run in
 model calls go one at a time: Helmcode stalls concurrent requests on one key.
 """
 
+import csv
 import logging
 import queue
 import re
@@ -19,6 +20,8 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Literal
 
 import duckdb
@@ -213,6 +216,7 @@ class ChatRequest(BaseModel):
     group_id: str
     month: str
     history: list[ChatTurn] = Field(default_factory=list)
+    currency: Literal["EUR", "USD"] = "EUR"
 
     @field_validator("message", mode="before")
     @classmethod
@@ -254,6 +258,12 @@ class AgentContext:
     emit: Callable[[dict], None]
     facts: dict[str, Any] = field(default_factory=dict)
     steps: int = 0
+
+    def money(self, eur: float, signed: bool = False) -> str:
+        """An amount held in euros, shown in the currency the user picked, at the month's year."""
+        code = self.request.currency
+        value = eur * display_rate(code, int(self.request.month[:4]))
+        return f"{value:+,.0f} {code}" if signed else f"{value:,.0f} {code}"
 
     def query(self, sql: str, params: list | None = None) -> list[tuple]:
         """Run SQL with (group_id, month) bound unless other params are given."""
@@ -402,7 +412,7 @@ def draft_suggestion(plan: Plan, facts: dict[str, Any]) -> dict | None:
             "agent": "customers",
             "title": f"Chase {chase['name']} this week",
             "detail": (
-                f"{chase['overdue_eur']:,.0f} EUR overdue, the oldest invoice "
+                f"{chase['overdue']} overdue, the oldest invoice "
                 f"{chase['oldest_overdue_days']} days past due. It is "
                 f"{chase['share_of_billing']:.0%} of the last twelve months of billing."
             ),
@@ -579,7 +589,7 @@ def working_capital(ctx: AgentContext) -> AgentReport:
             """select eligible, limit_eur, apr, limit_change_eur from offers
             where group_id = ? and month = cast(? as timestamp)"""
         )
-        step.output = "no offer" if not offer else f"limit {offer[0][1]:,.0f} EUR"
+        step.output = "no offer" if not offer else f"limit {ctx.money(offer[0][1])}"
     with ctx.tool("actions_ranked") as step:
         actions = ctx.query(
             """select pillar, action, expected_level_gain from actions
@@ -595,9 +605,9 @@ def working_capital(ctx: AgentContext) -> AgentReport:
         summary = "Not eligible for the working-capital line this month."
     else:
         _, limit, apr, change = offer[0]
-        moved = f", {change:+,.0f} EUR on last month" if change else ""
+        moved = f", {ctx.money(change, signed=True)} on last month" if change else ""
         rate = f" at {apr:.1%} APR" if apr is not None else ""
-        summary = f"Working-capital line of {limit:,.0f} EUR{rate}{moved}."
+        summary = f"Working-capital line of {ctx.money(limit)}{rate}{moved}."
     return AgentReport(
         agent="working_capital",
         summary=summary,
@@ -636,7 +646,7 @@ def customers(ctx: AgentContext) -> AgentReport:
         name, amount, age, share = overdue[0]
         ctx.facts["chase"] = {
             "name": name,
-            "overdue_eur": amount,
+            "overdue": ctx.money(amount),
             "oldest_overdue_days": age,
             "share_of_billing": share,
         }
@@ -648,7 +658,7 @@ def customers(ctx: AgentContext) -> AgentReport:
         if late is not None
     ]
     findings += [
-        f"{name}: {amount:,.0f} EUR overdue, oldest {age} days past due"
+        f"{name}: {ctx.money(amount)} overdue, oldest {age} days past due"
         for name, amount, age, _ in overdue
     ]
     total_overdue = sum(amount for _, amount, _, _ in overdue)
@@ -656,7 +666,7 @@ def customers(ctx: AgentContext) -> AgentReport:
         agent="customers",
         summary=(
             f"{top[0][0]} is {top[0][1]:.0%} of billing and the top five are "
-            f"{sum(share for _, share in top):.0%}. {total_overdue:,.0f} EUR is overdue across "
+            f"{sum(share for _, share in top):.0%}. {ctx.money(total_overdue)} is overdue across "
             f"{len(overdue)} customers."
         ),
         findings=findings,
@@ -676,12 +686,14 @@ def investor(ctx: AgentContext) -> AgentReport:
         )[0]
         revenue = (inflow or 0) * 12
         cash = revenue * (margin or 0)
-        step.output = f"margin {margin or 0:.0%}, free cash flow {cash:,.0f} EUR a year"
+        step.output = f"margin {margin or 0:.0%}, free cash flow {ctx.money(cash)} a year"
     with ctx.tool("debt_capacity", min_cover=MIN_COVER) as step:
         service = cash / dscr if dscr and dscr > 0 and cash > 0 else None
         headroom = max(cash / MIN_COVER - service, 0) if service is not None else None
         step.output = (
-            "no positive cash flow to lever" if headroom is None else f"{headroom:,.0f} EUR a year"
+            "no positive cash flow to lever"
+            if headroom is None
+            else f"{ctx.money(headroom)} a year"
         )
     with ctx.tool("screen") as step:
         tests = {
@@ -718,8 +730,8 @@ def investor(ctx: AgentContext) -> AgentReport:
         step.output = f"{peers} groups within a third to three times its size"
     fit = "passes the search fund screen" if not failed else f"fails it on: {', '.join(failed)}"
     findings = [
-        f"Revenue about {revenue:,.0f} EUR a year, operating margin {margin or 0:.0%} "
-        f"over twelve months, free cash flow before debt {cash:,.0f} EUR.",
+        f"Revenue about {ctx.money(revenue)} a year, operating margin {margin or 0:.0%} "
+        f"over twelve months, free cash flow before debt {ctx.money(cash)}.",
         f"Search fund screen: {fit}. {passing} of {scored} groups in the portfolio pass.",
         f"Roll-up: {peers} comparable groups by size in {country or 'its country'}. "
         "No sector in the data, so whether they are the same business is unknown.",
@@ -728,11 +740,11 @@ def investor(ctx: AgentContext) -> AgentReport:
         findings.insert(
             1,
             f"Debt service is covered {dscr:.2f}x. At a {MIN_COVER}x floor the cash flow carries "
-            f"{headroom:,.0f} EUR more debt service a year.",
+            f"{ctx.money(headroom)} more debt service a year.",
         )
     return AgentReport(
         agent="investor",
-        summary=f"As a target it {fit}. Free cash flow before debt {cash:,.0f} EUR a year.",
+        summary=f"As a target it {fit}. Free cash flow before debt {ctx.money(cash)} a year.",
         findings=findings,
     )
 
@@ -822,6 +834,25 @@ def _drain(events: "queue.Queue[dict]") -> Iterator[dict]:
 
 def _ms(t0: float) -> int:
     return round((time.monotonic() - t0) * 1000)
+
+
+@lru_cache
+def _usd_per_eur() -> dict[int, float]:
+    rates_file = Path(__file__).parents[1] / "pipeline" / "fx_rates.csv"
+    with rates_file.open() as handle:
+        return {
+            int(row["year"]): float(row["per_eur"])
+            for row in csv.DictReader(handle)
+            if row["currency"] == "USD"
+        }
+
+
+def display_rate(currency: str, year: int) -> float:
+    """Units of the display currency per euro at the average rate of `year`."""
+    if currency == "EUR":
+        return 1.0
+    rates = _usd_per_eur()
+    return rates[min(rates, key=lambda known: abs(known - year))]
 
 
 def _share(share: float) -> str:

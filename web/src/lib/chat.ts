@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { displayCurrency } from "./currency";
 
 // The agent service. The rest of the demo reads static JSON and works without it.
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
@@ -209,7 +210,13 @@ export function useChat() {
         const response = await fetch(`${API_URL}/api/v1/chats`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: question, group_id: groupId, month, history }),
+          body: JSON.stringify({
+            message: question,
+            group_id: groupId,
+            month,
+            history,
+            currency: displayCurrency(),
+          }),
           signal: controller.signal,
         });
         if (!response.ok) throw new Error(`The agent service answered ${response.status}.`);

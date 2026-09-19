@@ -82,8 +82,8 @@ def no_keys(tmp_path) -> Settings:
     )
 
 
-def run(db, tmp_path, message: str) -> list[dict]:
-    request = ChatRequest(message=message, group_id="g1", month=MONTH)
+def run(db, tmp_path, message: str, currency: str = "EUR") -> list[dict]:
+    request = ChatRequest(message=message, group_id="g1", month=MONTH, currency=currency)
     return list(run_chat(request, db, no_keys(tmp_path)))
 
 
@@ -193,3 +193,11 @@ class TestPlanner:
 
         assert plan.agents == ["diagnosis", "market"]
         assert plan.purpose == "market"
+
+
+def test_amounts_follow_the_display_currency_at_the_rate_of_the_year(db, tmp_path):
+    events = run(db, tmp_path, "what is our credit line?", currency="USD")
+
+    line = done(events)["working_capital"]["summary"]
+    # 250,000 EUR at the 2026 average of 1.162858 dollars per euro.
+    assert line == "Working-capital line of 290,714 USD at 7.0% APR, -58,143 USD on last month."

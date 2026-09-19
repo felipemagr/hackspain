@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertList } from "./components/AlertList";
 import { Chat } from "./components/Chat";
+import { CurrencyToggle } from "./components/CurrencyToggle";
 import { FleetRail } from "./components/FleetRail";
 import { GroupDetail } from "./components/GroupDetail";
 import { GroupList } from "./components/GroupList";
 import { useChat } from "./lib/chat";
+import { useDisplayCurrency } from "./lib/currency";
 import { monthLong } from "./lib/format";
 import { loadStore, type Store } from "./lib/load";
 
@@ -24,6 +26,7 @@ export default function App() {
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
   const chat = useChat();
+  useDisplayCurrency(month);
 
   useEffect(() => {
     loadStore()
@@ -115,6 +118,7 @@ export default function App() {
           <button role="tab" aria-selected={tab === "agents"} onClick={() => setTab("agents")}>
             Agents
           </button>
+          <CurrencyToggle />
         </div>
         <div className="side__scroll">
           {tab === "agents" ? (

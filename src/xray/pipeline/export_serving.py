@@ -57,6 +57,7 @@ ENUM_CHECKS: dict[str, dict[str, set[str]]] = {
     "drivers": {"pillar": VALID_PILLARS},
 }
 
+FX_RATES_FILE = Path(__file__).with_name("fx_rates.csv")
 # Read by the agents through the API, never by the page: not worth shipping as JSON.
 API_ONLY = {"payers"}
 
@@ -93,7 +94,19 @@ def export_serving() -> list[Path]:
             con.execute(f"copy (select * from '{parquet}') to '{target}' (format json, array true)")
             written.append(target)
             logger.info("Exported %s -> %s", parquet.name, target.name)
+    written.append(_export_usd_rates())
     return written
+
+
+def _export_usd_rates() -> Path:
+    """Dollars per euro by year, for the page's EUR / USD switch."""
+    target = WEB_DATA_DIR / "fx.json"
+    with duckdb.connect() as con:
+        con.execute(
+            f"""copy (select year, per_eur as usd_per_eur from '{FX_RATES_FILE}'
+            where currency = 'USD' order by year) to '{target}' (format json, array true)"""
+        )
+    return target
 
 
 def main() -> None:

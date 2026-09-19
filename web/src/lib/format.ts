@@ -1,3 +1,4 @@
+import { toDisplay } from "./currency";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTHS_LONG = [
   "January",
@@ -34,11 +35,13 @@ export function fmtSigned(v: number | null | undefined, digits = 1): string {
   return `${s}${v.toFixed(digits)}`;
 }
 
-export function fmtEur(v: number | null | undefined): string {
-  if (v == null) return "-";
-  if (Math.abs(v) >= 1_000_000) return `€${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `€${(v / 1_000).toFixed(0)}K`;
-  return `€${v.toFixed(0)}`;
+/** An amount held in euros, shown in the currency picked in the side rail. */
+export function fmtEur(eur: number | null | undefined): string {
+  if (eur == null) return "-";
+  const { value: v, symbol } = toDisplay(eur);
+  if (Math.abs(v) >= 1_000_000) return `${symbol}${(v / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(v) >= 1_000) return `${symbol}${(v / 1_000).toFixed(0)}K`;
+  return `${symbol}${v.toFixed(0)}`;
 }
 
 /** "4 months early", or null when the alert did not run ahead of the tier change. */
