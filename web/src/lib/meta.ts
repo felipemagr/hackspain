@@ -35,6 +35,10 @@ export interface PillarMeta {
   key: Pillar;
   label: string;
   weight: number;
+  /** The name of the headline indicator behind the pillar. */
+  indicator: string;
+  /** That indicator as a bare figure with its unit. */
+  metric: (s: ScoreRow) => string | null;
   /** The headline indicator behind the pillar, already formatted. */
   evidence: (s: ScoreRow) => string | null;
 }
@@ -51,12 +55,17 @@ export const PILLARS: PillarMeta[] = [
     key: "liquidity",
     label: "Liquidity",
     weight: 40,
+    indicator: "Days of cash buffer",
+    metric: (s) => (s.buffer_days == null ? null : `${s.buffer_days.toFixed(0)} d`),
     evidence: (s) => (s.buffer_days == null ? null : `${s.buffer_days.toFixed(0)} days of cash`),
   },
   {
     key: "cash_generation",
     label: "Cash generation",
     weight: 20,
+    indicator: "Operating margin",
+    metric: (s) =>
+      s.operating_margin == null ? null : `${(s.operating_margin * 100).toFixed(1)}%`,
     evidence: (s) =>
       s.operating_margin == null ? null : `${(s.operating_margin * 100).toFixed(0)}% margin`,
   },
@@ -64,18 +73,26 @@ export const PILLARS: PillarMeta[] = [
     key: "payment_discipline",
     label: "Payment discipline",
     weight: 20,
+    indicator: "Days past your own terms",
+    metric: (s) =>
+      s.ap_days_beyond_terms == null ? null : `${s.ap_days_beyond_terms.toFixed(0)} d`,
     evidence: (s) => terms(s.ap_days_beyond_terms, "paying"),
   },
   {
     key: "collections",
     label: "Collections",
     weight: 10,
+    indicator: "Days customers run past terms",
+    metric: (s) =>
+      s.ar_days_beyond_terms == null ? null : `${s.ar_days_beyond_terms.toFixed(0)} d`,
     evidence: (s) => terms(s.ar_days_beyond_terms, "collecting"),
   },
   {
     key: "debt_burden",
     label: "Debt burden",
     weight: 10,
+    indicator: "Debt service cover (DSCR)",
+    metric: (s) => (s.dscr == null ? null : `${s.dscr.toFixed(2)}×`),
     evidence: (s) => (s.dscr == null ? null : `${s.dscr.toFixed(2)}x debt cover`),
   },
 ];

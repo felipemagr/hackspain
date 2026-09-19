@@ -951,50 +951,50 @@ select:hover {
 
 /* ---------- drivers ---------- */
 
-.pillar {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) 28px 40px;
-  align-items: center;
-  gap: 14px;
-  padding: 9px 0;
+.pillars {
+  width: 100%;
+  border-collapse: collapse;
 }
 
-.pillar__name {
+.pillars th,
+.pillars td {
+  padding: 9px 0;
+  text-align: right;
+  font-weight: 400;
+  vertical-align: top;
+}
+
+.pillars thead th {
+  padding-top: 0;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.pillars tbody tr + tr th,
+.pillars tbody tr + tr td {
+  border-top: 1px solid var(--line);
+}
+
+.pillars th:first-child,
+.pillars td:first-child {
+  text-align: left;
+}
+
+.pillars tbody th {
   font-weight: 500;
 }
 
-.pillar__evidence {
+.pillars__indicator,
+.pillars__base {
   display: block;
   font-size: 12.5px;
   font-weight: 400;
   color: var(--ink-3);
 }
 
-.pillar__track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--line);
-  overflow: hidden;
-}
-
-.pillar__fill {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--ink);
-  transform-origin: left;
-  transition: transform 0.5s var(--ease);
-}
-
-.pillar__value {
+.pillars__score {
   font-weight: 600;
-  text-align: right;
-}
-
-.pillar__delta {
-  font-size: 12.5px;
-  text-align: right;
-  color: var(--ink-3);
 }
 
 .is-up {

@@ -72,7 +72,10 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 - **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all, a clear button on row hover, and
   "Restore N cleared" so nothing is lost. Clearing empties the rail and its count; the rings on
   the chart stay, because they are history.
-- **Pillar row**: label with its evidence in plain words, 4px ink bar, score, signed delta.
+- **Pillar table** (`Pillars.tsx`): the five pillars as rows, headers in sentence case. Pillar and
+  the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
+  it), its score, the raw indicator, and how many points it moved the level this month, signed and
+  colored. Figures right-aligned, hairline between rows.
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
   and the writer, each with its live state and the tool it is running. The detail pane holds the
   conversation. A turn is the question at 22px, a line saying what the planner read it as, a

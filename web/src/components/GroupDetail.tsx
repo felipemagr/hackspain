@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { fmtEur, fmtScore, fmtSigned, monthLong } from "../lib/format";
-import { PILLARS, PILLAR_LABEL, SERIES_COLORS } from "../lib/meta";
+import { PILLAR_LABEL, SERIES_COLORS } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
 import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
+import { Pillars } from "./Pillars";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
@@ -198,32 +199,10 @@ export function GroupDetail({
         <div className="columns">
           <section>
             <div className="section-head">
-              <h2>What drives the score</h2>
-              <span className="hint">change since last month</span>
+              <h2>The five pillars</h2>
+              <span className="hint">what each moved this month</span>
             </div>
-            {PILLARS.map((p) => {
-              const value = score[p.key];
-              const delta = drivers.find((d) => d.pillar === p.key)?.delta_score ?? null;
-              return (
-                <div className="pillar" key={p.key}>
-                  <span className="pillar__name">
-                    {p.label}
-                    <span className="pillar__evidence">{p.evidence(score)}</span>
-                  </span>
-                  <span className="pillar__track">
-                    <span className="pillar__fill" style={{ transform: `scaleX(${(value ?? 0) / 100})` }} />
-                  </span>
-                  <span className="pillar__value">{value == null ? "-" : value.toFixed(0)}</span>
-                  <span
-                    className={`pillar__delta ${
-                      delta == null || Math.abs(delta) < 0.05 ? "" : delta > 0 ? "is-up" : "is-down"
-                    }`}
-                  >
-                    {delta == null ? "" : fmtSigned(delta)}
-                  </span>
-                </div>
-              );
-            })}
+            <Pillars score={score} drivers={drivers} />
             {companies.length > 1 && (
               <>
                 <div className="section-head section-head--spaced">
