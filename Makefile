@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        api api-up api-down slack-test context test test-quick lint format quality ci clean \
-        web-install web-data web web-build
+        events score validate api api-up api-down slack-test context test test-quick lint \
+        format quality ci clean web-install web-data web web-build
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
@@ -41,6 +41,22 @@ panel: $(PANEL) ## Build the monthly panel mart, rebuilding upstream layers as n
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
 	uv run python -m xray.pipeline
+
+EVENTS := $(MARTS_DIR)/events.parquet
+SCORES := $(MARTS_DIR)/scores.parquet
+
+$(EVENTS): $(PANEL) src/xray/scoring/events.py
+	uv run python -m xray.scoring.events
+
+$(SCORES): $(PANEL) src/xray/scoring/score.py src/xray/scoring/anchors.py
+	uv run python -m xray.scoring.score
+
+events: $(EVENTS) ## Build the proxy distress labels used to calibrate and validate the score
+
+score: $(SCORES) ## Score every group-month from the panel
+
+validate: $(SCORES) $(EVENTS) ## Discrimination, trajectory, stability and ablation, split by group
+	uv run python -m xray.scoring.validate
 
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock
