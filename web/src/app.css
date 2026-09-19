@@ -1183,65 +1183,6 @@ select:hover {
   color: var(--ink);
 }
 
-.own__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 34px;
-  align-items: center;
-  gap: 24px;
-  padding: 9px 0;
-}
-
-.own__label {
-  font-weight: 500;
-}
-
-.own__range {
-  display: block;
-  font-size: 12.5px;
-  font-weight: 400;
-  color: var(--ink-3);
-}
-
-.own__track {
-  position: relative;
-  height: 26px;
-  border-radius: 13px;
-  background: var(--hover);
-}
-
-.own__dot {
-  position: absolute;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--line-strong);
-  transform: translate(-50%, -50%);
-  transition:
-    left 0.5s var(--ease),
-    width 0.18s linear,
-    height 0.18s linear;
-}
-
-.own__dot.is-today {
-  width: 11px;
-  height: 11px;
-  background: var(--ink);
-}
-
-.own__place {
-  font-weight: 600;
-  text-align: right;
-}
-
-.own__note {
-  margin-top: 14px;
-  max-width: 76ch;
-  font-size: 12.5px;
-  color: var(--ink-3);
-  text-wrap: pretty;
-}
-
 /* ---------- splash ---------- */
 
 .splash {
@@ -1861,5 +1802,147 @@ select:hover {
 @media (max-width: 900px) {
   .whatif__body {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Early payment: what falls due in the window, and which supplier bills it can pay early. */
+.promptpay {
+  margin-top: 48px;
+}
+
+.promptpay__windows {
+  display: flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.promptpay__windows button {
+  padding: 5px 12px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+  transition: background 0.18s var(--ease);
+}
+
+.promptpay__windows button + button {
+  border-left: 1px solid var(--line-strong);
+}
+
+.promptpay__windows button:hover {
+  background: var(--hover);
+}
+
+.promptpay__windows button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--surface);
+}
+
+.promptpay__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.promptpay__label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.promptpay__figure {
+  margin: 2px 0 4px;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.promptpay__bar {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  margin-top: 24px;
+}
+
+.promptpay__seg {
+  border-radius: 2px;
+  transition: flex-grow 0.5s var(--ease);
+}
+
+.promptpay__seg--reliable {
+  background: var(--ink);
+}
+
+.promptpay__seg--cushion {
+  background: var(--neutral);
+}
+
+.promptpay__seg--risk {
+  background: var(--line-strong);
+}
+
+.promptpay__seg--thin {
+  background: var(--line);
+}
+
+.promptpay__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.promptpay__legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.promptpay__legend strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.promptpay__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.promptpay__aside {
+  max-width: 68ch;
+  margin: 14px 0 0;
+  color: var(--ink-3);
+}
+
+.promptpay__table {
+  margin-top: 24px;
+}
+
+.promptpay__rest th,
+.promptpay__rest td {
+  color: var(--ink-3);
+}
+
+.promptpay__deal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: 40px;
+  margin-top: 28px;
+}
+
+@media (max-width: 900px) {
+  .promptpay__stats,
+  .promptpay__deal {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
   }
 }

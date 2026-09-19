@@ -126,4 +126,39 @@ the group's own receivable invoices as of each month: open and overdue are rebui
 | `days_late`, `days_late_change` | amount-weighted days beyond terms over six months, and against the six before |
 | `payer_score` | 100, minus 1.5 per day late (capped at 60 days), minus up to 10 for overdue exposure |
 
+### `promptpay`
+
+One row per group, month and collection window (30, 60, 90 days), written by
+`xray.scoring.promptpay` (`make serve`). Feeds the early-payment panel: of the receivables
+falling due inside the window, how much will really land and how much of it can cover a
+supplier's early-payment discount. An invoice counts only while it is open and not yet due at
+the month; overdue invoices are excluded on purpose, because their `p` would be conditional on
+not having been paid yet. A group whose whole book is overdue still gets a row, carrying
+`overdue_eur` alone, so the panel explains itself instead of falling silent.
+
+`p`, the collection probability, is empirical: for an invoice due in `d` days inside a window
+`W`, it is the share of that customer's earlier paid invoices (`payment_date <= month end`, no
+look-ahead) whose delay was at most `W - d` days. A customer with fewer than 6 paid invoices is
+a thin file: its amount is reported apart as `thin_eur`, never counted as cash.
+
+| Column | Meaning |
+|---|---|
+| `due_eur` | receivables falling due inside the window |
+| `expected_eur` | `sum(amt * p)` over customers with a usable history |
+| `variance` | `sum(amt^2 * p * (1-p))`, in euros squared; the page takes the root for the 5th percentile |
+| `thin_eur` | due amount belonging to thin files, excluded from `expected_eur` |
+| `n_customers`, `n_thin` | customers with due amount in the window, and how many of them are thin |
+| `overdue_eur`, `overdue_n` | open receivables that fell due over the past year: never counted as cash, reported so the page can say where the money went. Older than a year is a write-off, and the dataset's never-paid tail would swamp the figure |
+| `payable_n`, `payable_eur` | supplier bills due inside the same window |
+| `payable_days` | their mean days ahead of due, amount-weighted; null when `payable_n` is 0 |
+
+### `promptpay_customers`
+
+One row per group, month and shown customer: the 10 largest by amount due inside 90 days,
+restricted to customers with a usable history. `group_id`, `month`, `counterparty_id`, `name`,
+`n_paid`, `median_late`, `solid` (from 12 paid invoices) and, per window `w` in 30, 60, 90,
+`due_w_eur`, `exp_w_eur`, `var_w`. The "rest of the book" row the page shows is the group total
+minus these. The panel quotes no payer score: it ranks by amount due in the window, which barely
+overlaps the top by billing that `payers` keeps, so the column would be mostly empty.
+
 Amounts arrive in euros from `xray.pipeline.clean`, at the average rate of the invoice's year.
