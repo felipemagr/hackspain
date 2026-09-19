@@ -206,12 +206,14 @@ export default function App() {
       <main className="main">
         {tab === "agents" ? (
           <Chat
+            key={chat.activeId ?? "new"}
             month={month}
             fleet={chat.fleet}
             turns={chat.turns}
             busy={chat.busy}
             onAsk={(question) => chat.ask(question, month)}
             onStop={chat.stop}
+            onNew={() => chat.open(null)}
           />
         ) : (
           <GroupDetail

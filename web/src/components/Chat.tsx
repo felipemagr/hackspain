@@ -13,14 +13,36 @@ import {
 } from "../lib/chat";
 import { monthLong } from "../lib/format";
 
-// What the chat is good for, in the words of the person asking.
-const GUIDE: [string, string][] = [
-  ["The whole portfolio", "Who is falling, who is improving, rankings, counts, by country or size."],
-  ["One group, by its id", "Why its score moved, since when, and whether it is a bump or a fall."],
-  ["The trail under a score", "Invoices, customers paying late, cash, debt and what is overdue."],
-  ["What a move would do", "Lift a pillar and see the level and the credit line reprice."],
-  ["What is happening outside", "The country around a group, or a real company you name."],
+// What the chat is good for, in the words of the person asking. Each row carries a 16px stroke icon.
+const GUIDE: [string, string, string][] = [
+  [
+    "The whole portfolio",
+    "Who is falling, who is improving, rankings, counts, by country or size.",
+    "M2.5 2.5h4.5v4.5H2.5zM9 2.5h4.5v4.5H9zM2.5 9h4.5v4.5H2.5zM9 9h4.5v4.5H9z",
+  ],
+  [
+    "One group, by its id",
+    "Why its score moved, since when, and whether it is a bump or a fall.",
+    "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 1 0 0-11zM8 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3z",
+  ],
+  [
+    "The trail under a score",
+    "Invoices, customers paying late, cash, debt and what is overdue.",
+    "M3 4h10M3 8h10M3 12h6",
+  ],
+  [
+    "What a move would do",
+    "Lift a pillar and see the level and the credit line reprice.",
+    "M2.5 11.5l4-4 3 3 4-5M10 5.5h3.5V9",
+  ],
+  [
+    "What is happening outside",
+    "The country around a group, or a real company you name.",
+    "M8 2.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 1 0 0-11zM2.5 8h11M8 2.5c-2 2-2 9 0 11M8 2.5c2 2 2 9 0 11",
+  ],
 ];
+
+const WORKING = ["planning", "agents", "writing"];
 
 const host = (url: string) => {
   try {
@@ -128,7 +150,7 @@ function Draft({ suggestion, by }: { suggestion: Suggestion; by: string }) {
 
 function WriterLine({ turn }: { turn: Turn }) {
   const [open, setOpen] = useState(false);
-  const note = turn.check ? checkNote(turn.check) : "Writing from the results";
+  const note = turn.check ? checkNote(turn.check) : "writing from the results";
   return (
     <li className="trace__item">
       <button className="trace__row" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -169,29 +191,62 @@ function WriterLine({ turn }: { turn: Turn }) {
   );
 }
 
+// The fleet at work, in one block. Open while the turn runs so the rows land live; folded to
+// its summary line once it ends, unless the reader opens it.
+function Trace({ turn, members }: { turn: Turn; members: Map<string, FleetMember> }) {
+  const [opened, setOpened] = useState<boolean | null>(null);
+  const working = WORKING.includes(turn.phase);
+  const open = opened ?? working;
+  const reading = turn.phase === "planning";
+  const head = reading
+    ? turn.agents.length
+      ? "Director is reading what came back"
+      : "Director is reading the question"
+    : turn.purpose
+      ? `Read as: ${turn.purpose}`
+      : turn.phase === "error"
+        ? "The director could not plan"
+        : "Stopped before the director planned";
+  const names = [...new Set(turn.agents.map((run) => members.get(run.id)?.label ?? run.id))];
+  const status = working
+    ? "running"
+    : turn.phase === "error"
+      ? "failed"
+      : turn.phase === "stopped"
+        ? undefined
+        : "done";
+  const rows = turn.agents.length > 0 || turn.phase === "writing" || turn.check;
+  return (
+    <div className={open && rows ? "trace is-open" : "trace"}>
+      <button className="trace__summary" onClick={() => setOpened(!open)} aria-expanded={open}>
+        <span className="agent__dot" data-status={status} />
+        <span className={reading ? "trace__purpose is-pending" : "trace__purpose"}>{head}</span>
+        {names.length > 0 && <span className="trace__names">{names.join(", ")}</span>}
+        <span className="row__when">
+          {turn.phase === "stopped" ? "stopped" : turn.ms ? secs(turn.ms) : ""}
+        </span>
+        <svg className="trace__chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+          <path d="M3 4.5l3 3 3-3" />
+        </svg>
+      </button>
+      {open && rows && (
+        <ol className="trace__rows">
+          {turn.agents.map((run) => (
+            <AgentLine key={run.run} run={run} member={members.get(run.id)} />
+          ))}
+          {(turn.phase === "writing" || turn.check) && <WriterLine turn={turn} />}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMember> }) {
-  const working = ["planning", "agents", "writing"].includes(turn.phase);
-  const total = turn.ms ? `${(turn.ms / 1000).toFixed(1)} s` : "";
+  const working = WORKING.includes(turn.phase);
   return (
     <article className="turn">
-      <h2 className="turn__question">{turn.question}</h2>
-      <p className="hint">Data as of {monthLong(turn.month)}</p>
-      <div className="section-head trace__head">
-        <span className="hint">
-          {turn.phase === "planning"
-            ? turn.agents.length
-              ? "Director is reading what came back"
-              : "Director is reading the question"
-            : `${turn.purpose ? `Read as: ${turn.purpose}. ` : ""}${turn.agents.length} call${turn.agents.length === 1 ? "" : "s"}`}
-        </span>
-        <span className="hint">{total}</span>
-      </div>
-      <ol className="trace">
-        {turn.agents.map((run) => (
-          <AgentLine key={run.run} run={run} member={members.get(run.id)} />
-        ))}
-        {(turn.phase === "writing" || turn.check) && <WriterLine turn={turn} />}
-      </ol>
+      <p className="turn__question">{turn.question}</p>
+      <Trace turn={turn} members={members} />
       {(turn.answer || turn.phase === "writing") && (
         <div className={working ? "answer is-streaming" : "answer"} aria-live="polite">
           {turn.answer.split(/\n{2,}/).map((para, i) => (
@@ -206,11 +261,11 @@ function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMem
         />
       )}
       {turn.phase === "error" && <p className="turn__error">{turn.error}</p>}
-      {turn.phase === "stopped" && <p className="hint">Stopped.</p>}
     </article>
   );
 }
 
+// Mounted once per conversation: scroll, open inspectors and the draft belong to it.
 export function Chat({
   month,
   fleet,
@@ -218,6 +273,7 @@ export function Chat({
   busy,
   onAsk,
   onStop,
+  onNew,
 }: {
   month: string;
   fleet: FleetState;
@@ -225,42 +281,60 @@ export function Chat({
   busy: boolean;
   onAsk: (question: string) => void;
   onStop: () => void;
+  onNew: () => void;
 }) {
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
+  // Follows the answer as it streams unless the reader has scrolled up to read.
+  const following = useRef(true);
   const ready = fleet.status === "ready";
   const members = new Map(fleet.status === "ready" ? fleet.agents.map((a) => [a.id, a]) : []);
 
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+    if (following.current) scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [turns]);
 
   const send = (question: string) => {
     const text = question.trim();
     if (!text || busy || !ready) return;
+    following.current = true;
     onAsk(text);
     setDraft("");
   };
 
   return (
     <div className="chat">
-      <div className="chat__scroll" ref={scroller}>
-        <div className="chat__column">
+      <div
+        className="chat__scroll"
+        ref={scroller}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          following.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+        }}
+      >
+        <div className={turns.length === 0 ? "chat__column is-empty" : "chat__column"}>
           {turns.length === 0 ? (
             <div className="guide">
+              <h2 className="guide__title">Ask anything the data holds.</h2>
               <p className="guide__lead">
-                Ask anything the data holds, in your own words, as of {monthLong(month)}. A
-                director writes queries over the tables and sends agents to the groups you name,
-                until it can answer. Open any line in the answer to see the query or the steps.
+                A director writes queries over the tables and sends agents to the groups you name.
+                Every figure in an answer is traced back to a result you can open.
               </p>
-              <dl>
-                {GUIDE.map(([topic, what]) => (
-                  <div key={topic}>
-                    <dt>{topic}</dt>
-                    <dd>{what}</dd>
-                  </div>
+              <ul className="guide__list">
+                {GUIDE.map(([topic, what, icon]) => (
+                  <li key={topic}>
+                    <span className="guide__icon">
+                      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                        <path d={icon} />
+                      </svg>
+                    </span>
+                    <span className="guide__text">
+                      <span className="guide__topic">{topic}</span>
+                      <span className="guide__what">{what}</span>
+                    </span>
+                  </li>
                 ))}
-              </dl>
+              </ul>
             </div>
           ) : (
             turns.map((turn) => <TurnView key={turn.id} turn={turn} members={members} />)
@@ -278,6 +352,7 @@ export function Chat({
         <div className="composer__field">
           <textarea
             rows={1}
+            autoFocus
             value={draft}
             placeholder={ready ? "Ask about the portfolio, a group or the data" : "Agents are offline"}
             disabled={!ready}
@@ -303,6 +378,20 @@ export function Chat({
               </svg>
             </button>
           )}
+        </div>
+        <div className="composer__foot">
+          {turns.length > 0 ? (
+            <button type="button" className="chat__new" onClick={onNew}>
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden>
+                <path d="M8 2.5H3.5A1.5 1.5 0 0 0 2 4v8.5A1.5 1.5 0 0 0 3.5 14H12a1.5 1.5 0 0 0 1.5-1.5V8" />
+                <path d="M12.7 1.8a1.4 1.4 0 0 1 2 2L9 9.5l-2.7.7.7-2.7z" />
+              </svg>
+              New conversation
+            </button>
+          ) : (
+            <span />
+          )}
+          <span className="hint">Data as of {monthLong(month)}</span>
         </div>
       </form>
     </div>

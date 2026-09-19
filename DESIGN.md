@@ -8,6 +8,7 @@ records what the built UI does so later screens follow it instead of inventing a
 1. One group, one curve. The trajectory chart is the page; everything else is a footnote to it.
 2. The less the better. No cards, no boxes, no shadows on content. Whitespace and one hairline
    rule separate things. If a number does not answer one of the six questions, it is not shown.
+   The one filled shape is the person's own question in the chat.
 3. Color means state and nothing else. The interface is Embat navy on white; green, amber, orange,
    red and blue appear only as state dots, trend arrows, alert rings and signed deltas. The palette
    is Embat's (embat.io design tokens); the brand gradient lives only in the logo mark.
@@ -91,22 +92,32 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   its state color, the rest stay hairline grey. Every scored month is a tick outside the arc,
   today's longer and in ink. Tapered ink needle, the level at 30px under the hub, the ends
   labelled with value, worst or best, and month. Below it, the zone as a dot plus its words.
-- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
-  and the writer, each with its live state and the tool it is running. The detail pane holds the
-  conversation. A turn is the question at 22px, a line saying what the planner read it as, a
-  trace of the agents dispatched (dot, name, one-line report, time) closed by the writer's own
-  row, which ends on its figure check ("32 figures, all traced"), then the answer as prose at
-  15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
-  under, every tool call with input, output and time, findings and sources. Tool calls are the
-  one place monospace is used, because they are code. No bubbles, no avatars, no modal.
-- **Chat guide** (`Chat.tsx`): an empty conversation shows no suggested questions. It shows a
-  short lead and a five-row guide, topic at weight 500 and one plain line on what it answers,
-  one row per agent's ground. The group is changed with the "Ask about" select in the chat
-  header; naming another group's id in a question compares it.
-- **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
-  the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
-  button on hover. "New conversation" is a text link in the section head. The section is sticky at
-  the top of the rail; the list is three rows tall and scrolls for the rest. Kept in localStorage (`xray.chats`, last 30); opening one selects its group.
+- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail holds the conversations and the state of
+  the agent service. The detail pane holds one conversation, laid out the way a chat client does
+  it: the turns growing up from the composer so the newest sits right above it, the composer at
+  the bottom, and under the composer one line with a borderless "New conversation" icon button
+  on the left (shown once a turn exists) and "Data as of {month}" on the right. A turn is the
+  question in a filled bubble on the right
+  (15px, `--hover`, 18px radius, 75% of the column at most), then the fleet's work as one
+  `--side` slab with a 12px radius: a summary line (dot, "Director is reading the question" while
+  it plans and then "Read as: {purpose}", the agents' names, the turn's time, a chevron) and,
+  under a hairline, one row per agent (dot, name, one-line report, time) closed by the writer's
+  row, which ends on its figure check ("32 figures, all traced"). The slab is open while the turn
+  runs and folds to its summary line when it ends; the chevron reopens it. Then the answer as
+  prose at 15px, 68ch. An agent row opens in place to its inspector: purpose, the rules it works
+  under, every tool call with input, output and time, findings and sources. Tool calls are the one
+  place monospace is used, because they are code. The person's bubble is the only bubble; no
+  avatars, no modal. The pane follows the answer as it streams unless the reader has scrolled up.
+- **Chat guide** (`Chat.tsx`): an empty conversation is centred in the pane on the composer's
+  axis: a 26px title, a two-sentence lead at 15px, and a grouped list (560px, `--side`, 14px
+  radius) of five rows, one per agent's ground: a 16px stroke icon on a white 28px tile, the
+  topic at weight 500, one 13px line on what it answers, inset hairlines between rows. No
+  suggested questions. Naming a group's id in a question sends the agents to it.
+- **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail as
+  alert-style rows: first question, question count, how long ago or "answering", a delete button
+  on hover. "New conversation" is a text link in the section head, shown while a conversation is
+  open; the button under the composer does the same. The section is sticky at the top of the rail. Kept
+  in localStorage (`xray.chats.v2`). A question asked in a new conversation moves it to the top.
 - **Data sync** (`GroupDetail.tsx`): a borderless refresh icon beside the favorite star, same size
   and ink. It turns while the tables refetch, and only then. The meta line ends with when the data
   was last updated (the tables' Last-Modified); the icon's tooltip says when this browser synced.
