@@ -36,6 +36,19 @@ logger = logging.getLogger(__name__)
 
 TREND_WINDOW_MONTHS = 3
 
+# Categories that move money without being operating activity. Intragroup `transfer` nets to
+# +21bn across the dataset, so the two sides do not cancel and both flows are inflated.
+# Debt service is excluded as well, so operating net flow stays a valid DSCR numerator.
+NON_OPERATING_CATEGORIES = (
+    "transfer",
+    "investment_deployment",
+    "investment_return",
+    "cash_settlement",
+    "cash_withdrawal",
+    "debt_repayment",
+    "interest_charge",
+)
+
 SOURCES = ("companies", "transactions", "invoices", "cash_monthly")
 
 # Additive columns, summed as they are when companies roll up into their group.
@@ -44,9 +57,12 @@ _ADDITIVE = (
     "n_tx",
     "inflow",
     "outflow",
+    "inflow_op",
+    "outflow_op",
     "salary_outflow",
     "tax_outflow",
     "debt_repayment_outflow",
+    "interest_outflow",
     "fee_outflow",
     "n_counterparties",
     "ar_open",
@@ -57,6 +73,8 @@ _ADDITIVE = (
     "ap_paid",
     "ar_collected_days",
     "ap_paid_days",
+    "ar_late_days",
+    "ap_late_days",
     "n_invoices_issued",
     "n_invoices_received",
 )
@@ -73,6 +91,7 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
     inv_path = processed_dir / "invoices.parquet"
     companies_path = processed_dir / "companies.parquet"
     cash_path = marts_dir / "cash_monthly.parquet"
+    ops = str(NON_OPERATING_CATEGORIES)
     return f"""
     with months as (
         select unnest(generate_series(
@@ -94,12 +113,18 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
             count(distinct counterparty_id) as n_counterparties,
             sum(case when amount > 0 then amount else 0 end) as inflow,
             sum(case when amount < 0 then -amount else 0 end) as outflow,
+            sum(case when amount > 0 and category not in {ops} then amount else 0 end)
+                as inflow_op,
+            sum(case when amount < 0 and category not in {ops} then -amount else 0 end)
+                as outflow_op,
             sum(case when amount < 0 and category = 'salary' then -amount else 0 end)
                 as salary_outflow,
             sum(case when amount < 0 and category = 'tax' then -amount else 0 end)
                 as tax_outflow,
             sum(case when amount < 0 and category = 'debt_repayment' then -amount else 0 end)
                 as debt_repayment_outflow,
+            sum(case when amount < 0 and category = 'interest_charge' then -amount else 0 end)
+                as interest_outflow,
             sum(case when amount < 0 and category = 'fee' then -amount else 0 end)
                 as fee_outflow
         from tx group by 1, 2
@@ -133,7 +158,15 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
                      else 0 end) as ar_collected_days,
             sum(case when side = 'payable'
                      then abs(amount) * date_diff('day', issuance_date, payment_date)
-                     else 0 end) as ap_paid_days
+                     else 0 end) as ap_paid_days,
+            -- Days beyond due, floored at zero per Paydex: paying one invoice early must not
+            -- cancel out paying another late. Lateness is a tail signal, not an average.
+            sum(case when side = 'receivable'
+                     then abs(amount) * greatest(date_diff('day', due_date, payment_date), 0)
+                     else 0 end) as ar_late_days,
+            sum(case when side = 'payable'
+                     then abs(amount) * greatest(date_diff('day', due_date, payment_date), 0)
+                     else 0 end) as ap_late_days
         from inv
         -- 3% of paid invoices are stamped as paid before they were issued, down to -2139 days.
         -- One of those with a large amount flips a whole month's weighted DSO negative.
@@ -156,9 +189,12 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(t.n_counterparties, 0) as n_counterparties,
         coalesce(t.inflow, 0) as inflow,
         coalesce(t.outflow, 0) as outflow,
+        coalesce(t.inflow_op, 0) as inflow_op,
+        coalesce(t.outflow_op, 0) as outflow_op,
         coalesce(t.salary_outflow, 0) as salary_outflow,
         coalesce(t.tax_outflow, 0) as tax_outflow,
         coalesce(t.debt_repayment_outflow, 0) as debt_repayment_outflow,
+        coalesce(t.interest_outflow, 0) as interest_outflow,
         coalesce(t.fee_outflow, 0) as fee_outflow,
         coalesce(o.ar_open, 0) as ar_open,
         coalesce(o.ap_open, 0) as ap_open,
@@ -168,6 +204,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(p.ap_paid, 0) as ap_paid,
         coalesce(p.ar_collected_days, 0) as ar_collected_days,
         coalesce(p.ap_paid_days, 0) as ap_paid_days,
+        coalesce(p.ar_late_days, 0) as ar_late_days,
+        coalesce(p.ap_late_days, 0) as ap_late_days,
         coalesce(i.n_invoices_issued, 0) as n_invoices_issued,
         coalesce(i.n_invoices_received, 0) as n_invoices_received,
         ch.cash as cash,
@@ -193,6 +231,18 @@ def _finalize_sql(source: str, key: str) -> str:
     return f"""
     select *,
         inflow - outflow as net_flow,
+        inflow_op - outflow_op as net_flow_op,
+        sum(inflow_op) over (
+            {win} rows between {TREND_WINDOW_MONTHS - 1} preceding and current row
+        ) as opin_3m,
+        sum(outflow_op) over (
+            {win} rows between {TREND_WINDOW_MONTHS - 1} preceding and current row
+        ) as opout_3m,
+        sum(inflow_op) over ({win} rows between 11 preceding and current row) as opin_12m,
+        sum(outflow_op) over ({win} rows between 11 preceding and current row) as opout_12m,
+        sum(debt_repayment_outflow + interest_outflow) over (
+            {win} rows between 11 preceding and current row
+        ) as debt_service_12m,
         avg(inflow) over ({win} rows between {TREND_WINDOW_MONTHS - 1} preceding and current row)
             as inflow_{TREND_WINDOW_MONTHS}m,
         avg(inflow - outflow) over (
@@ -203,6 +253,8 @@ def _finalize_sql(source: str, key: str) -> str:
         case when ap_open > 0 then ap_overdue / ap_open end as ap_overdue_ratio,
         case when ar_collected > 0 then ar_collected_days / ar_collected end as dso_days,
         case when ap_paid > 0 then ap_paid_days / ap_paid end as dpo_days,
+        case when ar_collected > 0 then ar_late_days / ar_collected end as ar_days_late,
+        case when ap_paid > 0 then ap_late_days / ap_paid end as ap_days_late,
         case when outflow > 0 then inflow / outflow end as inflow_cover,
         case when outflow > 0 and has_cash then cash / outflow end as runway_months,
         sum(case when is_covered then 1 else 0 end) over (
