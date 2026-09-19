@@ -195,8 +195,9 @@ Nobody clicks anything to make the portfolio move. With `CHANNEL=rules` only wha
 in the chat leaves ("Slack me when a group starts falling, email me everything on Velasco",
 "an alarm when the 0130 gets a score above 80"): each alert is `info`, `warning` or `critical`; a
 rule names a channel, the groups it watches and what it waits for: alerts from an urgency up
-with an optional severity floor, or the score crossing a line. A request that names no channel
-saves nothing; the chat asks "Slack or email?" and the answer completes it.
+with an optional severity floor, or the score crossing a line. An email rule carries its
+address. A request that names no channel, or email and no address, saves nothing; the chat asks
+for what is missing and the answer completes it.
 
 1. Open Northbrook (45 -> 65), then Velasco (82 -> 68) at month 24. Similar levels, opposite bets.
 2. Read their trajectories in turn: Northbrook rises while Velasco bends.

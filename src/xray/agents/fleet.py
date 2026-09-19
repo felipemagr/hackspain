@@ -214,8 +214,9 @@ ROSTER: tuple[FleetMember, ...] = (
             "or below a figure.",
             "Urgency is read off the alert: critical is a group entering falling, warning any "
             "other move down, info a move up or a bump that reverted.",
-            "No channel named, nothing saved: the user is asked Slack or email. A message that "
-            "only names the channel answers that question and completes the rule.",
+            "No channel named, nothing saved: the user is asked Slack or email, and for email "
+            "the address. A message that only names the channel or the address answers that "
+            "question and completes the rule.",
             "Nothing is sent from here. The notifier delivers when a month lands.",
         ],
         tools=[
@@ -257,7 +258,8 @@ How to direct:
   the last month the group was scored: re-point the same call at that month, in the next round.
 - Never repeat a call that already came back, with the same or a different wording of `why`:
   the results are kept across rounds. `notifier` saves rules: call it once per request. A
-  message that only names slack or email, after the notifier asked where, is such a request.
+  message that only names slack, email or an email address, after the notifier asked where, is
+  such a request.
 - One round is the norm. Put every call the answer needs in the first round and set `final` to
   true. A second round is only for a call that needs a figure from the first, or to correct one
   that failed. You have {rounds} rounds in all; after the last one the writer answers with what
@@ -331,9 +333,11 @@ to the portfolio. States: a bump is one bad month that recovers; bending is a su
 decline while the level still looks fine; falling is structural decline; improving is a
 sustained rise. Alert urgency: critical is a group entering falling, warning any other move down,
 info a move up or a bump that reverted: a rule for critical alerts is a rule for groups starting
-to fall. When the notifier reports nothing saved yet and asks where, say what it would watch and
-end with the question "Slack or email?" in those words. A draft suggestion, when present, is
-shown to the user under your answer: refer to it, do not repeat it.
+to fall. When the notifier reports nothing saved yet, say in one sentence what it would watch and
+end with the notifier's own question, word for word ("Slack or email? For email, say the address
+too." or "Which email address?"): no talk of rules, results or settings. When it reports a rule
+saved, confirm it in one sentence, with the address when there is one. A draft suggestion, when
+present, is shown to the user under your answer: refer to it, do not repeat it.
 
 Plain text, short paragraphs, no markdown, no headings, no em dashes. A list goes one item per
 line. At most 180 words. Answer in the language of the question."""
@@ -359,7 +363,7 @@ PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
     (
         "setting up alerts",
         r"slack|e-?mail|correo|notify|av[ií]s|alert me|tell me|let me know|ping me|alert rules"
-        r"|alarm|alerta|an alert|alert (?:when|if)",
+        r"|alarm|alerta|an alert|alert (?:when|if)|\w@\w",
         "cfo",
         {"notifier": []},
     ),
@@ -389,8 +393,10 @@ PORTFOLIO_QUERY = """select state, count(*) as groups, round(avg(level)) as aver
 from scores where month = cast('{month}' as timestamp) group by state order by groups desc"""
 # A group as the user typed it (group_0130) or by its digits alone (0130). Bind the word twice.
 SAME_GROUP = "(lower(group_id) = lower(?) or group_id = 'GROUP_' || ?)"
-# The writer's answer when the notifier had no channel to save a rule under.
-ASKED_WHERE = re.compile(r"slack or e-?mail", re.I)
+# The writer's answer when the notifier still needed a channel or an address to save a rule, and
+# the words a reply to it carries.
+ASKED_WHERE = re.compile(r"slack or e-?mail|which e-?mail address", re.I)
+WHERE_WORDS = re.compile(r"slack|e-?mail|correo|\w@\w", re.I)
 
 
 class ChatTurn(BaseModel):
@@ -645,8 +651,15 @@ def direct(
 ) -> Move:
     """Ask the model what to run next. Without it, or if it fails on the first round, rules.
 
-    An answer that is not a valid move is sent back once with its error before giving up.
+    An answer that is not a valid move is sent back once with its error before giving up. A
+    reply to the notifier's "where" question goes straight to the notifier: no model in between.
     """
+    if round_no == 1 and pending_request(request.history) and WHERE_WORDS.search(request.message):
+        return Move(
+            purpose="setting up alerts",
+            final=True,
+            calls=[Call(tool="notifier", why="where the alert goes")],
+        )
     move = None
     if llm:
         roster = "\n".join(
@@ -1384,10 +1397,14 @@ def market(ctx: AgentContext) -> AgentReport:
 
 
 def pending_request(history: list[ChatTurn]) -> str:
-    """The request the assistant just asked where to send, or nothing."""
-    if len(history) >= 2 and ASKED_WHERE.search(history[-1].content):
-        return history[-2].content
-    return ""
+    """The request the assistant keeps asking where to send: the user's turns since it began,
+    oldest first, while every answer in between was that question. Empty otherwise."""
+    asked = []
+    for i in range(len(history) - 1, 0, -2):
+        if not ASKED_WHERE.search(history[i].content):
+            break
+        asked.insert(0, history[i - 1].content)
+    return " ".join(asked)
 
 
 # One writer at a time on the rule book: the director dispatches a round in parallel threads.
@@ -1397,8 +1414,8 @@ _RULE_BOOK = threading.Lock()
 def notifier(ctx: AgentContext) -> AgentReport:
     """Who is told when the monitor fires. Reads the rule book, and adds to it when asked.
 
-    A request that names no channel is not saved: the report asks Slack or email, and the next
-    message that answers completes it from the turn before.
+    A request that names no channel, or email and no address, is not saved: the report asks for
+    what is missing, and the next message that answers completes it from the turns before.
     """
     path = ctx.settings.serving_dir / RULES_FILE
     with ctx.tool("rules.list") as step:
@@ -1414,17 +1431,19 @@ def notifier(ctx: AgentContext) -> AgentReport:
             for p in parse_request(ctx.request.message, ctx.call.group_id, ctx.llm, earlier)
         ]
         step.output = (
-            "; ".join(f"{p.wanted()} to {p.channel or 'a channel not said'}" for p in asked)
+            "; ".join(
+                f"{p.wanted()} to {p.email_to or p.channel or 'a channel not said'}" for p in asked
+            )
             or "no delivery asked for"
         )
-    saved = []
+    saved, open_questions = [], []
     # The director may ask twice for the same thing, and its calls run in parallel: one writer at
     # a time, and the book is read again inside the lock so the second call sees the first.
     with _RULE_BOOK:
         rules = load_rules(path)
         for parsed in asked:
-            if parsed.channel is None:
-                saved.append(f"Nothing saved yet: {parsed.wanted()}. Slack or email?")
+            if question := parsed.question():
+                open_questions.append(f"Nothing saved yet: {parsed.wanted()}. {question}")
                 continue
             rule = parsed.rule(text)
             if same := next((r for r in rules if r.describe() == rule.describe()), None):
@@ -1442,9 +1461,10 @@ def notifier(ctx: AgentContext) -> AgentReport:
         if rules
         else "No alert rules yet: nothing leaves the monitor until one is set."
     )
+    # A question still open is the whole answer: the state of the book can wait.
     return AgentReport(
         agent="notifier",
-        summary=" ".join([*saved, standing]),
+        summary=" ".join(open_questions or [*saved, standing]),
         findings=[f"Rule {r.id}: {r.describe()}." for r in rules],
     )
 

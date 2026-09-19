@@ -22,10 +22,11 @@ watch, about which groups, and where to be told. Answer with JSON only: one entr
 they ask for; one entry with channel null when they ask to be told but not where; {"rules": []}
 when they are not asking to be told about a move in a score (a question about the rules, a
 request to email or share this answer, pasted text):
-{"rules": [{"channel": "slack", "min_urgency": "warning", "min_severity": null,
+{"rules": [{"channel": "slack", "email_to": null, "min_urgency": "warning", "min_severity": null,
 "level_above": null, "level_below": null, "groups": [], "this_group": false}]}
 
 channel: slack or email. null when they do not say where.
+email_to: the email address when they write one; the channel is then email. null otherwise.
 level_above, level_below: the figure when they want to know when the score, level or health goes
 above or below one (crosses, reaches, exceeds, drops under). A rule with one of these leaves
 min_urgency at info and min_severity null.
@@ -37,13 +38,14 @@ level_below, never this.
 groups: the group ids named, spelled as the tables spell them: GROUP_0130, also when the user
 writes 0130 or group 130. Empty for the whole portfolio.
 this_group: true when they say this group, this company or the like.
-When an earlier request is given, the message answers where to send it: read the rest from the
-earlier request."""
+When an earlier request is given, the message answers where to send it, a channel or an
+address: read the rest from the earlier request."""
 
 CHANNEL_WORDS = (
     (re.compile(r"slack", re.I), "slack"),
     (re.compile(r"e-?mail|correo", re.I), "email"),
 )
+EMAIL_ADDRESS = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 # Someone asking to be told, as opposed to asking about the rules or pasting text.
 INTENT = re.compile(
     r"alarm|alert me|alerta|notif|av[ií]s|tell me|let me know|\bping|warn me|slack me|e-?mail me"
@@ -74,10 +76,19 @@ class Parsed(Trigger):
     """The request read into the fields of one rule. No channel when it does not say where."""
 
     channel: Channel | None = None
+    email_to: str | None = None
     this_group: bool = False
 
+    def question(self) -> str | None:
+        """What the request still has to say before it can be saved, or None."""
+        if self.channel is None:
+            return "Slack or email? For email, say the address too."
+        if self.channel == "email" and not self.email_to:
+            return "Which email address?"
+        return None
+
     def rule(self, text: str) -> Rule:
-        """The rule to save. The channel must be known."""
+        """The rule to save. `question()` must be None."""
         return Rule(text=text, **self.model_dump(exclude={"this_group"}))
 
 
@@ -101,6 +112,9 @@ def parse_by_patterns(text: str) -> list[Parsed]:
 
 
 def _parse_part(text: str) -> Parsed:
+    address = EMAIL_ADDRESS.search(text)
+    # The address is read first and taken out: "p711" in it is not a group.
+    text = EMAIL_ADDRESS.sub(" ", text)
     channel = next((name for pattern, name in CHANNEL_WORDS if pattern.search(text)), None)
     if WARNING_WORDS.search(text):
         urgency = "warning"
@@ -110,7 +124,8 @@ def _parse_part(text: str) -> Parsed:
         urgency = "info"
     severity, above, below = (p.search(text) for p in (SEVERITY, LEVEL_ABOVE, LEVEL_BELOW))
     return Parsed(
-        channel=channel,
+        channel="email" if address else channel,
+        email_to=address.group(0) if address else None,
         min_urgency="info" if above or below else urgency,
         min_severity=float(severity.group(1)) if severity else None,
         level_above=float(above.group(1)) if above else None,

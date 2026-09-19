@@ -77,11 +77,18 @@ class Rule(Trigger):
     text: str
     channel: Channel
     id: int | None = None
+    email_to: str | None = None
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
+
+    @property
+    def target(self) -> str:
+        """Where a message goes: the channel, with the address for email ("email:x@y.z")."""
+        return f"email:{self.email_to}" if self.email_to else self.channel
 
     def describe(self) -> str:
         """The rule in one line, as the chat and the log show it."""
-        return f"{self.channel.capitalize()} gets {self.wanted()}"
+        who = f"Email to {self.email_to}" if self.email_to else self.channel.capitalize()
+        return f"{who} gets {self.wanted()}"
 
 
 def load_rules(path: Path) -> list[Rule]:

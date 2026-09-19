@@ -38,10 +38,10 @@ def create_alert_rules(body: RuleRequest) -> list[Rule]:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="No alert asked for: say what to watch and where, slack or email",
         )
-    if unplaced := [p for p in asked if p.channel is None]:
+    if open_question := next((p for p in asked if p.question()), None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=f"Where should it go, slack or email? Not saved: {unplaced[0].wanted()}",
+            detail=f"Not saved: {open_question.wanted()}. {open_question.question()}",
         )
     return [add_rule(settings.serving_dir / RULES_FILE, p.rule(body.text)) for p in asked]
 
@@ -67,7 +67,7 @@ def test_alert_rule(rule_id: int) -> Response:
         if rule.channel == "slack":
             sent = send_slack(f"{subject}\n{body}")
         else:
-            sent = send_email(subject, body)
+            sent = send_email(subject, body, to=rule.email_to)
     except (httpx.HTTPError, OSError) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

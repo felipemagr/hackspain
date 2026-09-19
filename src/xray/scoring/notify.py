@@ -47,12 +47,13 @@ STATE_COPY = {
 }
 
 
-def _channels() -> dict:
-    return {
-        "slack": lambda subject, body: send_slack(f"{subject}\n{body}"),
-        "email": send_email,
-        "none": lambda subject, body: True,
-    }
+def _deliver(target: str, subject: str, body: str) -> None:
+    """One message down one target: ``slack``, ``email``, ``email:x@y.z`` or ``none``."""
+    channel, _, address = target.partition(":")
+    if channel == "slack":
+        send_slack(f"{subject}\n{body}")
+    elif channel == "email":
+        send_email(subject, body, to=address or None)
 
 
 def _label(pillar: str | None) -> str:
@@ -210,16 +211,16 @@ def level_messages(
                         "body": body,
                         "channels": [],
                     }
-                if rule.channel not in rows[key]["channels"]:
-                    rows[key]["channels"].append(rule.channel)
+                if rule.target not in rows[key]["channels"]:
+                    rows[key]["channels"].append(rule.target)
     return pd.DataFrame(list(rows.values()), columns=[*MESSAGE_COLUMNS, "channels"])
 
 
 def _route(message: pd.Series, rules: list[Rule]) -> list[str]:
-    """The channels whose rules want this message, each once."""
+    """The targets whose rules want this message, each once."""
     return sorted(
         {
-            rule.channel
+            rule.target
             for rule in rules
             if rule.matches(message["urgency"], message["severity"], message["group_id"])
         }
@@ -280,7 +281,6 @@ def dispatch(
     if limit:
         pending = pending.nlargest(limit, "severity")
 
-    send = _channels()
     for _, message in pending.iterrows():
         logger.info(
             "%s | %s | %s",
@@ -291,7 +291,7 @@ def dispatch(
         if dry_run:
             continue
         for target in message["channels"]:
-            send[target](message["subject"], message["body"])
+            _deliver(target, message["subject"], message["body"])
         sent.add(message["key"])
 
     if not dry_run and len(pending):

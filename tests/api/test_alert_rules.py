@@ -31,23 +31,39 @@ def test_a_plain_request_is_saved_listed_and_dropped(client):
     assert client.get("/api/v1/alert-rules").json() == []
 
 
-def test_a_request_without_a_channel_is_rejected_naming_what_it_would_watch(client):
-    response = client.post("/api/v1/alert-rules", json={"text": "tell me when it falls"})
+@pytest.mark.parametrize(
+    ("text", "detail"),
+    [
+        (
+            "tell me when it falls",
+            "Not saved: critical alerts on any group. Slack or email? For email, say the "
+            "address too.",
+        ),
+        (
+            "email me when it falls",
+            "Not saved: critical alerts on any group. Which email address?",
+        ),
+    ],
+)
+def test_a_request_missing_the_channel_or_the_address_is_rejected_with_the_question(
+    client, text, detail
+):
+    response = client.post("/api/v1/alert-rules", json={"text": text})
 
     assert response.status_code == 422
-    assert response.json()["detail"] == (
-        "Where should it go, slack or email? Not saved: critical alerts on any group"
-    )
+    assert response.json()["detail"] == detail
     assert client.get("/api/v1/alert-rules").json() == []
 
 
-def test_a_score_line_becomes_a_level_rule(client):
+def test_a_score_line_and_an_address_become_a_level_rule_to_that_address(client):
     created = client.post(
-        "/api/v1/alert-rules", json={"text": "email me when GROUP_0130 goes above 80"}
+        "/api/v1/alert-rules",
+        json={"text": "alert me at cfo@example.com when GROUP_0130 goes above 80"},
     )
 
     (rule,) = created.json()
-    assert (rule["channel"], rule["level_above"], rule["groups"]) == ("email", 80, ["GROUP_0130"])
+    assert (rule["channel"], rule["email_to"]) == ("email", "cfo@example.com")
+    assert (rule["level_above"], rule["groups"]) == (80, ["GROUP_0130"])
     assert rule["min_severity"] is None
 
 
