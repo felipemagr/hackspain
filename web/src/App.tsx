@@ -74,7 +74,19 @@ export default function App() {
     <div className="app">
       <aside className="side">
         <div className="side__top">
-          <span className="brand">X Ray</span>
+          <span className="brand">
+            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+              <defs>
+                <linearGradient id="brand-rise" x1="13" y1="11" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+                  <stop offset="0" stopColor="#415de6" />
+                  <stop offset="1" stopColor="#c357ec" />
+                </linearGradient>
+              </defs>
+              <path fill="currentColor" d="M11 11 2 6.5V2h4.5zM11 13l-4.5 9H2v-4.5zM13 13l9 4.5V22h-4.5z" />
+              <path fill="url(#brand-rise)" d="M13 11l4.5-9H22v4.5z" />
+            </svg>
+            X Ray
+          </span>
           <div className="stepper">
             <button onClick={() => stepMonth(-1)} disabled={i <= 0} aria-label="Previous month">
               <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden>

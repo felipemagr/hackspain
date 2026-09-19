@@ -1,24 +1,24 @@
-/* X Ray: a quiet light surface. Ink and whitespace carry the page; color is reserved for state. */
+/* X Ray: a quiet light surface in Embat's palette. Navy ink and whitespace carry the page; color is reserved for state. */
 
 :root {
-  --surface: #fdfdfc;
-  --side: #f4f4f1;
-  --hover: #ebebe7;
-  --selected: #e4e4df;
-  --line: #e3e3de;
-  --line-strong: #c9c9c3;
-  --ink: #17181c;
-  --ink-2: #4f525a;
-  --ink-3: #6c6f78;
-  --series-2: #2c5cd6;
-  --good: #1a8a3f;
-  --warn: #d99a00;
-  --serious: #d2691e;
-  --bad: #cf3a31;
-  --info: #4a6d94;
-  --neutral: #9a9da5;
-  --good-ink: #146c31;
-  --bad-ink: #b32c24;
+  --surface: #ffffff;
+  --side: #f3f4f6;
+  --hover: #e8e8ed;
+  --selected: #dddde6;
+  --line: #e8e8ed;
+  --line-strong: #d2d2db;
+  --ink: #050b2c;
+  --ink-2: #42444c;
+  --ink-3: #6e707c;
+  --series-2: #8041d1;
+  --good: #08ab39;
+  --warn: #dfb631;
+  --serious: #d6722f;
+  --bad: #c2401f;
+  --info: #3878f6;
+  --neutral: #9a9ba8;
+  --good-ink: #007d25;
+  --bad-ink: #ab2807;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --font: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
 }
@@ -98,6 +98,9 @@ ol {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -539,7 +542,7 @@ select:hover {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 6px 20px -6px rgb(23 24 28 / 0.18);
+  box-shadow: 0 6px 20px -6px rgb(5 11 44 / 0.18);
   font-size: 12.5px;
   white-space: nowrap;
   pointer-events: none;

@@ -8,8 +8,9 @@ records what the built UI does so later screens follow it instead of inventing a
 1. One group, one curve. The trajectory chart is the page; everything else is a footnote to it.
 2. The less the better. No cards, no boxes, no shadows on content. Whitespace and one hairline
    rule separate things. If a number does not answer one of the six questions, it is not shown.
-3. Color means state and nothing else. The interface is ink on paper; green, amber, orange, red
-   and slate appear only as state dots, trend arrows, alert rings and signed deltas.
+3. Color means state and nothing else. The interface is Embat navy on white; green, amber, orange,
+   red and blue appear only as state dots, trend arrows, alert rings and signed deltas. The palette
+   is Embat's (embat.io design tokens); the brand gradient lives only in the logo mark.
 4. Plain words. "Heading to 68", "paying 20 days late", "drags the group". No codes, no jargon,
    no uppercase tracked labels.
 5. Smooth, not showy. Curves, figures and bars ease between groups and months; nothing animates
@@ -19,14 +20,14 @@ records what the built UI does so later screens follow it instead of inventing a
 
 | Role | Token | Value |
 |---|---|---|
-| Content surface | `--surface` | `#fdfdfc` |
-| Side rail | `--side` | `#f4f4f1` |
-| Row hover / selected | `--hover` / `--selected` | `#ebebe7` / `#e4e4df` |
-| Hairline / strong line | `--line` / `--line-strong` | `#e3e3de` / `#c9c9c3` |
-| Text: primary, secondary, muted | `--ink`, `--ink-2`, `--ink-3` | `#17181c`, `#4f525a`, `#6c6f78` |
-| Comparison series | `--series-2` | `#2c5cd6` |
+| Content surface | `--surface` | `#ffffff` |
+| Side rail | `--side` | `#f3f4f6` |
+| Row hover / selected | `--hover` / `--selected` | `#e8e8ed` / `#dddde6` |
+| Hairline / strong line | `--line` / `--line-strong` | `#e8e8ed` / `#d2d2db` |
+| Text: primary, secondary, muted | `--ink`, `--ink-2`, `--ink-3` | `#050b2c`, `#42444c`, `#6e707c` |
+| Comparison series | `--series-2` | `#8041d1` |
 | State marks | `--good --warn --serious --bad --info --neutral` | see `app.css` |
-| State text (deltas) | `--good-ink`, `--bad-ink` | `#146c31`, `#b32c24` |
+| State text (deltas) | `--good-ink`, `--bad-ink` | `#007d25`, `#ab2807` |
 | Easing | `--ease` | `cubic-bezier(0.16, 1, 0.3, 1)` |
 
 State to tone mapping lives in `web/src/lib/meta.ts` (`STATE_META`). A state is always a dot plus
@@ -49,13 +50,15 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 
 ## Components
 
+- **Brand mark** (`App.tsx`, `public/favicon.svg`): an X of four facets in the angular language of
+  Embat's isotype; three arms in ink, the rising arm in Embat's blue to purple gradient.
 - **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
 - **State tag**: 7-8px dot plus label.
 - **Trajectory chart** (`TrajectoryChart.tsx`): fixed 0-100 axis, dotted thresholds at 70 and 40
   labelled on the axis, 2px ink line up to the selected month and a receding grey line after it,
   a faint ink wash under a single series, alert rings in the state color, a bracket reading
-  "seen N months early", crosshair tooltip, click to move the month. Comparison adds one blue
+  "seen N months early", crosshair tooltip, click to move the month. Comparison adds one purple
   series, a legend and end labels; the wash is dropped.
 - **Pillar row**: label with its evidence in plain words, 4px ink bar, score, signed delta.
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the fleet (planner, agents that read
@@ -64,7 +67,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   time or "from cache"; a row opens to its findings and sources), then the answer as prose at
   15px, 68ch. No bubbles, no avatars. The composer is the one bordered field, with an ink send
   button that becomes stop while a turn runs.
-- **Agent dot**: hollow at rest, slate and pulsing while working, ink once it reported, red when
+- **Agent dot**: hollow at rest, blue and pulsing while working, ink once it reported, red when
   it failed. The only motion on the tab besides the streaming caret.
 - **Controls**: borderless icon buttons for the stepper, underline tabs, one bordered select.
 
