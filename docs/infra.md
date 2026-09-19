@@ -27,7 +27,7 @@ flowchart LR
     end
 
     SERV ==>|"mounted (local)<br/>baked in (deploy)"| API
-    API -->|JSON /api/v1| FRONT["demo front end<br/>(not chosen yet)"]
+    API -->|JSON /api/v1| FRONT["demo front end<br/><code>web/</code>"]
     SCORE -.->|"state change:<br/>Bending, Falling, Improving"| SLACK["Slack webhook<br/><code>xray.integrations.slack</code>"]
     SCORE -.-> SUB["hidden-test<br/>predictions"]
 
