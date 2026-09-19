@@ -91,7 +91,7 @@ Everything is read by `src/xray/settings.py` with the `XRAY_` prefix. Precedence
 
 ## The images
 
-One `Dockerfile`, two targets. `pipeline` is the default (`make docker-build`, documented in `architecture.md` section 10). `api` is what compose builds, in two stages from the lockfile:
+One `Dockerfile`, two targets. `pipeline` is built with `make docker-build` (`--target pipeline`, documented in `architecture.md` section 10). `api` is the last stage, so it is what a plain `docker build .` produces: Render cannot pick a target and builds the last one. Compose builds it too, in two stages from the lockfile:
 
 1. **builder**: installs dependencies (cached layer, rebuilt only when `uv.lock` changes), then the package.
 2. **runtime**: `python:3.12-slim`, the virtualenv copied over, a non-root user, a `HEALTHCHECK` on `/health`, and `uvicorn` listening on `$PORT` (hosts inject it) or 8000.
@@ -110,10 +110,24 @@ flowchart LR
     B --> OK
 ```
 
-Both jobs run in parallel and use no secrets. CD is deliberately absent until a host is chosen; Render deploys from git by itself, so it may never be needed.
+Both jobs run in parallel and use no secrets. There is no CD job: Render redeploys both services on every push to `main`.
+
+## Deploy: Render, free, no card
+
+`render.yaml` at the repo root is a Blueprint with two services. In Render: New > Blueprint, pick the repo, apply.
+
+| Service | What | Sleeps |
+|---|---|---|
+| `xray` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
+| `xray-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
+
+- The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables change, run `make web-data` and commit.
+- `data/serving/context/*.json` (agent context cache) is in git for the same reason: a git build has no other way to get it.
+- The API needs no secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
+- Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
+- Fallback on stage: `make api-up` plus `cloudflared tunnel --url http://localhost:8000`.
 
 ## Still open
 
 - **Serving schema**: the parquet files in `data/serving/` (scores, drivers, alerts per group and month). Decide it together with the first routes, then write it here.
-- **Host for the API**: Render (free, sleeps after 15 min, needs a keep-warm ping before the demo) or Cloud Run (free tier, fast cold start, needs a card).
-- **Front end**: not chosen. Vercel only fits if it ends up being Next.js.
+

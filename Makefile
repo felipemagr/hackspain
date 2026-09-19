@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        api api-up api-down slack-test context test test-quick lint format quality ci clean
+        api api-up api-down slack-test context test test-quick lint format quality ci clean \
+        web-install web-data web web-build
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
@@ -46,7 +47,7 @@ mock: ## Write invented serving tables to data/serving so the product can be bui
 
 # Docker
 docker-build: ## Build the pipeline image
-	docker build -t $(IMAGE) .
+	docker build --target pipeline -t $(IMAGE) .
 
 docker-pipeline: ## Run the pipeline in Docker over ./data/raw
 	docker run --rm \
@@ -73,6 +74,19 @@ api-down: ## Stop the API container
 
 slack-test: ## Send a test alert to the Slack webhook in .env
 	uv run python -m xray.integrations.slack
+
+# Web demo
+web-install: ## Install the demo front end dependencies
+	cd web && npm install
+
+web-data: ## Export data/serving parquet to web/public/data as JSON for the front end
+	uv run python -m xray.pipeline.export_serving
+
+web: web-data ## Run the demo front end on http://localhost:5173
+	cd web && npm run dev
+
+web-build: web-data ## Build the demo front end into web/dist
+	cd web && npm run build
 
 # Agents
 context: ## Public context for one company, cached in data/serving/context: make context NAME="Cabify" [REFRESH=1]
