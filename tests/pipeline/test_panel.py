@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from xray.panel import build
+from xray.pipeline.panel import build
 
 M1, M2, M3 = "2024-09-01", "2024-10-01", "2024-11-01"
 

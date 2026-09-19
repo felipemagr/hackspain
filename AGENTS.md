@@ -56,12 +56,23 @@ Always go through `uv` (`uv run ...`, `uv add ...`), never bare `pip` or `python
 ## 5. Repo layout
 
 ```
-src/xray/        score engine package (config, data loading, then features and scoring)
-tests/           pytest suite
-notebooks/       exploration, outputs stripped on commit
-data/raw/        challenge CSVs, not in git
-data/processed/  derived tables, not in git
+src/xray/
+  config.py, settings.py   paths, constants, runtime settings
+  pipeline/                raw CSVs -> parquet -> monthly panel (pandas lives only here)
+  scoring/                 score, explain, monitor, offer, submit
+  agents/                  research, macro and narrator agents, tools under agents/tools
+  integrations/            outbound clients, one module per service
+  api/                     FastAPI backend, one router per resource in api/routers
+tests/                     mirrors src/xray: tests/pipeline, tests/api, tests/agents
+notebooks/                 exploration, outputs stripped on commit
+data/raw/                  challenge CSVs, not in git
+data/processed/            derived tables, not in git
+data/serving/              pipeline output read by the API, not in git
 ```
+
+Dependencies point one way: `config`/`settings` <- `pipeline` <- `scoring` <- `agents`, `api`. A new
+module goes in the package that owns its deliverable (table in `docs/brief.md` section 8), with its
+test in the mirror folder under `tests/`.
 
 Other people and agents work in this same checkout at the same time (product and infra). Stage only the files you changed, never `git add -A`, and do not switch branches or rewrite history without asking.
 

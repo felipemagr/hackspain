@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from xray.config import PROCESSED_DATA_DIR
-from xray.data import load_all
+from xray.pipeline.data import load_all
 
 logger = logging.getLogger(__name__)
 

@@ -193,7 +193,7 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> dict[str, pd.DataFrame]:
     """Build the company and group panels from the cleaned parquet tables.
 
     Args:
-        processed_dir: Directory holding the output of ``xray.clean``.
+        processed_dir: Directory holding the output of ``xray.pipeline.clean``.
 
     Returns:
         The two panels, keyed ``"panel_company"`` and ``"panel_group"``.

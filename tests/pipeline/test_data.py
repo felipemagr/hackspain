@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from xray.data import load_all, load_table
+from xray.pipeline.data import load_all, load_table
 
 
 @pytest.fixture

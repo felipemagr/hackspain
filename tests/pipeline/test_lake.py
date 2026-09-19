@@ -2,7 +2,7 @@ from datetime import date
 
 import pandas as pd
 
-from xray.lake import land, read_as_of
+from xray.pipeline.lake import land, read_as_of
 
 MARCH, JULY = date(2026, 3, 1), date(2026, 7, 1)
 

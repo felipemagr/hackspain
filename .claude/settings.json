@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(make *)",
+      "Bash(uv *)",
+      "Bash(docker *)",
+      "Bash(ruff *)",
+      "Bash(pytest *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(wc *)",
+      "Bash(pwd)",
+      "Read",
+      "Edit"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "for f in $CLAUDE_FILE_PATHS; do [[ \"$f\" == *.py ]] && uv run ruff format --quiet \"$f\" 2>/dev/null || true; done"
+          }
+        ]
+      }
+    ]
+  }
+}

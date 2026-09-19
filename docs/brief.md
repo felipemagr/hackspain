@@ -208,20 +208,20 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 
 | Deliverable | Where it lives |
 |---|---|
-| Load and validate the nine CSVs | `src/xray/data.py`, `src/xray/config.py` |
-| Clean the raw tables to parquet | `src/xray/clean.py` |
-| Monthly panel per group, no look-ahead | `src/xray/panel.py` |
-| Daily extracts, as-of reads | `src/xray/lake.py` |
-| Whole pipeline end to end | `src/xray/pipeline.py`, `make panel` |
-| Score, level and trend | `src/xray/score.py` |
-| Named driver decomposition | `src/xray/explain.py` |
-| Bump vs fall, alerting | `src/xray/monitor.py` |
-| Alert delivery to Slack | `src/xray/notify.py` |
-| Limit, price, ranked actions | `src/xray/offer.py` |
+| Load and validate the nine CSVs | `src/xray/pipeline/data.py`, `src/xray/config.py` |
+| Clean the raw tables to parquet | `src/xray/pipeline/clean.py` |
+| Monthly panel per group, no look-ahead | `src/xray/pipeline/panel.py` |
+| Daily extracts, as-of reads | `src/xray/pipeline/lake.py` |
+| Whole pipeline end to end | `python -m xray.pipeline`, `make panel` |
+| Score, level and trend | `src/xray/scoring/score.py` |
+| Named driver decomposition | `src/xray/scoring/explain.py` |
+| Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
+| Alert delivery to Slack | `src/xray/integrations/slack.py` |
+| Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
-| Hidden-test predictions for the leaderboard | `src/xray/submit.py` |
+| Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py` |
 | Precomputed results the demo reads | parquet in `data/serving/`, written by the pipeline, read by the API through in-memory DuckDB |
-| API for the demo | `src/xray/api/` (see `.claude/rules/api-design.md`) |
+| API for the demo | `src/xray/api/`, one router per resource in `routers/` (see `.claude/rules/api-design.md`) |
 | Runtime settings from `.env`, `XRAY_` prefix | `src/xray/settings.py`, `.env.example` |
 | API container, CI | `Dockerfile` (target `api`), `docker-compose.yml`, `.github/workflows/ci.yml` |
 | Demo front end | to be decided, deployed, not localhost-only |

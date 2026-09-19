@@ -1,6 +1,6 @@
 """Run the whole pipeline: raw CSVs to the monthly panel."""
 
-from xray import clean, panel
+from xray.pipeline import clean, panel
 
 
 def main() -> None:

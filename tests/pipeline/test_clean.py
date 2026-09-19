@@ -1,6 +1,6 @@
 import pandas as pd
 
-from xray.clean import clean_invoices, clean_transactions
+from xray.pipeline.clean import clean_invoices, clean_transactions
 
 COMPANIES = pd.DataFrame({"company_id": ["c1"], "group_id": ["g1"]})
 

@@ -25,10 +25,10 @@ because none of them would save time worth having.
 ```
 output/*.csv            raw dump, git-ignored, never modified
    |
-   v  xray.clean        pandas, one pass, fixes the traps in section 5
+   v  xray.pipeline.clean        pandas, one pass, fixes the traps in section 5
 data/processed/*.parquet
    |
-   v  xray.panel        duckdb, as-of aggregation
+   v  xray.pipeline.panel        duckdb, as-of aggregation
 panel_company.parquet   1,286 x 24
 panel_group.parquet       250 x 24   <- the contract
    |
@@ -163,7 +163,7 @@ Volume is not the problem, mutation is. Overwriting an invoice row destroys what
 `t`, so a month scored in March would be using July's knowledge. That breaks the no-leakage
 guardrail and, specifically, makes the anticipation bonus a cheat.
 
-`xray.lake` therefore never updates a row. Each extract lands under its own `ingest_date`:
+`xray.pipeline.lake` therefore never updates a row. Each extract lands under its own `ingest_date`:
 
 ```
 data/lake/invoices/ingest_date=2026-09-18/part.parquet

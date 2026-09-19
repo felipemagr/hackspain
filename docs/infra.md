@@ -28,7 +28,7 @@ flowchart LR
 
     SERV ==>|"mounted (local)<br/>baked in (deploy)"| API
     API -->|JSON /api/v1| FRONT["demo front end<br/>(not chosen yet)"]
-    SCORE -.->|"state change:<br/>Bending, Falling, Improving"| SLACK["Slack webhook<br/><code>xray.notify</code>"]
+    SCORE -.->|"state change:<br/>Bending, Falling, Improving"| SLACK["Slack webhook<br/><code>xray.integrations.slack</code>"]
     SCORE -.-> SUB["hidden-test<br/>predictions"]
 
     classDef store fill:#1f2937,stroke:#60a5fa,color:#f9fafb

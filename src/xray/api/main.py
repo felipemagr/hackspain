@@ -7,8 +7,8 @@ import duckdb
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 
+from xray.api.routers import health
 from xray.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -49,19 +49,4 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
-class HealthResponse(BaseModel):
-    """Liveness and which serving tables are loaded."""
-
-    status: str
-    env: str
-    tables: list[str]
-
-
-@app.get("/health", response_model=HealthResponse, tags=["ops"])
-async def health(request: Request) -> HealthResponse:
-    """Liveness probe used by Docker and the hosting platform."""
-    return HealthResponse(
-        status="ok",
-        env=get_settings().env,
-        tables=request.app.state.tables,
-    )
+app.include_router(health.router)

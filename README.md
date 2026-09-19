@@ -63,7 +63,7 @@ Per group, per month, the system must answer:
 
 ```mermaid
 flowchart LR
-    A[9 CSVs<br/>data/raw] --> B[load<br/>xray.data]
+    A[9 CSVs<br/>data/raw] --> B[load<br/>xray.pipeline.data]
     B --> C[monthly features<br/>per group, no look-ahead]
     C --> D[score<br/>level + trend]
     D --> E[drivers<br/>named, additive]
@@ -99,22 +99,27 @@ make slack-test  # send a test alert to the Slack webhook
 ```
 src/xray/
   config.py        paths and table names
-  data.py          CSV loading, date parsing
   settings.py      runtime settings from .env (XRAY_ prefix)
-  notify.py        Slack alert delivery
-  api/             FastAPI demo backend
-  agents/          research, macro and narrator agents around the score (scaffold)
-tests/             lean pytest suite
+  pipeline/        raw CSVs -> parquet -> monthly panel (data, clean, panel, lake); the only place pandas is imported
+  scoring/         score, explain, monitor, offer, submit: reads the panel, writes data/serving
+  agents/          research, macro and narrator agents around the score, tools under agents/tools
+  integrations/    outbound clients, one module per service (slack)
+  api/             FastAPI demo backend, one router per resource in api/routers
+tests/             mirrors src/xray: tests/pipeline, tests/api, tests/agents
 notebooks/         exploration only, outputs stripped on commit
 data/raw/          the dataset (git-ignored)
 data/processed/    derived tables (git-ignored)
 data/serving/      parquet written by the pipeline, read by the API (git-ignored)
+docs/              brief, architecture, score research, infra, agents
 .claude/rules/     coding, testing, API and commit conventions
 ```
 
+Dependencies point one way: `config`/`settings` <- `pipeline` <- `scoring` <- `agents`, `api`.
+The API never imports `pipeline` (no pandas in the container, see `docs/infra.md`).
+
 Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/infra.md). The score design is in [`docs/health-score-research.md`](docs/health-score-research.md).
 
-Planned modules: `features` → `score` → `explain` → `monitor` → `offer` → `api`, plus the demo front end.
+Next modules land in `scoring/`: `score` → `explain` → `monitor` → `offer` → `submit`, plus the demo front end.
 
 ## Dataset
 

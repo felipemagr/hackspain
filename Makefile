@@ -18,14 +18,14 @@ install: ## Install dependencies and the notebook output stripper
 
 # Data
 inspect: ## Print shape and dtypes of every CSV in data/raw
-	uv run python -m xray.data
+	uv run python -m xray.pipeline.data
 
-$(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/clean.py
-	uv run python -m xray.clean
+$(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/pipeline/clean.py
+	uv run python -m xray.pipeline.clean
 	@touch $@
 
-$(PANEL): $(CLEAN_STAMP) src/xray/panel.py
-	uv run python -m xray.panel
+$(PANEL): $(CLEAN_STAMP) src/xray/pipeline/panel.py
+	uv run python -m xray.pipeline.panel
 
 clean-data: $(CLEAN_STAMP) ## Clean data/raw and write parquet tables to data/processed
 
@@ -61,7 +61,7 @@ api-down: ## Stop the API container
 	docker compose down
 
 slack-test: ## Send a test alert to the Slack webhook in .env
-	uv run python -m xray.notify
+	uv run python -m xray.integrations.slack
 
 # Tests
 test: ## Run all tests
