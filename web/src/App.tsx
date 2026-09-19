@@ -170,14 +170,10 @@ export default function App() {
           {tab === "agents" ? (
             <FleetRail
               fleet={chat.fleet}
-              turn={chat.turns[chat.turns.length - 1]}
               onRetry={chat.wake}
               chats={chat.chats}
               activeId={chat.activeId}
-              onOpen={(c) => {
-                chat.open(c.id);
-                select(c.turns[c.turns.length - 1].groupId);
-              }}
+              onOpen={(c) => chat.open(c.id)}
               onNew={() => chat.open(null)}
               onRemove={chat.remove}
             />
@@ -210,17 +206,12 @@ export default function App() {
       <main className="main">
         {tab === "agents" ? (
           <Chat
-            store={store}
-            groupId={selectedId}
             month={month}
             fleet={chat.fleet}
             turns={chat.turns}
             busy={chat.busy}
-            onAsk={(question) =>
-              chat.ask(question, selectedId, store.groupById.get(selectedId)?.name ?? "", month)
-            }
+            onAsk={(question) => chat.ask(question, month)}
             onStop={chat.stop}
-            onGroup={select}
           />
         ) : (
           <GroupDetail

@@ -19,57 +19,81 @@ is one summary, a list of findings and a list of sources, ready for the API and 
 `Orchestrator` (`orchestrator.py`) runs the agents in order and returns one report each.
 `build_orchestrator(settings)` gives the default line-up.
 
-## The chat: a planner directing a fleet
+## The chat: a director over the whole portfolio
 
-`fleet.py` turns the agents into a conversation. `run_chat(request, db, settings)` yields events
-that `POST /api/v1/chats` streams as server-sent events, and the Agents tab draws them as they land.
+`fleet.py` turns the data and the agents into a conversation. It is not tied to a group: the
+question can be about the portfolio, several groups, one group, or the raw trail under a score.
+`run_chat(request, db, settings)` yields events that `POST /api/v1/chats` streams as server-sent
+events, and the Agents tab draws them as they land. The request is a message, the month on
+screen, the recent turns and the display currency.
 
-Every agent is the same contract: **a purpose, rules, tools**. Rules are code and are shown on
-screen. Each tool call is a `step` event, so what an agent is doing is visible while it does it.
-No number comes from the model: it classifies the question and writes the answer, SQL over the
-serving tables produces every figure.
+The **director** is a loop, not a fixed plan. Each round the model sees the schema of every table
+(read live from DuckDB), the roster, and what has come back so far, and returns the next calls as
+JSON. Two kinds of call:
+
+- `query`: one read-only SELECT over any table. The model writes the SQL, the database produces
+  every figure. Rows come back as text, at most 40, so a question is answered by aggregating. A
+  query that fails goes back to the director with its error, and it corrects it next round.
+- an agent pointed at **any** `group_id` and `month`, with optional `tools` (narrow it),
+  `compare` (peers), `what_if` (simulator) and `company` (market).
+
+Calls of one round run in parallel threads. The loop ends when the director returns no calls,
+marks a round `final`, or after four rounds. Then the writer streams the answer from the results,
+in the language of the question, and every figure in it is checked against those results.
 
 ```
-planning -> plan {purpose, agents, company}
-  -> agent {id, running} -> step {agent, n, tool, input, running} -> step {..., done, output, ms}
-  -> agent {id, done, summary, findings, sources, ms}
-  -> dispatch {agents}            the planner's one follow-up, decided by rules
+planning -> plan {purpose, agents: [{run, id, reason, target}]}
+  -> step {run, n, tool, input, running} -> step {..., done, output, ms}
+  -> agent {run, id, done, summary, findings, sources, ms}     or {failed, error}
+planning -> plan ...                     the next round, when the director wants more
   -> suggestion {agent, title, detail}
-  -> writing -> token ... -> done {ms}
+  -> writing -> token ... -> check {figures, untraced} -> done {ms}
 ```
 
 | Agent | Answers | Tools | Reads |
 |---|---|---|---|
-| Diagnosis | why the score moved, bump or fall | `pillars_at`, `drivers_window`, `own_history_rank` | `scores`, `drivers` |
-| Monitor | when it was first visible | `alerts_for` | `alerts` |
-| Working capital | the line, its price, what raises it | `offer_at`, `actions_ranked` | `offers`, `actions` |
-| Customers | who pays late, concentration, who to chase | `concentration`, `payer_scores`, `overdue_ranked` | `payers` (groups with an ERP only) |
-| Investor | search fund target, roll-up piece or neither; debt capacity | `cash_profile`, `debt_capacity`, `screen`, `comparables` | `scores`, `groups` |
-| Market | is it us or the market | `exa.search`, `tavily.search`, `model.read` | the web, cached a week |
-| Notifier | who is told, and where, when the monitor fires | `rules.parse` (model, patterns without one), `rules.list`, `rules.add` | `data/serving/alert_rules.json`, the rule book `notify --channel rules` routes by |
+| Query | anything the tables hold, across groups and months | `sql` | every view in DuckDB |
+| Scorecard | why this score, since when, what the monitor fired | `pillars_at`, `drivers_window`, `own_history_rank`, `alerts_for` | `scores`, `drivers`, `alerts` |
+| Ledger | who pays late, who to chase, cash and debt capacity | `concentration`, `payer_scores`, `overdue_ranked`, `cash_profile`, `debt_capacity` | `payers` (groups with an ERP only), `scores` |
+| Simulator | the line, its price, what a move does to it | `offer_at`, `actions_ranked`, `what_if` | `offers`, `actions`, `scores` |
+| Peers | standing, a named comparison, the search fund screen | `standing`, `compare`, `screen`, `comparables` | `scores`, `drivers`, `groups` |
+| Macro | the country around the group | `exa.search`, `model.read`, `cache.read` | the web, cached a week |
+| Market | a real company the user names | `exa.search`, `tavily.search`, `model.read` | the web, cached a week |
+| Notifier | who is told, and where, when the monitor fires | `rules.parse`, `rules.list`, `rules.add` | `data/serving/alert_rules.json` |
 
-How a question runs:
+**What the query can read.** The serving tables always. Locally, `api/main.py` also registers
+the cleaned raw trail from `data/processed/` (`transactions`, `invoices`, `balances`,
+`debt_products`, `banking_products`, `debt_schedule_config`, and `raw_companies`, `raw_groups`
+where a serving table has the name). The API image does not carry them (250 MB), so the deployed
+chat answers from the serving tables only. The director is told which tables exist, not which
+could.
 
-1. **Planner** (one model call, about 3 s, rules if it fails) reads what the question is for
-   (`diagnose`, `anticipate`, `collect`, `finance`, `invest`, `market`) and dispatches only the
-   agents it needs. Diagnosis always runs. Agents run in parallel threads.
-2. **Follow-up**, at most once and by rule, not by the model: if Diagnosis finds collections
-   dragging the level, Customers is dispatched; if the state is bending or falling, Monitor is.
-3. **Draft suggestion**, when the user asked what to do: the customer to chase, or the top ranked
-   move. Built from figures. Anything that moves money is a draft a person signs.
-4. **Writer** streams the answer from the reports, in the language of the question.
+**The SQL is written by a model, so it is boxed in.** `run_query` accepts exactly one statement
+of type SELECT (`duckdb.extract_statements`), stops at 40 rows and interrupts after 20 s. At
+startup the API sets `allowed_directories` to the data directories and turns
+`enable_external_access` off, which DuckDB does not allow back on while running: no file outside
+the data can be read and nothing can be written.
+
+**Draft suggestion**, when the question asks what to do: the customer to chase, or the top ranked
+move. Built from figures the agents found, never by the model. Anything that moves money is a
+draft a person signs.
+
+**Without a model** (`HELMCODE_API_KEY` unset, or the director failing on the first round) rules
+stand in: a group id named in the question gets Scorecard plus the agents its words match
+(`PURPOSE_RULES`), a second id is compared, and a question that names no group reads the
+portfolio by state. The answer is then the raw results.
 
 What the data does not allow is stated as a rule instead of guessed: counterparty ids do not link
 to other groups, so a customer is judged only on how it paid this group; there is no sector and
-no valuation multiple, so the Investor estimates no enterprise value. The Market agent reads the
-country when there is no sector, and competitors only for a real company the user names.
+no valuation multiple, so no enterprise value is estimated.
 
 Two constraints shaped the runtime. Helmcode stalls concurrent requests on one key, so searches
 run in parallel but model calls go through `SerialLLM`, one at a time. And `glm5.3` thinks for
-25 s by default, so the chat asks for `reasoning_effort="low"`: first token in 3 s.
+25 s by default, so the chat asks for `reasoning_effort="low"`: a round of the director is about
+3 s, a typical answer 10 to 20 s.
 
-`GET /api/v1/agents` lists the roster with purposes, rules and tools for the side rail and the
-inspector. Without `HELMCODE_API_KEY` the chat still answers, from rules and raw reports.
+`GET /api/v1/agents` lists the roster with purposes, rules and tools: the chat shows them when a
+line of the trace is opened.
 
 ## Tools
 

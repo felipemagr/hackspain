@@ -21,7 +21,7 @@ from xray.api.routers import (
     tables,
     version,
 )
-from xray.config import MARTS_DIR
+from xray.config import MARTS_DIR, PROCESSED_DATA_DIR
 from xray.settings import get_settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,17 @@ async def lifespan(app: FastAPI):
             app.state.real_tables.add(name)
     if not app.state.tables:
         logger.warning("No parquet tables found in %s", settings.serving_dir)
+    # The raw trail, where it exists (it is not in the API image): the chat queries it.
+    for path in sorted(PROCESSED_DATA_DIR.glob("*.parquet")):
+        name = f"raw_{path.stem}" if path.stem in app.state.tables else path.stem
+        escaped = str(path).replace("'", "''")
+        app.state.db.sql(f"create or replace view {name} as select * from '{escaped}'")
+    # The chat runs SQL a model wrote: nothing outside the data directories can be read.
+    allowed = [
+        str(d).replace("'", "''") for d in (settings.serving_dir, MARTS_DIR, PROCESSED_DATA_DIR)
+    ]
+    app.state.db.sql(f"set allowed_directories = {allowed}")
+    app.state.db.sql("set enable_external_access = false")
     yield
     app.state.db.close()
 

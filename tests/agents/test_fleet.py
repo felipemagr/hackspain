@@ -7,11 +7,11 @@ from xray.agents.fleet import (
     LIMIT_CURVE,
     MIN_COMPOUND,
     AgentContext,
+    Call,
     ChatRequest,
-    Plan,
+    direct,
     level_of,
     limit_factor,
-    make_plan,
     run_chat,
     untraced_figures,
 )
@@ -97,7 +97,7 @@ def no_keys(tmp_path) -> Settings:
 
 
 def run(db, tmp_path, message: str, currency: str = "EUR") -> list[dict]:
-    request = ChatRequest(message=message, group_id="g1", month=MONTH, currency=currency)
+    request = ChatRequest(message=message, month=MONTH, currency=currency)
     return list(run_chat(request, db, no_keys(tmp_path)))
 
 
@@ -105,11 +105,18 @@ def done(events: list[dict]) -> dict[str, dict]:
     return {e["id"]: e for e in events if e["type"] == "agent" and e["status"] == "done"}
 
 
+def steps_of(events: list[dict], agent_id: str) -> list[dict]:
+    runs = {e["run"] for e in events if e["type"] == "agent" and e["id"] == agent_id}
+    return [e for e in events if e["type"] == "step" and e["run"] in runs]
+
+
 def test_chat_without_a_model_plans_by_rules_and_answers_from_the_reports(db, tmp_path):
-    events = run(db, tmp_path, "  Is this a bump or a fall?  ")
+    events = run(db, tmp_path, "  Is g1 on a bump or a fall?  ")
 
     assert [e["type"] for e in events][:2] == ["planning", "plan"]
-    assert events[1]["lens"] == "cfo"
+    assert events[1]["agents"] == [
+        {"run": "1", "id": "scorecard", "reason": "", "target": "g1, 2026-03"}
+    ]
     score = done(events)["scorecard"]["summary"]
     assert score.startswith("Level 68, bending, -2.0 points a month, tier coping.")
     assert "It was 80 six months earlier, moved by collections -7.0." in score
@@ -129,9 +136,9 @@ def test_chat_without_a_model_plans_by_rules_and_answers_from_the_reports(db, tm
 
 
 def test_every_tool_call_is_a_step_that_starts_and_ends(db, tmp_path):
-    events = run(db, tmp_path, "why did the score move?")
+    events = run(db, tmp_path, "why did the score of g1 move?")
 
-    steps = [e for e in events if e["type"] == "step" and e["agent"] == "scorecard"]
+    steps = steps_of(events, "scorecard")
     assert [(s["tool"], s["status"]) for s in steps] == [
         (tool, status)
         for tool in ("pillars_at", "drivers_window", "own_history_rank", "alerts_for")
@@ -140,28 +147,35 @@ def test_every_tool_call_is_a_step_that_starts_and_ends(db, tmp_path):
     assert steps[1]["output"] == "level 68, bending, 1 of 5 pillars"
 
 
-def test_director_follows_up_with_the_ledger_when_collections_drags(db, tmp_path):
-    events = run(db, tmp_path, "what is our credit line and what should we do?")
+def test_a_question_that_names_no_group_reads_the_portfolio(db, tmp_path):
+    events = run(db, tmp_path, "how is the portfolio doing?")
 
-    assert [a["id"] for a in events[1]["agents"]] == ["scorecard", "simulator"]
-    follow_up = next(e for e in events if e["type"] == "dispatch")
-    assert [a["id"] for a in follow_up["agents"]] == ["ledger"]
+    assert [a["id"] for a in events[1]["agents"]] == ["query"]
+    query = done(events)["query"]
+    assert query["summary"] == "1 row of state, groups, average_level."
+    assert query["findings"] == ["state bending, groups 1, average_level 68"]
+    assert events[-2]["untraced"] == []
+
+
+def test_a_question_on_collecting_reads_the_invoices_and_drafts_who_to_chase(db, tmp_path):
+    events = run(db, tmp_path, "which customers of g1 should we chase?")
+
+    assert [a["id"] for a in events[1]["agents"]] == ["scorecard", "ledger"]
     ledger = done(events)["ledger"]
     assert ledger["summary"] == (
         "Customer 1 is 60% of billing and the top five are 60%. "
         "40,000 EUR is overdue across 1 customers."
     )
     assert "Customer 2: under 1% of billing, pays 1 day late, payer score 99" in ledger["findings"]
-    # The planner narrowed the ledger to invoices: cash and debt were not asked for.
+    # The rules narrowed the ledger to invoices: cash and debt were not asked for.
     assert not [e for e in events if e["type"] == "step" and e["tool"] == "cash_profile"]
     suggestion = next(e for e in events if e["type"] == "suggestion")
     assert suggestion["title"] == "Chase Customer 1 this week"
 
 
 def test_investor_lens_screens_the_group_and_sizes_its_debt_capacity(db, tmp_path):
-    events = run(db, tmp_path, "would a search fund buy this company?")
+    events = run(db, tmp_path, "would a search fund buy g1?")
 
-    assert events[1]["lens"] == "investor"
     assert (
         "fails it on: margin 15% or more, not bending or falling"
         in (done(events)["peers"]["summary"])
@@ -179,9 +193,8 @@ def test_a_group_named_in_the_question_is_compared_at_the_same_month(db, tmp_pat
     )
     db.sql(f"insert into drivers values ('g2', '{MONTH}', 'collections', 75, 0, 3)")
 
-    events = run(db, tmp_path, "how do we look next to g2 in 2026, or g9?")
+    events = run(db, tmp_path, "how does g1 look next to g2 in 2026, or g9?")
 
-    assert events[1]["compare"] == "g2"
     peers = done(events)["peers"]
     assert "g2 is at level 80, healthy, +1.0 points a month, against 68 here." in peers["summary"]
     assert "collections: 41 here, 75 at g2" in peers["findings"]
@@ -191,11 +204,11 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
     events = run(
         db,
         tmp_path,
-        "Email me when this group starts falling, severity 20 or more, and slack me every move",
+        "Email me when g1 starts falling, severity 20 or more, and slack me every move",
     )
 
     assert [a["id"] for a in events[1]["agents"]] == ["scorecard", "notifier"]
-    steps = [e for e in events if e["type"] == "step" and e["agent"] == "notifier"]
+    steps = steps_of(events, "notifier")
     assert [s["tool"] for s in steps if s["status"] == "done"] == [
         "rules.list",
         "rules.parse",
@@ -218,57 +231,119 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
     assert len(load_rules(tmp_path / RULES_FILE)) == 2
 
 
-def test_chat_reports_an_unknown_group(db, tmp_path):
-    request = ChatRequest(message="hi", group_id="nope", month=MONTH)
+class TestQuery:
+    def ask(self, db, tmp_path, query: str) -> tuple[list[dict], dict]:
+        steps: list[dict] = []
+        call = Call(tool="query", query=query)
+        snapshot = ScoreSnapshot(group_id="", month="2026-03", level=0)
+        ctx = AgentContext(
+            "1", call, ChatRequest(message="?", month=MONTH), snapshot, db, no_keys(tmp_path),
+            None, False, steps.append,
+        )  # fmt: skip
+        return steps, ctx
 
-    events = list(run_chat(request, db, no_keys(tmp_path)))
+    def test_rows_come_back_as_text_the_figure_check_can_read(self, db, tmp_path):
+        _, ctx = self.ask(db, tmp_path, "select name, overdue_eur from payers order by 2 desc;")
 
-    assert [e["type"] for e in events] == ["error"]
+        report = AGENTS["query"](ctx)
+
+        assert report.findings[0] == "name Customer 1, overdue_eur 40,000"
+        assert untraced_figures("Customer 1 owes 40,000 EUR.", "\n".join(report.findings)) == []
+
+    @pytest.mark.parametrize(
+        "query", ["drop table scores", "select 1; drop table scores", "create table t as select 1"]
+    )
+    def test_anything_but_one_select_is_refused(self, db, tmp_path, query):
+        steps, ctx = self.ask(db, tmp_path, query)
+
+        with pytest.raises(ValueError, match="Only one SELECT"):
+            AGENTS["query"](ctx)
+
+        assert steps[-1]["status"] == "failed"
+        assert db.sql("select count(*) from scores").fetchone() == (2,)
 
 
-class TestPlanner:
-    def ask(self, llm_answer: str | Exception, message: str = "why?", has_erp: bool = True):
+class TestDirector:
+    def move(self, db, llm_answer: str | Exception, message: str = "why?", results=None):
         class FakeLLM:
             def complete(self, system, user):
                 if isinstance(llm_answer, Exception):
                     raise llm_answer
                 return llm_answer
 
-        snapshot = ScoreSnapshot(group_id="g1", month="2026-03", level=68, name="Example Corp")
-        request = ChatRequest(message=message, group_id="g1", month=MONTH)
-        return make_plan(request, snapshot, has_erp, FakeLLM())
+        request = ChatRequest(message=message, month=MONTH)
+        return direct(request, "- scores: level double", results or [], FakeLLM(), db)
 
-    def test_keeps_known_agents_and_tools_in_roster_order_and_always_adds_scorecard(self):
-        plan = self.ask(
-            '{"lens": "lender", "purpose": "renewing the line", "agents": ["macro", "made_up",'
-            ' "ledger"], "tools": {"ledger": ["cash_profile", "made_up"]}}'
+    def test_keeps_the_calls_the_fleet_can_run(self, db):
+        move = self.move(
+            db,
+            '{"lens": "lender", "calls": [{"tool": "made_up"}, {"tool": "query"},'
+            ' {"tool": "market", "group_id": "g1"},'
+            ' {"tool": "ledger", "group_id": "g1", "month": "2026-02",'
+            ' "tools": ["cash_profile", "made_up"], "what_if": {"made_up": 5}}]}',
         )
 
-        assert plan.agents == ["scorecard", "ledger", "macro"]
-        assert plan.tools == {"ledger": ["cash_profile"]}
-        assert plan.lens == "lender"
-
-    def test_market_runs_only_for_a_named_company(self):
-        assert self.ask('{"agents": ["market"]}').agents == ["scorecard"]
-        assert self.ask('{"agents": ["market"], "company": "Cabify"}').agents == [
-            "scorecard",
-            "market",
+        assert move.lens == "lender"
+        assert [call.model_dump(exclude_defaults=True) for call in move.calls] == [
+            {"tool": "ledger", "group_id": "g1", "month": "2026-02-01", "tools": ["cash_profile"]}
         ]
 
-    def test_a_group_without_invoices_keeps_the_ledger_only_for_cash(self):
-        chase = self.ask(
-            '{"agents": ["ledger"], "tools": {"ledger": ["overdue_ranked"]}}', has_erp=False
-        )  # noqa: E501
-        cash = self.ask('{"agents": ["ledger"]}', has_erp=False)
+    def test_an_agent_call_without_a_month_reads_the_month_on_screen(self, db):
+        move = self.move(db, '{"calls": [{"tool": "scorecard", "group_id": "g1"}]}')
 
-        assert chase.agents == ["scorecard"]
-        assert cash.tools["ledger"] == ["cash_profile", "debt_capacity"]
+        assert move.calls[0].month == "2026-03-01"
 
-    def test_falls_back_to_rules_when_the_model_fails(self):
-        plan = self.ask(RuntimeError("down"), message="Is the sector moving too?")
+    def test_falls_back_to_rules_when_the_model_fails_on_the_first_round(self, db):
+        move = self.move(db, RuntimeError("down"), message="Is the sector of g1 moving too?")
 
-        assert plan.agents == ["scorecard", "macro"]
-        assert plan.purpose == "us or the market"
+        assert [call.tool for call in move.calls] == ["scorecard", "macro"]
+        assert move.purpose == "us or the market"
+
+    def test_stops_when_the_model_fails_after_results_came_back(self, db):
+        results = [(Call(tool="query", query="select 1"), "1 row")]
+
+        assert self.move(db, RuntimeError("down"), results=results).calls == []
+
+
+def test_a_failed_call_goes_back_to_the_director_to_be_corrected(db, tmp_path, monkeypatch):
+    asked: list[str] = []
+
+    class FakeLLM:
+        def complete(self, system, user):
+            asked.append(user)
+            query = "select level from scores_typo" if len(asked) == 1 else "select 68 as level"
+            return f'{{"final": {str(len(asked) > 1).lower()}, "calls": [{{"tool": "query", "query": "{query}"}}]}}'  # noqa: E501
+
+        def stream(self, system, user):
+            yield "Level 68."
+
+    monkeypatch.setattr("xray.agents.fleet.build_llm", lambda *_, **__: FakeLLM())
+
+    events = run(db, tmp_path, "what is the level?")
+
+    outcomes = [(e["run"], e["status"]) for e in events if e["type"] == "agent"]
+    assert outcomes == [("1", "failed"), ("2", "done")]
+    assert "failed: Catalog Error" in asked[1]
+    assert events[-2]["untraced"] == []
+
+
+def test_an_agent_pointed_at_an_unscored_group_fails_and_the_chat_still_answers(
+    db, tmp_path, monkeypatch
+):
+    class FakeLLM:
+        def complete(self, system, user):
+            return '{"final": true, "calls": [{"tool": "scorecard", "group_id": "g7"}]}'
+
+        def stream(self, system, user):
+            yield "Nothing on g7."
+
+    monkeypatch.setattr("xray.agents.fleet.build_llm", lambda *_, **__: FakeLLM())
+
+    events = run(db, tmp_path, "how is g7 doing?")
+
+    failed = next(e for e in events if e["type"] == "agent")
+    assert failed["error"] == "No score for group g7 in 2026-03: check the id and month."
+    assert events[-1]["type"] == "done"
 
 
 class TestFigures:
@@ -283,14 +358,13 @@ class TestFigures:
             def complete(self, system, user):
                 return "Customer 1 owes 99,999 EUR."
 
-        plan = Plan(agents=["ledger"], asks={"ledger": "who owes the most?"})
-        request = ChatRequest(message="who owes?", group_id="g1", month=MONTH)
+        call = Call(tool="ledger", group_id="g1", month="2026-03-01", why="who owes the most?")
+        request = ChatRequest(message="who owes?", month=MONTH)
         snapshot = ScoreSnapshot(group_id="g1", month="2026-03", level=68)
         steps: list[dict] = []
         ctx = AgentContext(
-            "ledger", request, snapshot, db, no_keys(tmp_path), Inventive(), plan, True,
-            steps.append,
-        )  # fmt: skip
+            "1", call, request, snapshot, db, no_keys(tmp_path), Inventive(), True, steps.append
+        )
 
         report = AGENTS["ledger"](ctx)
 
@@ -309,7 +383,7 @@ class TestSimulator:
 
 
 def test_amounts_follow_the_display_currency_at_the_rate_of_the_year(db, tmp_path):
-    events = run(db, tmp_path, "what is our credit line?", currency="USD")
+    events = run(db, tmp_path, "what is the credit line of g1?", currency="USD")
 
     line = done(events)["simulator"]["summary"]
     # 250,000 EUR at the 2026 average of 1.162858 dollars per euro.

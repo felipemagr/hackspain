@@ -398,12 +398,6 @@ ol {
   background: var(--side);
 }
 
-/* Three rows tall (56.4px each with its 2px gap): the rest scrolls. */
-.chats__list {
-  max-height: 170px;
-  overflow-y: auto;
-}
-
 .link {
   padding: 0;
   border: 0;
@@ -1238,15 +1232,7 @@ select:hover {
 
 /* ---------- narrow ---------- */
 
-/* ---------- agents: the fleet rail ---------- */
-
-.agent {
-  display: grid;
-  grid-template-columns: 7px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-}
+/* ---------- agents: the status dot ---------- */
 
 /* Hollow at rest, slate while working, ink when it reported, red when it failed. */
 .agent__dot {
@@ -1313,18 +1299,7 @@ select:hover {
 .chat {
   height: 100%;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-}
-
-.chat__head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 32px;
-  width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 40px 48px 20px;
+  grid-template-rows: minmax(0, 1fr) auto;
 }
 
 .chat__scroll {
@@ -1334,7 +1309,7 @@ select:hover {
 .chat__column {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 12px 48px 32px;
+  padding: 40px 48px 32px;
 }
 
 .chat__column > * {
@@ -1516,6 +1491,11 @@ select:hover {
   margin-top: 20px;
   font-size: 15px;
   line-height: 1.6;
+}
+
+/* The writer puts a list one item per line. */
+.answer p {
+  white-space: pre-line;
 }
 
 .answer p + p {

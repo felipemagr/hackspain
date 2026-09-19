@@ -1,16 +1,17 @@
-"""The chat: a planner guides a small fleet over one group and month, a writer answers.
+"""The chat: a director runs queries and agents over the whole portfolio, a writer answers.
 
-Agents are cut by what they do to the scorecard, not by who is asking: read it, go under it,
-simulate it, place it in the portfolio, read the world around it. The planner works out who is
-asking (the lens) and tells each agent what to look for and which tools to run.
+The director is a loop, not a fixed plan. Each round the model sees the tables, the agents and
+what has come back so far, and asks for the next calls: `query`, one read-only SELECT over any
+table, or an agent pointed at one group and month. Calls of one round run in parallel. When the
+results are enough, a writer answers from them.
 
 Every agent is a purpose, a set of rules and a set of tools. The rules are code and are shown on
 screen. Each tool call is an event, so the screen can show what every agent is doing while it
 does it. SQL produces the figures. Where the model thinks or writes, its figures are checked
 against the tool output it was given: `untraced_figures`.
 
-`run_chat` yields plain dict events: planning, plan, agent, step, dispatch, suggestion, writing,
-token, check, done. Agents run in threads and report through one queue. Searches run in parallel but
+`run_chat` yields plain dict events: planning, plan, agent, step, suggestion, writing, token,
+check, done. Agents run in threads and report through one queue. Searches run in parallel but
 model calls go one at a time: Helmcode stalls concurrent requests on one key.
 """
 
@@ -24,7 +25,7 @@ from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -46,6 +47,10 @@ logger = logging.getLogger(__name__)
 
 MAX_MESSAGE_CHARS = 2000
 MAX_HISTORY_TURNS = 6
+MAX_ROUNDS = 4
+MAX_CALLS_PER_ROUND = 4
+MAX_QUERY_ROWS = 40
+QUERY_TIMEOUT_SECONDS = 20.0
 DRIVER_WINDOW_MONTHS = 6
 CUSTOMERS_SHOWN = 6
 MIN_PAID_INVOICES = 6
@@ -80,6 +85,18 @@ class FleetMember(BaseModel):
 
 
 ROSTER: tuple[FleetMember, ...] = (
+    FleetMember(
+        id="query",
+        label="Query",
+        purpose="Anything the tables hold, across every group and month.",
+        rules=[
+            "One read-only SELECT per call: nothing is written, nothing outside the data is read.",
+            f"At most {MAX_QUERY_ROWS} rows come back, so a question is answered by aggregating.",
+            "The model writes the SQL. The database produces every figure.",
+            "A query that fails goes back to the director with its error, to be corrected.",
+        ],
+        tools=[Tool(name="sql", does="runs the SELECT on DuckDB over the parquet tables")],
+    ),
     FleetMember(
         id="scorecard",
         label="Scorecard",
@@ -205,55 +222,83 @@ ROSTER: tuple[FleetMember, ...] = (
     ),
 )
 MEMBERS = {member.id: member for member in ROSTER}
+# Calls that stand without a scored group: a query, a named company, the rule book.
+GROUPLESS = ("query", "market", "notifier")
 INVOICE_TOOLS = ("concentration", "payer_scores", "overdue_ranked")
 CASH_TOOLS = ("cash_profile", "debt_capacity")
 
-PLANNER_PROMPT = """You direct a fleet of agents inside a financial health monitor. Anyone may be
-asking: the group's CFO, a lender deciding on a credit line, an investor screening a target.
-Work out who is asking and what the answer needs, then guide each agent you dispatch: tell it
-what to look for, and which of its tools to run. Dispatch only what the answer needs.
-`scorecard` always runs: every other agent works from what it reads.
+DIRECTOR_PROMPT = """You direct the chat of a financial health monitor over a portfolio of
+business groups. Anyone may be asking: a CFO, a lender, an investor. You never answer: you decide
+what to run next, and a writer answers from what came back.
 
-Agents and their tools:
+Two kinds of call:
+- `query`: one read-only DuckDB SELECT over the tables below. Use it for the portfolio, several
+  groups, rankings, counts, and the raw invoices, transactions, debt and balances. At most {rows}
+  rows come back: aggregate, order, and select only the columns the answer needs.
+- an agent, pointed at one `group_id` and `month`:
 {roster}
 
-The group has invoice data: {has_erp}. Without it the invoice tools of `ledger` read nothing.
-Groups are anonymous ids. Set `company` only when the user names a real-world company:
-`market` runs only then. {compare}
-Set `what_if` when the user asks what a change would do: pillar to points moved, pillars are
-liquidity, cash_generation, payment_discipline, collections, debt_burden.
-Set `wants_action` when the user asks what to do, who to chase or what to change.
-Dispatch `notifier` when the user wants to be told on Slack or by email when a group moves, or
-asks which alert rules exist.
+Tables:
+{schema}
+
+{notes}
+The user is looking at {month}: use that month when the question names none. No data exists
+after it for the user: never read a later month.
 
 Answer with JSON only:
-{{"lens": "cfo", "purpose": "three to six words on what the question is for",
-"agents": ["scorecard", "ledger"], "asks": {{"ledger": "up to twelve words on what to look for"}},
-"tools": {{"ledger": ["overdue_ranked"]}}, "company": null, "what_if": {{}},
-"wants_action": false}}
-`lens` is one of cfo, lender, investor."""
+{{"purpose": "three to six words on what the question is for", "lens": "cfo", "final": false,
+"calls": [{{"tool": "query", "why": "up to twelve words on what to look for", "query": "select 1"}},
+{{"tool": "scorecard", "group_id": "GROUP_0001", "month": "2026-08-01", "why": "..."}}]}}
+`lens` is one of cfo, lender, investor. Optional on an agent call: `tools`, a list that narrows
+the agent to some of its tools; `compare`, another group id for `peers`; `what_if`, pillar to
+points moved for `simulator`; `company`, the real-world company the user names, for `market`:
+groups are anonymous ids and `market` runs only with one.
+Calls of one turn run in parallel, at most {calls}: put together the ones that do not depend on
+each other. Set `final` to true when these calls will be enough to answer. When what has come
+back already answers the question, or nothing can, return "calls": []. A greeting or a question
+on how the product works needs no calls."""
 
-INTERPRET_PROMPT = """You are the {label} agent inside a financial health monitor. The planner
+TABLE_NOTES = """Notes on the data:
+- `month` is a timestamp on the first day of the month: month = '2026-08-01'.
+- `scores`: one row per group and month. `level` is the 0-100 health score, `trend` its points a
+  month, `state` one of healthy, stable, improving, bending, falling, weak, not_enough_data,
+  `tier` one of healthy, coping, vulnerable. The five pillar columns are 0-100.
+  A change over N months is a self join: past.month = now.month - interval N month.
+- `drivers`: one row per group, month and pillar, with its contribution to the level.
+- `alerts`: only the months the monitor fired, never a history of levels.
+  `anticipation_months` is how early it fired, against the tier change.
+- `groups.name` is the group id again; `country` can be null.
+- `payers`: customers of a group as of a month, only for groups with invoices (`has_erp`).
+- `offers`, `actions`: the working-capital line and the ranked next moves, per group and month.
+- `companies`: the companies inside each group.
+- `invoices`, `transactions`, `balances`, `debt_products`, `banking_products`, when listed, are
+  the raw trail per company. They are large: always filter or aggregate. `balances` is a single
+  snapshot at 2026-09-01.
+- Amounts in `_eur` columns are euros."""
+
+INTERPRET_PROMPT = """You are the {label} agent inside a financial health monitor. The director
 asks you: "{ask}". Answer it in at most two sentences from the tool output below. Copy every
 figure exactly as it is written there: never compute, convert or round a new one. If the output
 does not hold the answer, say so. Plain text, in the language of the ask."""
 
-WRITER_PROMPT = """You are X Ray, the analyst inside a financial health monitor. The person
-asking is read as: {lens}. Answer the question using only the agent reports below. Lead with the
-answer in one sentence. Then the evidence: which pillar moved, since when, with the numbers from
-the reports. When the question is about what to do, end with the ranked moves. Say plainly when
-the reports do not hold the answer.
+WRITER_PROMPT = """You are Lighthouse, the analyst inside a financial health monitor over a
+portfolio of business groups. The person asking is read as: {lens}. Answer the question using
+only the results below: queries over the data and agent reports. Lead with the answer in one
+sentence. Then the evidence, with the numbers from the results. When the question is about what
+to do, end with the ranked moves. Say plainly when the results do not hold the answer.
 
-Every figure you write is checked against the reports after you finish: copy figures exactly as
+Every figure you write is checked against the results after you finish: copy figures exactly as
 they are written there, and never compute, convert or round a new one.
 
-States: a bump is one bad month that recovers; bending is a sustained early decline while the
-level still looks fine; falling is structural decline; improving is a sustained rise. The
-current state is the one Scorecard reports. A draft suggestion, when present, is shown to the
-user under your answer: refer to it, do not repeat it.
+How the score works, for questions about it: a 0-100 level per group and month, from five
+pillars (liquidity, cash generation, payment discipline, collections, debt burden), never fitted
+to the portfolio. States: a bump is one bad month that recovers; bending is a sustained early
+decline while the level still looks fine; falling is structural decline; improving is a
+sustained rise. A draft suggestion, when present, is shown to the user under your answer: refer
+to it, do not repeat it.
 
-Plain text, short paragraphs, no markdown, no bullets, no headings. At most 150 words.
-Answer in the language of the question."""
+Plain text, short paragraphs, no markdown, no headings. A list goes one item per line.
+At most 180 words. Answer in the language of the question."""
 
 PILLAR_LABELS = {
     "liquidity": "liquidity",
@@ -267,7 +312,7 @@ ACTION_WORDS = re.compile(r"\b(do|should|chase|hacer|hacemos|hago|cobr|reclam|pr
 MENTION = re.compile(r"\b\w*\d\w*\b")
 # Digits inside an id (GROUP_0220) are a name, not a figure.
 FIGURE = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
-# The planner's fallback when there is no model: purpose, pattern, lens, agent to its tools.
+# The director's fallback when there is no model: purpose, pattern, lens, agent to its tools.
 PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
     (
         "setting up alerts",
@@ -296,6 +341,9 @@ PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
     ("us or the market", r"sector|market|compet|macro|econom|mercado", "cfo", {"macro": []}),
     ("against the portfolio", r"peer|compare|rank|portfolio|compar|cartera", "cfo", {"peers": []}),
 )
+# What the fallback reads when the question names no group.
+PORTFOLIO_QUERY = """select state, count(*) as groups, round(avg(level)) as average_level
+from scores where month = cast('{month}' as timestamp) group by state order by groups desc"""
 
 
 class ChatTurn(BaseModel):
@@ -304,10 +352,9 @@ class ChatTurn(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """One question about one group at one month, with the recent turns for follow-ups."""
+    """One question about the portfolio as of one month, with the recent turns for follow-ups."""
 
     message: str
-    group_id: str
     month: str
     history: list[ChatTurn] = Field(default_factory=list)
     currency: Literal["EUR", "USD"] = "EUR"
@@ -323,18 +370,27 @@ class ChatRequest(BaseModel):
         return value[-MAX_HISTORY_TURNS:]
 
 
-class Plan(BaseModel):
-    """Who is asking, which agents answer, and what the planner tells each one."""
+class Call(BaseModel):
+    """One thing the director asks for: a query, or an agent pointed at a group and month."""
 
-    agents: list[str]
-    lens: Lens = "cfo"
-    purpose: str = "why the score moved"
-    asks: dict[str, str] = Field(default_factory=dict)
-    tools: dict[str, list[str]] = Field(default_factory=dict)
-    company: str | None = None
+    tool: str
+    why: str = ""
+    query: str | None = None
+    group_id: str | None = None
+    month: str | None = None
+    tools: list[str] = Field(default_factory=list)
     compare: str | None = None
+    company: str | None = None
     what_if: dict[str, float] = Field(default_factory=dict)
-    wants_action: bool = False
+
+
+class Move(BaseModel):
+    """One round of the director. No calls means the results are enough to answer."""
+
+    purpose: str = ""
+    lens: Lens = "cfo"
+    final: bool = False
+    calls: list[Call] = Field(default_factory=list)
 
 
 @dataclass
@@ -348,36 +404,36 @@ class Step:
 class AgentContext:
     """What an agent needs to run and to report what it is doing."""
 
-    agent_id: str
+    run_id: str
+    call: Call
     request: ChatRequest
     snapshot: ScoreSnapshot
     db: duckdb.DuckDBPyConnection
     settings: Settings
     llm: LLM | None
-    plan: Plan
     has_erp: bool
     emit: Callable[[dict], None]
+    lens: Lens = "cfo"
     facts: dict[str, Any] = field(default_factory=dict)
     steps: int = 0
 
     @property
     def ask(self) -> str:
-        return self.plan.asks.get(self.agent_id, "")
+        return self.call.why
 
     def wants(self, tool: str) -> bool:
-        """The planner may narrow an agent to some of its tools. No list means all of them."""
-        wanted = self.plan.tools.get(self.agent_id)
-        return not wanted or tool in wanted
+        """The director may narrow an agent to some of its tools. No list means all of them."""
+        return not self.call.tools or tool in self.call.tools
 
     def money(self, eur: float, signed: bool = False) -> str:
         """An amount held in euros, shown in the currency the user picked, at the month's year."""
         code = self.request.currency
-        value = eur * display_rate(code, int(self.request.month[:4]))
+        value = eur * display_rate(code, int(self.snapshot.month[:4]))
         return f"{value:+,.0f} {code}" if signed else f"{value:,.0f} {code}"
 
     def query(self, sql: str, params: list | None = None) -> list[tuple]:
         """Run SQL with (group_id, month) bound unless other params are given."""
-        bound = [self.request.group_id, self.request.month] if params is None else params
+        bound = [self.call.group_id, self.call.month] if params is None else params
         return self.db.execute(sql, bound).fetchall()
 
     @contextmanager
@@ -385,7 +441,7 @@ class AgentContext:
         self.steps += 1
         n, t0, step = self.steps, time.monotonic(), Step()
         shown = ", ".join(f"{key}={value}" for key, value in inputs.items())
-        base = {"type": "step", "agent": self.agent_id, "n": n, "tool": name, "input": shown}
+        base = {"type": "step", "run": self.run_id, "n": n, "tool": name, "input": shown}
         self.emit(base | {"status": "running"})
         try:
             yield step
@@ -414,65 +470,72 @@ class SerialLLM:
 def run_chat(
     request: ChatRequest, db: duckdb.DuckDBPyConnection, settings: Settings
 ) -> Iterator[dict]:
-    """Plan, dispatch, follow up once, suggest, write, check the figures."""
+    """Direct, run the calls, direct again until the results are enough, suggest, write, check."""
     started = time.monotonic()
-    snapshot, has_erp = load_snapshot(db.cursor(), request.group_id, request.month)
-    if snapshot is None:
-        yield {"type": "error", "message": "No score for that group and month."}
-        return
+    request = request.model_copy(update={"month": _month(request.month)})
     llm = build_llm(settings, reasoning_effort="low")
-
-    yield {"type": "planning"}
-    plan = make_plan(request, snapshot, has_erp, llm, mentioned_group(request, db.cursor()))
-    yield {
-        "type": "plan",
-        "purpose": plan.purpose,
-        "lens": plan.lens,
-        "company": plan.company,
-        "compare": plan.compare,
-        "agents": [{"id": a, "reason": plan.asks.get(a, "")} for a in plan.agents],
-    }
+    schema = describe_tables(db.cursor())
 
     events: queue.Queue[dict] = queue.Queue()
-    reports: dict[str, AgentReport] = {}
+    results: list[tuple[Call, str]] = []
     facts: dict[str, Any] = {}
-    waves = [list(plan.agents)]
-    with ThreadPoolExecutor(max_workers=len(ROSTER)) as pool:
-        while waves:
+    lens: Lens = "cfo"
+    with ThreadPoolExecutor(max_workers=MAX_CALLS_PER_ROUND) as pool:
+        for _ in range(MAX_ROUNDS):
+            yield {"type": "planning"}
+            move = direct(request, schema, results, llm, db.cursor())
+            if not move.calls:
+                break
+            lens = move.lens
+            first = len(results) + 1
+            runs = {str(first + i): call for i, call in enumerate(move.calls)}
+            yield {
+                "type": "plan",
+                "purpose": move.purpose,
+                "agents": [
+                    {"run": run_id, "id": call.tool, "reason": call.why, "target": _target(call)}
+                    for run_id, call in runs.items()
+                ],
+            }
             running: dict[Future, str] = {}
-            for agent_id in waves.pop():
+            for run_id, call in runs.items():
+                cursor = db.cursor()
+                snapshot, has_erp = load_snapshot(cursor, call)
+                blank = ScoreSnapshot(
+                    group_id=call.group_id or "", month=(call.month or request.month)[:7], level=0
+                )
                 ctx = AgentContext(
-                    agent_id, request, snapshot, db.cursor(), settings, llm, plan, has_erp,
-                    events.put, facts,
+                    run_id, call, request, snapshot or blank, cursor, settings, llm, has_erp,
+                    events.put, lens, facts,
                 )  # fmt: skip
-                yield {"type": "agent", "id": agent_id, "status": "running"}
-                running[pool.submit(_timed, AGENTS[agent_id], ctx)] = agent_id
+                agent = AGENTS[call.tool] if snapshot or call.tool in GROUPLESS else _no_score
+                running[pool.submit(_timed, agent, ctx)] = run_id
             while running:
                 yield from _drain(events)
                 for future in [f for f in running if f.done()]:
-                    agent_id = running.pop(future)
+                    run_id = running.pop(future)
                     yield from _drain(events)
-                    yield _outcome(agent_id, future, reports)
+                    outcome = _outcome(run_id, runs[run_id].tool, future)
+                    results.append((runs[run_id], _result_text(outcome)))
+                    yield outcome
                 time.sleep(0.02)
-            if follow_up := director_follow_up(plan, reports, facts, has_erp):
-                plan.agents.extend(a["id"] for a in follow_up)
-                yield {"type": "dispatch", "agents": follow_up}
-                waves.append([a["id"] for a in follow_up])
+            if move.final:
+                break
 
-    suggestion = draft_suggestion(plan, facts)
+    suggestion = draft_suggestion(request, facts)
     if suggestion:
         yield {"type": "suggestion"} | suggestion
 
     yield {"type": "writing"}
     writing = time.monotonic()
-    source, answer = writer_input(request, snapshot, plan, reports, suggestion), ""
+    source, answer = writer_input(request, results, suggestion), ""
     try:
-        for text in write(plan, reports, source, llm):
+        for text in write(lens, results, source, llm):
             answer += text
             yield {"type": "token", "text": text}
     except Exception as e:  # the trace above already holds the evidence
         logger.warning("Writer failed: %s", e)
-        yield {"type": "error", "message": "The writer could not finish. The agent reports stand."}
+        yield {"type": "error", "message": "The writer could not finish. The results stand."}
     else:
         untraced = untraced_figures(answer, source)
         yield {
@@ -484,91 +547,183 @@ def run_chat(
     yield {"type": "done", "ms": _ms(started)}
 
 
-def mentioned_group(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> str | None:
-    """The first other group the question names by its id, when it has a score that month."""
-    for group_id in MENTION.findall(request.message):
-        if group_id == request.group_id:
-            continue
-        found = cursor.execute(
+def describe_tables(cursor: duckdb.DuckDBPyConnection) -> str:
+    """Every table the chat can query, one line each with its columns and types."""
+    rows = cursor.execute(
+        """select table_name, string_agg(column_name || ' ' || lower(data_type), ', '
+            order by ordinal_position)
+        from information_schema.columns group by 1 order by 1"""
+    ).fetchall()
+    return "\n".join(f"- {table}: {columns}" for table, columns in rows)
+
+
+def mentioned_groups(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> list[str]:
+    """The groups the question names by id that have a score that month, in order."""
+    found = []
+    for group_id in dict.fromkeys(MENTION.findall(request.message)):
+        scored = cursor.execute(
             "select 1 from scores where group_id = ? and month = cast(? as timestamp)",
             [group_id, request.month],
         ).fetchone()
-        if found:
-            return group_id
-    return None
+        if scored:
+            found.append(group_id)
+    return found
 
 
-def make_plan(
+def direct(
     request: ChatRequest,
-    snapshot: ScoreSnapshot,
-    has_erp: bool,
+    schema: str,
+    results: list[tuple[Call, str]],
     llm: LLM | None,
-    compare: str | None = None,
-) -> Plan:
-    """Ask the model who is asking and how to guide the fleet. Without it, or if it fails, rules."""
-    plan = None
+    cursor: duckdb.DuckDBPyConnection,
+) -> Move:
+    """Ask the model what to run next. Without it, or if it fails on the first round, rules."""
+    move = None
     if llm:
         roster = "\n".join(
-            f"- {m.id}: {m.purpose} Tools: " + "; ".join(f"{t.name} ({t.does})" for t in m.tools)
+            f"  - {m.id}: {m.purpose} Tools: " + "; ".join(f"{t.name} ({t.does})" for t in m.tools)
             for m in ROSTER
+            if m.id != "query"
         )
-        named = f"The question compares it with group {compare}: `peers` runs `compare`."
-        system = PLANNER_PROMPT.format(
-            roster=roster, has_erp="yes" if has_erp else "no", compare=named if compare else ""
+        system = DIRECTOR_PROMPT.format(
+            rows=MAX_QUERY_ROWS,
+            roster=roster,
+            schema=schema,
+            notes=TABLE_NOTES,
+            month=request.month,
+            calls=MAX_CALLS_PER_ROUND,
         )
-        user = f"Group: {snapshot.name} ({snapshot.country})\nQuestion: {request.message}"
+        history = "\n".join(f"{turn.role}: {turn.content}" for turn in request.history)
+        user = (
+            (f"Earlier in this conversation:\n{history}\n\n" if history else "")
+            + f"Question: {request.message}"
+            + ("\n\nWhat has come back so far:\n\n" + _transcript(results) if results else "")
+        )
         try:
-            plan = complete_json(llm, system, user, Plan)
-        except Exception as e:  # a bad plan must not cost the answer
-            logger.warning("Planner failed, using rules: %s", e)
-    if plan is None:
-        plan = Plan(agents=["scorecard"])
-        for purpose, pattern, lens, tools in PURPOSE_RULES:
-            if re.search(pattern, request.message, re.I):
-                plan = Plan(agents=["scorecard", *tools], lens=lens, purpose=purpose, tools=tools)
-                break
-        plan.wants_action = bool(ACTION_WORDS.search(request.message))
+            move = complete_json(llm, system, user, Move)
+        except Exception as e:  # a bad move must not cost the answer
+            logger.warning("Director failed: %s", e)
+    if move is None:
+        move = Move() if results else fallback_move(request, cursor)
+    calls = [_checked(call, request) for call in move.calls]
+    known = [call for call in calls if call is not None][:MAX_CALLS_PER_ROUND]
+    return move.model_copy(update={"calls": known})
 
-    tools = {
-        agent: [t for t in picked if t in {tool.name for tool in MEMBERS[agent].tools}]
-        for agent, picked in plan.tools.items()
-        if agent in MEMBERS
-    }
-    wanted = dict.fromkeys(["scorecard", *plan.agents, *(["peers"] if compare else [])])
-    if compare and tools.get("peers"):
-        tools["peers"] = list(dict.fromkeys([*tools["peers"], "compare"]))
-    if not has_erp:
-        # Without invoices the ledger still reads cash and debt, when that is what was asked.
-        tools["ledger"] = [t for t in tools.get("ledger") or CASH_TOOLS if t in CASH_TOOLS]
-        if not tools["ledger"]:
-            wanted.pop("ledger", None)
-    if not plan.company:
-        wanted.pop("market", None)
-    known = sorted((a for a in wanted if a in MEMBERS), key=list(MEMBERS).index)
-    what_if = {p: points for p, points in plan.what_if.items() if p in PILLAR_LABELS}
-    return plan.model_copy(
-        update={"agents": known, "tools": tools, "compare": compare, "what_if": what_if}
+
+def _checked(call: Call, request: ChatRequest) -> Call | None:
+    """A call the fleet can run, with its month normalised, or None."""
+    if call.tool not in AGENTS:
+        return None
+    if call.tool == "query":
+        return call if call.query else None
+    if call.tool == "market" and not call.company:
+        return None
+    tools = [t for t in call.tools if t in {tool.name for tool in MEMBERS[call.tool].tools}]
+    what_if = {p: points for p, points in call.what_if.items() if p in PILLAR_LABELS}
+    return call.model_copy(
+        update={
+            "month": _month(call.month or request.month),
+            "tools": tools,
+            "what_if": what_if,
+        }
     )
 
 
-def director_follow_up(
-    plan: Plan, reports: dict[str, AgentReport], facts: dict[str, Any], has_erp: bool
-) -> list[dict]:
-    """One extra dispatch, decided by rules on what Scorecard found. At most once per question."""
-    if facts.get("followed_up") or "scorecard" not in reports:
-        return []
-    facts["followed_up"] = True
-    if facts.get("worst_driver") != "collections" or not has_erp or "ledger" in plan.agents:
-        return []
-    ask = "collections is dragging the level: who pays late?"
-    plan.asks["ledger"] = ask
-    plan.tools["ledger"] = list(INVOICE_TOOLS)
-    return [{"id": "ledger", "reason": ask}]
+def fallback_move(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> Move:
+    """The rules that stand in for the model: the named group's agents, or the portfolio."""
+    move = Move(purpose="why the score moved", final=True)
+    picked: dict[str, list[str]] = {}
+    for purpose, pattern, lens, tools in PURPOSE_RULES:
+        if re.search(pattern, request.message, re.I):
+            move.purpose, move.lens, picked = purpose, lens, dict(tools)
+            break
+    groups = mentioned_groups(request, cursor)
+    if not groups:
+        move.calls = [Call(tool=agent) for agent in picked if agent == "notifier"]
+        if not move.calls:
+            query = PORTFOLIO_QUERY.format(month=request.month)
+            move.purpose = "the portfolio this month"
+            move.calls = [Call(tool="query", why="the portfolio by state", query=query)]
+        return move
+    compare = groups[1] if len(groups) > 1 else None
+    if compare:
+        picked["peers"] = list(dict.fromkeys([*picked.get("peers", ["standing"]), "compare"]))
+    move.calls = [
+        Call(tool=agent, group_id=groups[0], tools=tools, compare=compare)
+        for agent, tools in ({"scorecard": []} | picked).items()
+    ]
+    return move
 
 
-def draft_suggestion(plan: Plan, facts: dict[str, Any]) -> dict | None:
+def run_query(ctx: AgentContext) -> AgentReport:
+    """One SELECT the director wrote. Rows come back as text, which the figure check reads."""
+    sql = (ctx.call.query or "").strip().rstrip(";")
+    with ctx.tool("sql", query=" ".join(sql.split())) as step:
+        statements = duckdb.extract_statements(sql)
+        if len(statements) != 1 or statements[0].type != duckdb.StatementType.SELECT:
+            raise ValueError("Only one SELECT statement is allowed.")
+        watchdog = threading.Timer(QUERY_TIMEOUT_SECONDS, ctx.db.interrupt)
+        watchdog.start()
+        try:
+            result = ctx.db.execute(sql)
+            columns = [column[0] for column in result.description]
+            rows = result.fetchmany(MAX_QUERY_ROWS + 1)
+        finally:
+            watchdog.cancel()
+        cut = len(rows) > MAX_QUERY_ROWS
+        rows = rows[:MAX_QUERY_ROWS]
+        step.output = f"{len(rows)} rows" + (", more were cut" if cut else "")
+    summary = f"{len(rows)} row{'' if len(rows) == 1 else 's'} of {', '.join(columns)}."
+    if cut:
+        summary += f" Only the first {MAX_QUERY_ROWS} are shown: the query needs a tighter filter."
+    return AgentReport(
+        agent="query",
+        summary=summary,
+        findings=[
+            ", ".join(
+                f"{column} {_cell(value)}" for column, value in zip(columns, row, strict=True)
+            )
+            for row in rows
+        ],
+    )
+
+
+def _cell(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, datetime):
+        return f"{value:%Y-%m-%d}"
+    if isinstance(value, float):
+        return f"{value:,.0f}" if abs(value) >= 1000 else f"{value:.4g}"
+    return str(value)
+
+
+def _month(month: str) -> str:
+    """Any spelling of a month (2026-08, 2026-08-01 00:00:00) as the first day of it."""
+    return f"{month[:7]}-01"
+
+
+def _target(call: Call) -> str | None:
+    return f"{call.group_id}, {call.month[:7]}" if call.group_id and call.month else None
+
+
+def _result_text(outcome: dict) -> str:
+    if outcome["status"] == "failed":
+        return f"failed: {outcome['error']}"
+    return "\n".join([outcome["summary"], *outcome["findings"]])
+
+
+def _transcript(results: list[tuple[Call, str]]) -> str:
+    sections = []
+    for call, text in results:
+        what = call.query if call.tool == "query" else _target(call) or ""
+        sections.append(f"## {MEMBERS[call.tool].label}: {what}\n{text}")
+    return "\n\n".join(sections)
+
+
+def draft_suggestion(request: ChatRequest, facts: dict[str, Any]) -> dict | None:
     """The one action to put in front of a person. Built from figures, never from the model."""
-    if not plan.wants_action:
+    if not ACTION_WORDS.search(request.message):
         return None
     if chase := facts.get("chase"):
         return {
@@ -590,17 +745,9 @@ def draft_suggestion(plan: Plan, facts: dict[str, Any]) -> dict | None:
 
 
 def writer_input(
-    request: ChatRequest,
-    snapshot: ScoreSnapshot,
-    plan: Plan,
-    reports: dict[str, AgentReport],
-    suggestion: dict | None,
+    request: ChatRequest, results: list[tuple[Call, str]], suggestion: dict | None
 ) -> str:
     """Everything the writer may quote. The figure check reads the same text."""
-    sections = [
-        f"## {MEMBERS[agent_id].label}\n{report.summary}\n" + "\n".join(report.findings)
-        for agent_id, report in reports.items()
-    ]
     history = "\n".join(f"{turn.role}: {turn.content}" for turn in request.history)
     draft = (
         f"\n\nDraft suggestion shown to the user: {suggestion['title']}. {suggestion['detail']}"
@@ -608,8 +755,8 @@ def writer_input(
         else ""
     )
     return (
-        f"Group: {snapshot.name} ({snapshot.country}), month {snapshot.month}\n\n"
-        + "\n\n".join(sections)
+        f"The user is looking at month {request.month[:7]}.\n\n"
+        + (_transcript(results) or "Nothing was run for this question.")
         + draft
         + (f"\n\nEarlier in this conversation:\n{history}" if history else "")
         + f"\n\nQuestion: {request.message}"
@@ -617,12 +764,12 @@ def writer_input(
 
 
 def write(
-    plan: Plan, reports: dict[str, AgentReport], source: str, llm: LLM | None
+    lens: Lens, results: list[tuple[Call, str]], source: str, llm: LLM | None
 ) -> Iterator[str]:
     if llm is None:
-        yield " ".join(report.summary for report in reports.values())
+        yield " ".join(text.split("\n", 1)[0] for _, text in results)
         return
-    yield from llm.stream(WRITER_PROMPT.format(lens=plan.lens), source)
+    yield from llm.stream(WRITER_PROMPT.format(lens=lens), source)
 
 
 def _figures(text: str) -> list[tuple[str, float, int]]:
@@ -655,11 +802,11 @@ def interpret(ctx: AgentContext, report: AgentReport) -> AgentReport:
         return report
     output = "\n".join([report.summary, *report.findings])
     with ctx.tool("model.think", ask=ctx.ask[:90]) as step, SerialLLM._lock:
-        system = INTERPRET_PROMPT.format(label=MEMBERS[ctx.agent_id].label, ask=ctx.ask)
+        system = INTERPRET_PROMPT.format(label=MEMBERS[ctx.call.tool].label, ask=ctx.ask)
         try:
             answer = ctx.llm.complete(system, output).strip()
         except Exception as e:  # the figures stand without the thought
-            logger.warning("Agent %s could not think: %s", ctx.agent_id, e)
+            logger.warning("Agent %s could not think: %s", ctx.call.tool, e)
             step.output = "no answer from the model, the figures stand"
             return report
         if untraced := untraced_figures(answer, output):
@@ -672,8 +819,11 @@ def interpret(ctx: AgentContext, report: AgentReport) -> AgentReport:
 
 
 def load_snapshot(
-    cursor: duckdb.DuckDBPyConnection, group_id: str, month: str
+    cursor: duckdb.DuckDBPyConnection, call: Call
 ) -> tuple[ScoreSnapshot | None, bool]:
+    group_id, month = call.group_id, call.month
+    if not group_id:
+        return None, False
     row = cursor.execute(
         """select g.name, g.country, g.sector, s.level, g.has_erp
         from scores s join groups g using (group_id)
@@ -714,7 +864,6 @@ def scorecard(ctx: AgentContext) -> AgentReport:
         )
         missing = [PILLAR_LABELS[p] for p in PILLAR_LABELS if p not in {r[0] for r in pillars}]
         step.output = f"level {level:.0f}, {state}, {len(pillars)} of 5 pillars"
-    ctx.facts["state"] = state
     evidence = {
         "liquidity": buffer_days is not None and f"{buffer_days:.0f} days of cash buffer",
         "cash_generation": margin is not None and f"operating margin {margin:.0%}",
@@ -746,7 +895,6 @@ def scorecard(ctx: AgentContext) -> AgentReport:
         step.output = f"{len(moves)} pillars compared with {DRIVER_WINDOW_MONTHS} months ago"
     window = ""
     if moves and before:
-        ctx.facts["worst_driver"] = moves[0][0] if moves[0][1] < 0 else None
         parts = ", ".join(f"{PILLAR_LABELS.get(p, p)} {d:+.1f}" for p, d in moves if abs(d) >= 0.5)
         window = f" It was {before[0][0]:.0f} six months earlier"
         window += f", moved by {parts}." if parts else "."
@@ -930,7 +1078,7 @@ def simulator(ctx: AgentContext) -> AgentReport:
         f"{action} Expected gain {gain:+.1f} points on {PILLAR_LABELS.get(pillar, pillar)}."
         for pillar, action, gain in actions
     ]
-    moves = {p: points for p, points in ctx.plan.what_if.items() if p in ctx.snapshot.pillars}
+    moves = {p: points for p, points in ctx.call.what_if.items() if p in ctx.snapshot.pillars}
     if moves:
         findings.insert(0, _what_if(ctx, moves))
     return AgentReport(agent="simulator", summary=summary, findings=findings)
@@ -985,9 +1133,9 @@ def peers(ctx: AgentContext) -> AgentReport:
         summary.append(
             f"{_ordinal(by_level)} of {scored} groups by level and {_ordinal(by_trend)} by trend."
         )
-    if ctx.plan.compare and ctx.wants("compare"):
-        findings += _compare(ctx, ctx.plan.compare, summary)
-    if ctx.plan.lens == "investor" and ctx.wants("screen"):
+    if ctx.call.compare and ctx.wants("compare"):
+        findings += _compare(ctx, ctx.call.compare, summary)
+    if ctx.lens == "investor" and ctx.wants("screen"):
         findings.append(_screen(ctx, summary))
     if ctx.wants("comparables"):
         with ctx.tool("comparables", country=ctx.snapshot.country) as step:
@@ -996,7 +1144,7 @@ def peers(ctx: AgentContext) -> AgentReport:
                     (select annual_revenue_eur r, country c from groups where group_id = $1) me
                 where g.group_id <> $1 and g.country is not distinct from me.c
                   and g.annual_revenue_eur between me.r / 3 and me.r * 3""",
-                [ctx.request.group_id],
+                [ctx.call.group_id],
             )[0][0]
             step.output = f"{similar} groups within a third to three times its size"
         findings.append(
@@ -1012,13 +1160,13 @@ def _compare(ctx: AgentContext, other: str, summary: list[str]) -> list[str]:
         level, trend, state = ctx.query(
             """select level, trend, state from scores
             where group_id = ? and month = cast(? as timestamp)""",
-            [other, ctx.request.month],
+            [other, ctx.call.month],
         )[0]
         theirs = dict(
             ctx.query(
                 """select pillar, score from drivers where group_id = ?
                 and month = cast(? as timestamp) and score is not null""",
-                [other, ctx.request.month],
+                [other, ctx.call.month],
             )
         )
         step.output = f"{other} level {level:.0f}, {state}"
@@ -1062,7 +1210,7 @@ def _screen(ctx: AgentContext, summary: list[str]) -> str:
                 and s.level >= {SEARCH_FUND_LEVEL} and s.state not in ('bending', 'falling'))
             from m join groups g using (group_id)
             join scores s on s.group_id = m.group_id and s.month = cast($1 as timestamp)""",
-            [ctx.request.month],
+            [ctx.call.month],
         )[0]
         failed = [name for name, ok in tests.items() if not ok]
         step.output = (
@@ -1112,7 +1260,7 @@ def market(ctx: AgentContext) -> AgentReport:
     """Peers and press of the real company the user named."""
     llm = SerialLLM(ctx.llm, ctx) if ctx.llm else None
     cache = _context_cache(ctx)
-    named = ctx.snapshot.model_copy(update={"name": ctx.plan.company})
+    named = ctx.snapshot.model_copy(update={"name": ctx.call.company})
     parts = [
         _read(ctx, PeersAgent(ctx.settings.exa_api_key, llm, cache), named),
         _read(ctx, ContextRetrievalAgent(ctx.settings.tavily_api_key, llm, cache), named),
@@ -1132,7 +1280,7 @@ def notifier(ctx: AgentContext) -> AgentReport:
         rules = load_rules(path)
         step.output = f"{len(rules)} rules in force"
     with ctx.tool("rules.parse", by="model" if ctx.llm else "patterns") as step, SerialLLM._lock:
-        asked = parse_rules(ctx.request.message, ctx.request.group_id, ctx.llm)
+        asked = parse_rules(ctx.request.message, ctx.call.group_id, ctx.llm)
         step.output = "; ".join(r.describe() for r in asked) or "no delivery asked for"
     saved = []
     for rule in asked:
@@ -1154,6 +1302,7 @@ def notifier(ctx: AgentContext) -> AgentReport:
 
 
 AGENTS: dict[str, Callable[[AgentContext], AgentReport]] = {
+    "query": run_query,
     "scorecard": scorecard,
     "ledger": ledger,
     "simulator": simulator,
@@ -1164,6 +1313,12 @@ AGENTS: dict[str, Callable[[AgentContext], AgentReport]] = {
 }
 
 
+def _no_score(ctx: AgentContext) -> AgentReport:
+    raise ValueError(
+        f"No score for group {ctx.call.group_id} in {ctx.snapshot.month}: check the id and month."
+    )
+
+
 def _timed(
     run: Callable[[AgentContext], AgentReport], ctx: AgentContext
 ) -> tuple[AgentReport, int]:
@@ -1171,16 +1326,14 @@ def _timed(
     return run(ctx), _ms(t0)
 
 
-def _outcome(agent_id: str, future: Future, reports: dict[str, AgentReport]) -> dict:
+def _outcome(run_id: str, agent_id: str, future: Future) -> dict:
+    base = {"type": "agent", "run": run_id, "id": agent_id}
     try:
         report, ms = future.result()
-    except Exception as e:  # one agent failing must not cost the answer
+    except Exception as e:  # one call failing must not cost the answer
         logger.warning("Agent %s failed: %s", agent_id, e)
-        return {"type": "agent", "id": agent_id, "status": "failed", "error": str(e)[:200]}
-    reports[agent_id] = report
-    return {
-        "type": "agent",
-        "id": agent_id,
+        return base | {"status": "failed", "error": str(e)[:300]}
+    return base | {
         "status": "done",
         "summary": report.summary,
         "findings": report.findings,

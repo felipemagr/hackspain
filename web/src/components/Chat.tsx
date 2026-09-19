@@ -12,16 +12,14 @@ import {
   type Turn,
 } from "../lib/chat";
 import { monthLong } from "../lib/format";
-import type { Store } from "../lib/load";
-import { StateTag } from "./StateTag";
 
-// What the chat is good for, in the words of the person asking. Each line is one agent's ground.
+// What the chat is good for, in the words of the person asking.
 const GUIDE: [string, string][] = [
-  ["Why the score moved", "Which pillar moved it, since when, and whether it is a bump or a fall."],
-  ["Who to chase", "Customers paying late, what is overdue and how much billing rides on them."],
+  ["The whole portfolio", "Who is falling, who is improving, rankings, counts, by country or size."],
+  ["One group, by its id", "Why its score moved, since when, and whether it is a bump or a fall."],
+  ["The trail under a score", "Invoices, customers paying late, cash, debt and what is overdue."],
   ["What a move would do", "Lift a pillar and see the level and the credit line reprice."],
-  ["Where the group stands", "Against the portfolio, or against another group named by its id."],
-  ["What is happening outside", "The country around the group, or a real company you name."],
+  ["What is happening outside", "The country around a group, or a real company you name."],
 ];
 
 const host = (url: string) => {
@@ -41,7 +39,8 @@ function AgentLine({ run, member }: { run: AgentRun; member: FleetMember | undef
         <span className="agent__dot" data-status={run.status} />
         <span className="trace__label">{member?.label ?? run.id}</span>
         <span className={run.summary ? "trace__text" : "trace__text is-pending"}>
-          {run.followUp && !run.summary ? `Follow-up: ${text}` : text}
+          {run.target && <span className="hint">{run.target} </span>}
+          {text}
         </span>
         <span className="row__when">{runNote(run)}</span>
       </button>
@@ -129,7 +128,7 @@ function Draft({ suggestion, by }: { suggestion: Suggestion; by: string }) {
 
 function WriterLine({ turn }: { turn: Turn }) {
   const [open, setOpen] = useState(false);
-  const note = turn.check ? checkNote(turn.check) : "Writing from the agent reports";
+  const note = turn.check ? checkNote(turn.check) : "Writing from the results";
   return (
     <li className="trace__item">
       <button className="trace__row" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -153,10 +152,10 @@ function WriterLine({ turn }: { turn: Turn }) {
               <ol className="steps">
                 <li>
                   <span className="agent__dot" data-status={writerStatus(turn)} />
-                  <code>figures.check(answer, reports)</code>
+                  <code>figures.check(answer, results)</code>
                   <span className="steps__out">
                     {turn.check.untraced.length
-                      ? `not in the reports: ${turn.check.untraced.join(", ")}`
+                      ? `not in the results: ${turn.check.untraced.join(", ")}`
                       : checkNote(turn.check)}
                   </span>
                   <span className="row__when" />
@@ -176,21 +175,20 @@ function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMem
   return (
     <article className="turn">
       <h2 className="turn__question">{turn.question}</h2>
-      <p className="hint">
-        {turn.groupName}, {monthLong(turn.month)}
-        {turn.company && turn.company !== turn.groupName ? `, reading ${turn.company}` : ""}
-      </p>
+      <p className="hint">Data as of {monthLong(turn.month)}</p>
       <div className="section-head trace__head">
         <span className="hint">
           {turn.phase === "planning"
-            ? "Planner is reading the question"
-            : `Read as: ${turn.purpose}. ${turn.agents.length} agent${turn.agents.length === 1 ? "" : "s"} dispatched`}
+            ? turn.agents.length
+              ? "Director is reading what came back"
+              : "Director is reading the question"
+            : `${turn.purpose ? `Read as: ${turn.purpose}. ` : ""}${turn.agents.length} call${turn.agents.length === 1 ? "" : "s"}`}
         </span>
         <span className="hint">{total}</span>
       </div>
       <ol className="trace">
         {turn.agents.map((run) => (
-          <AgentLine key={run.id} run={run} member={members.get(run.id)} />
+          <AgentLine key={run.run} run={run} member={members.get(run.id)} />
         ))}
         {(turn.phase === "writing" || turn.check) && <WriterLine turn={turn} />}
       </ol>
@@ -214,30 +212,22 @@ function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMem
 }
 
 export function Chat({
-  store,
-  groupId,
   month,
   fleet,
   turns,
   busy,
   onAsk,
   onStop,
-  onGroup,
 }: {
-  store: Store;
-  groupId: string;
   month: string;
   fleet: FleetState;
   turns: Turn[];
   busy: boolean;
   onAsk: (question: string) => void;
   onStop: () => void;
-  onGroup: (groupId: string) => void;
 }) {
   const [draft, setDraft] = useState("");
   const scroller = useRef<HTMLDivElement>(null);
-  const group = store.groupById.get(groupId);
-  const score = store.scoreAt(groupId, month);
   const ready = fleet.status === "ready";
   const members = new Map(fleet.status === "ready" ? fleet.agents.map((a) => [a.id, a]) : []);
 
@@ -254,40 +244,14 @@ export function Chat({
 
   return (
     <div className="chat">
-      <header className="chat__head">
-        <div>
-          <h1>{group?.name}</h1>
-          <p className="detail__meta">
-            {score ? (
-              <>
-                <StateTag state={score.state} />, level {Math.round(score.level)} in{" "}
-                {monthLong(month)}
-              </>
-            ) : (
-              `No score in ${monthLong(month)}`
-            )}
-          </p>
-        </div>
-        <label className="compare">
-          <span className="hint">Ask about</span>
-          <select value={groupId} onChange={(e) => onGroup(e.target.value)}>
-            {store.groups.map((g) => (
-              <option key={g.group_id} value={g.group_id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </header>
-
       <div className="chat__scroll" ref={scroller}>
         <div className="chat__column">
           {turns.length === 0 ? (
             <div className="guide">
               <p className="guide__lead">
-                Ask in your own words, as the group's CFO, a lender or an investor. The planner
-                works out who is asking and guides the agents. Open any agent in the answer to see
-                its rules and every step it took.
+                Ask anything the data holds, in your own words, as of {monthLong(month)}. A
+                director writes queries over the tables and sends agents to the groups you name,
+                until it can answer. Open any line in the answer to see the query or the steps.
               </p>
               <dl>
                 {GUIDE.map(([topic, what]) => (
@@ -315,7 +279,7 @@ export function Chat({
           <textarea
             rows={1}
             value={draft}
-            placeholder={ready ? `Ask about ${group?.name ?? "this group"}` : "Agents are offline"}
+            placeholder={ready ? "Ask about the portfolio, a group or the data" : "Agents are offline"}
             disabled={!ready}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {

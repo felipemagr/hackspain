@@ -1,11 +1,4 @@
-import {
-  runNote,
-  writerNote,
-  writerStatus,
-  type Conversation,
-  type FleetState,
-  type Turn,
-} from "../lib/chat";
+import type { Conversation, FleetState } from "../lib/chat";
 
 // A turn id is the time it was asked.
 function ago(then: number): string {
@@ -54,8 +47,7 @@ function Conversations({
                 <span className="row__text">
                   <span className="row__name">{title}</span>
                   <span className="row__sub">
-                    {last.groupName} · {chat.turns.length}{" "}
-                    {chat.turns.length === 1 ? "question" : "questions"}
+                    {chat.turns.length} {chat.turns.length === 1 ? "question" : "questions"}
                   </span>
                 </span>
                 <span className="row__when">{working ? "answering" : ago(last.id)}</span>
@@ -77,16 +69,8 @@ function Conversations({
   );
 }
 
-// The fleet at rest and at work: who exists, and what each one is doing for the current question.
-function Fleet({
-  fleet,
-  turn,
-  onRetry,
-}: {
-  fleet: FleetState;
-  turn: Turn | undefined;
-  onRetry: () => void;
-}) {
+// Only what the person needs to know about the service: whether it can answer.
+function Service({ fleet, onRetry }: { fleet: FleetState; onRetry: () => void }) {
   if (fleet.status === "waking") {
     return (
       <p className="empty">Waking the agents. On the free tier the first call can take a minute.</p>
@@ -102,70 +86,21 @@ function Fleet({
       </div>
     );
   }
-
-  const live = new Map(turn?.agents.map((a) => [a.id, a]));
-  const planning = turn?.phase === "planning";
-
-  return (
-    <>
-      <div className="list__head">Plan</div>
-      <div className="agent">
-        <span className="agent__dot" data-status={planning ? "running" : "idle"} />
-        <span className="row__text">
-          <span className="row__name">Planner</span>
-          <span className="row__sub">
-            {turn?.purpose && !planning
-              ? `Read as: ${turn.purpose}`
-              : "Picks the agents for the question."}
-          </span>
-        </span>
-        <span className="row__when">{planning ? "planning" : ""}</span>
-      </div>
-      <div className="list__head">
-        Agents <span className="list__count">{fleet.agents.length}</span>
-      </div>
-      {fleet.agents.map((agent) => {
-        const run = live.get(agent.id);
-        return (
-          <div className="agent" key={agent.id}>
-            <span className="agent__dot" data-status={run?.status ?? "idle"} />
-            <span className="row__text">
-              <span className="row__name">{agent.label}</span>
-              <span className="row__sub">{agent.purpose}</span>
-            </span>
-            <span className="row__when">{run ? runNote(run) : ""}</span>
-          </div>
-        );
-      })}
-      <div className="list__head">Answer</div>
-      <div className="agent">
-        <span className="agent__dot" data-status={writerStatus(turn)} />
-        <span className="row__text">
-          <span className="row__name">Writer</span>
-          <span className="row__sub">Writes the answer. Every figure is checked.</span>
-        </span>
-        <span className="row__when">
-          {turn?.phase === "writing" ? "writing" : turn?.check ? writerNote(turn.check) : ""}
-        </span>
-      </div>
-      {!fleet.model && (
-        <p className="fleet__foot">No model key set: answers are the raw reports.</p>
-      )}
-    </>
+  return fleet.model ? null : (
+    <p className="fleet__foot">No model key set: answers are the raw results.</p>
   );
 }
 
 // Past conversations stay readable while the agent service is down.
 export function FleetRail({
   fleet,
-  turn,
   onRetry,
   ...conversations
-}: Parameters<typeof Fleet>[0] & Parameters<typeof Conversations>[0]) {
+}: Parameters<typeof Service>[0] & Parameters<typeof Conversations>[0]) {
   return (
     <>
       <Conversations {...conversations} />
-      <Fleet fleet={fleet} turn={turn} onRetry={onRetry} />
+      <Service fleet={fleet} onRetry={onRetry} />
     </>
   );
 }

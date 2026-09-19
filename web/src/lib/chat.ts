@@ -24,11 +24,12 @@ export interface Step {
   ms?: number;
 }
 
+// One call by the director: a query, or an agent pointed at a group and month.
 export interface AgentRun {
+  run: string;
   id: string;
   reason: string;
-  // Dispatched by the planner after it read the first reports, not in the opening plan.
-  followUp: boolean;
+  target: string | null;
   status: AgentStatus;
   steps: Step[];
   summary?: string;
@@ -55,12 +56,9 @@ export type Phase = "planning" | "agents" | "writing" | "done" | "stopped" | "er
 export interface Turn {
   id: number;
   question: string;
-  groupId: string;
-  groupName: string;
   month: string;
   phase: Phase;
   purpose: string | null;
-  company: string | null;
   agents: AgentRun[];
   suggestion: Suggestion | null;
   answer: string;
@@ -81,15 +79,14 @@ export type FleetState =
   | { status: "down" }
   | { status: "ready"; agents: FleetMember[]; model: string | null };
 
-type Dispatched = { id: string; reason: string };
+type Dispatched = { run: string; id: string; reason: string; target: string | null };
 
 type ChatEvent =
   | { type: "planning" | "writing" }
-  | { type: "plan"; purpose: string; company: string | null; agents: Dispatched[] }
+  | { type: "plan"; purpose: string; agents: Dispatched[] }
   | ({ type: "check" } & FigureCheck)
-  | { type: "dispatch"; agents: Dispatched[] }
-  | ({ type: "agent"; id: string; status: AgentStatus } & Partial<AgentRun>)
-  | ({ type: "step"; agent: string } & Step)
+  | ({ type: "agent"; run: string; status: AgentStatus } & Partial<AgentRun>)
+  | ({ type: "step"; run: string } & Step)
   | ({ type: "suggestion" } & Suggestion)
   | { type: "token"; text: string }
   | { type: "error"; message: string }
@@ -107,8 +104,8 @@ export function runNote(run: AgentRun): string {
 
 // The writer is a member of the fleet like any other: it runs, it ends, and its work is checked.
 export const WRITER_RULES = [
-  "Writes only from the agent reports.",
-  "Every figure in the answer is checked against those reports, at the precision it has.",
+  "Writes only from what the queries and the agents returned.",
+  "Every figure in the answer is checked against those results, at the precision it has.",
   "Counts up to twelve are words, not figures.",
 ];
 
@@ -120,45 +117,38 @@ export function writerStatus(turn: Turn | undefined): AgentStatus | "idle" {
 
 export function checkNote(check: FigureCheck): string {
   if (check.untraced.length)
-    return `${check.untraced.length} of ${check.figures} figures not in the reports`;
+    return `${check.untraced.length} of ${check.figures} figures not in the results`;
   return check.figures ? `${check.figures} figures, all traced` : "no figures to trace";
 }
 
-// The rail shows a time, as for any agent. Only a failed check earns words there.
-export function writerNote(check: FigureCheck): string {
-  return check.untraced.length ? checkNote(check) : secs(check.ms ?? 0);
-}
-
-const queued = (agents: Dispatched[], followUp: boolean): AgentRun[] =>
-  agents.map((a) => ({ ...a, followUp, status: "running", steps: [] }));
+const queued = (agents: Dispatched[]): AgentRun[] =>
+  agents.map((a) => ({ ...a, status: "running", steps: [] }));
 
 function apply(turn: Turn, event: ChatEvent): Turn {
   switch (event.type) {
     case "planning":
       return { ...turn, phase: "planning" };
+    // The director plans in rounds: each one adds its calls under the ones before.
     case "plan":
       return {
         ...turn,
         phase: "agents",
-        purpose: event.purpose,
-        company: event.company,
-        agents: queued(event.agents, false),
+        purpose: turn.purpose ?? event.purpose,
+        agents: [...turn.agents, ...queued(event.agents)],
       };
-    case "dispatch":
-      return { ...turn, agents: [...turn.agents, ...queued(event.agents, true)] };
     case "agent": {
       const { type: _type, ...patch } = event;
       return {
         ...turn,
-        agents: turn.agents.map((a) => (a.id === event.id ? { ...a, ...patch } : a)),
+        agents: turn.agents.map((a) => (a.run === event.run ? { ...a, ...patch } : a)),
       };
     }
     case "step": {
-      const { type: _type, agent, ...step } = event;
+      const { type: _type, run, ...step } = event;
       return {
         ...turn,
         agents: turn.agents.map((a) =>
-          a.id === agent
+          a.run === run
             ? { ...a, steps: [...a.steps.filter((known) => known.n !== step.n), step] }
             : a,
         ),
@@ -197,8 +187,7 @@ async function* readEvents(response: Response): AsyncGenerator<ChatEvent> {
   }
 }
 
-const CHATS_KEY = "xray.chats";
-const MAX_CHATS = 30;
+const CHATS_KEY = "xray.chats.v2";
 const WORKING: Phase[] = ["planning", "agents", "writing"];
 
 // A turn cut short by a reload never finished: it comes back as stopped.
@@ -250,7 +239,7 @@ export function useChat() {
   }, [chats, streaming]);
 
   const ask = useCallback(
-    async (question: string, groupId: string, groupName: string, month: string) => {
+    async (question: string, month: string) => {
       const id = Date.now();
       const chatId = activeId ?? id;
       const history = turns
@@ -270,23 +259,18 @@ export function useChat() {
       const turn: Turn = {
         id,
         question,
-        groupId,
-        groupName,
         month,
         phase: "planning",
         purpose: null,
-        company: null,
         agents: [],
         suggestion: null,
         answer: "",
       };
       // The conversation just asked in moves to the top.
-      setChats((all) =>
-        [
-          { id: chatId, turns: [...(all.find((chat) => chat.id === chatId)?.turns ?? []), turn] },
-          ...all.filter((chat) => chat.id !== chatId),
-        ].slice(0, MAX_CHATS),
-      );
+      setChats((all) => [
+        { id: chatId, turns: [...(all.find((chat) => chat.id === chatId)?.turns ?? []), turn] },
+        ...all.filter((chat) => chat.id !== chatId),
+      ]);
       setActiveId(chatId);
       const controller = new AbortController();
       abort.current = controller;
@@ -296,7 +280,6 @@ export function useChat() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: question,
-            group_id: groupId,
             month,
             history,
             currency: displayCurrency(),
