@@ -3,7 +3,8 @@
 from collections.abc import Sequence
 
 from xray.agents.base import Agent, AgentReport, ScoreSnapshot
-from xray.agents.company_research import CompanyResearchAgent
+from xray.agents.context_retrieval import build_agent as build_context_agent
+from xray.agents.llm import build_llm
 from xray.agents.macro import MacroAgent
 from xray.agents.narrator import NarratorAgent
 from xray.settings import Settings
@@ -19,10 +20,11 @@ class Orchestrator:
 
 def build_orchestrator(settings: Settings) -> Orchestrator:
     """The default line-up: research, then macro, then the narrative."""
+    llm = build_llm(settings)
     return Orchestrator(
         [
-            CompanyResearchAgent(tavily_api_key=settings.tavily_api_key),
-            MacroAgent(),
-            NarratorAgent(),
+            build_context_agent(settings),
+            MacroAgent(llm),
+            NarratorAgent(llm),
         ]
     )

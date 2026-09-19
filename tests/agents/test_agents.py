@@ -1,8 +1,14 @@
+from datetime import timedelta
+
 import httpx
 import pytest
 
-from xray.agents import AgentReport, Orchestrator, ScoreSnapshot
+from xray.agents.base import AgentReport, ScoreSnapshot
+from xray.agents.cache import JsonCache
+from xray.agents.context_retrieval import ContextRetrievalAgent
+from xray.agents.llm import OpenAICompatibleLLM
 from xray.agents.narrator import NarratorAgent
+from xray.agents.orchestrator import Orchestrator
 from xray.agents.tools import tavily
 
 
@@ -18,6 +24,10 @@ def bending_group() -> ScoreSnapshot:
         pillars={"liquidity": 72.0, "payment_discipline": 41.0, "debt_burden": 30.0},
         deltas={"liquidity": -2.0, "payment_discipline": -15.0},
     )
+
+
+def json_response(url: str, payload: dict) -> httpx.Response:
+    return httpx.Response(200, json=payload, request=httpx.Request("POST", url))
 
 
 class TestNarrator:
@@ -47,15 +57,81 @@ def test_orchestrator_returns_one_report_per_agent_in_order(bending_group):
     assert [r.agent for r in reports] == ["a", "b"]
 
 
-def test_tavily_search_parses_hits(monkeypatch):
-    def fake_post(url, **kwargs):
-        assert kwargs["json"]["query"] == "Example Corp company news"
-        return httpx.Response(
-            200,
-            json={"results": [{"title": "Hit", "url": "https://example.com", "content": "..."}]},
-            request=httpx.Request("POST", url),
-        )
+class TestContextRetrieval:
+    @pytest.fixture
+    def tavily_hits(self, monkeypatch):
+        """Every query returns the same four hits: two good, one social, one off topic."""
+        calls = []
 
-    monkeypatch.setattr(tavily.httpx, "post", fake_post)
-    results = tavily.search("Example Corp company news", api_key="k")
-    assert [r.url for r in results] == ["https://example.com"]
+        def hit(title, url, score):
+            return {"title": title, "url": url, "content": "", "score": score}
+
+        def fake_post(url, **kwargs):
+            calls.append(kwargs["json"])
+            results = [
+                hit("Example results", "https://a.example", 0.5),
+                hit("Example loan", "https://b.example", 0.1 * len(calls)),
+                hit("Example post", "https://x.com/p", 0.9),
+                hit("Generic page", "https://c.example", 0.9),
+            ]
+            return json_response(url, {"results": results})
+
+        monkeypatch.setattr(tavily.httpx, "post", fake_post)
+        return calls
+
+    def test_retrieve_dedupes_by_url_and_keeps_best_score(self, tavily_hits):
+        hits = ContextRetrievalAgent("key", None).retrieve("Example Corp")
+
+        assert [h.url for h in hits] == ["https://a.example", "https://b.example"]
+        assert hits[1].score == pytest.approx(0.3)
+        assert all("Example Corp" in call["query"] for call in tavily_hits)
+
+    def test_run_without_model_returns_raw_hits(self, tavily_hits, bending_group):
+        report = ContextRetrievalAgent("key", None).run(bending_group)
+
+        assert report.findings == ["Example results", "Example loan"]
+        assert report.sources == ["https://a.example", "https://b.example"]
+
+    def test_second_run_is_served_from_cache(self, tavily_hits, bending_group, tmp_path):
+        agent = ContextRetrievalAgent("key", None, JsonCache(tmp_path, timedelta(days=1)))
+
+        first = agent.run(bending_group)
+        calls_after_first = len(tavily_hits)
+        second = agent.run(bending_group)
+
+        assert second == first
+        assert len(tavily_hits) == calls_after_first
+        agent.run(bending_group, refresh=True)
+        assert len(tavily_hits) == 2 * calls_after_first
+
+    def test_run_with_model_extracts_dated_findings(self, tavily_hits, bending_group):
+        class FakeLLM:
+            def complete(self, system, user):
+                assert "Example Corp" in user
+                assert "tier: other, published: unknown" in user
+                return (
+                    '```json\n{"summary": "Turned a profit.", "findings": [{"fact": "Net profit'
+                    ' of 1m in 2025", "period": "2025", "published": "2026-03-30",'
+                    ' "direction": "helps", "source": "https://a.example"}]}\n```'
+                )
+
+        report = ContextRetrievalAgent("key", FakeLLM()).run(bending_group)
+
+        assert report.summary == "Turned a profit."
+        assert report.findings == ["Net profit of 1m in 2025 [2025, seen 2026-03-30, helps]"]
+        assert report.sources == ["https://a.example"]
+
+    def test_skips_without_name(self, bending_group):
+        snapshot = bending_group.model_copy(update={"name": None})
+        assert ContextRetrievalAgent("key", None).run(snapshot).findings == []
+
+
+def test_openai_compatible_llm_returns_message_content(monkeypatch):
+    def fake_post(url, **kwargs):
+        assert url == "https://llm.example/v1/chat/completions"
+        assert kwargs["json"]["messages"][0] == {"role": "system", "content": "sys"}
+        return json_response(url, {"choices": [{"message": {"content": "hello"}}]})
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    llm = OpenAICompatibleLLM(api_key="k", model="m", base_url="https://llm.example/v1/")
+    assert llm.complete("sys", "usr") == "hello"

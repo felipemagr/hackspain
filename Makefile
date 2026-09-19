@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data panel pipeline mock sql notebook docker-build docker-pipeline \
-        api api-up api-down slack-test test test-quick lint format quality ci clean
+        api api-up api-down slack-test context test test-quick lint format quality ci clean
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
@@ -65,6 +65,10 @@ api-down: ## Stop the API container
 
 slack-test: ## Send a test alert to the Slack webhook in .env
 	uv run python -m xray.integrations.slack
+
+# Agents
+context: ## Public context for one company, cached in data/serving/context: make context NAME="Cabify" [REFRESH=1]
+	uv run python -m xray.agents.context_retrieval $(if $(REFRESH),--refresh) "$(NAME)"
 
 # Tests
 test: ## Run all tests

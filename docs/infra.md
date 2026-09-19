@@ -41,7 +41,7 @@ flowchart LR
 
 Green is built, dashed grey is still to come, blue is data at rest.
 
-The contract between the two halves is **one folder**: `data/serving/*.parquet`. The pipeline owns writing it, the API only reads it, and each file becomes a table named after it. There is deliberately no `.duckdb` file: a DuckDB file held open by a writer locks out every reader, parquet does not (see `architecture.md` section 3). Whoever builds the score and whoever builds routes can work in parallel as long as they agree on those tables.
+The contract between the two halves is **one folder**: `data/serving/*.parquet`. The pipeline owns writing it, the API only reads it, and each file becomes a table named after it. There is deliberately no `.duckdb` file: a DuckDB file held open by a writer locks out every reader, parquet does not (see `architecture.md` section 4). Whoever builds the score and whoever builds routes can work in parallel as long as they agree on those tables.
 
 ## What runs where
 
@@ -91,7 +91,7 @@ Everything is read by `src/xray/settings.py` with the `XRAY_` prefix. Precedence
 
 ## The images
 
-One `Dockerfile`, two targets. `pipeline` is the default (`make docker-build`, documented in `architecture.md` section 7). `api` is what compose builds, in two stages from the lockfile:
+One `Dockerfile`, two targets. `pipeline` is the default (`make docker-build`, documented in `architecture.md` section 10). `api` is what compose builds, in two stages from the lockfile:
 
 1. **builder**: installs dependencies (cached layer, rebuilt only when `uv.lock` changes), then the package.
 2. **runtime**: `python:3.12-slim`, the virtualenv copied over, a non-root user, a `HEALTHCHECK` on `/health`, and `uvicorn` listening on `$PORT` (hosts inject it) or 8000.

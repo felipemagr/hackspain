@@ -1,9 +1,48 @@
-# Data architecture
+# Architecture
 
-How raw CSVs become the monthly panel everything else reads, why it is built this way, and where
-it stops being the right answer. Read `docs/brief.md` first for what we are building.
+How the system is laid out, how raw CSVs become the monthly panel everything else reads, how the
+agents add public context around the score, why each part is built this way, and where it stops
+being the right answer. Read `docs/brief.md` first for what we are building.
 
-## 1. The size of the problem
+## 1. System shape
+
+Four stages, each one a package, each one reading only what the stage before it wrote.
+
+```mermaid
+flowchart LR
+    RAW[data/raw<br/>9 CSVs] --> PIPE[xray.pipeline<br/>clean, panel, lake]
+    PIPE --> PANEL[data/processed<br/>panel_group.parquet]
+    PANEL --> SCORE[xray.scoring<br/>score, explain, monitor, offer]
+    SCORE --> SERVING[data/serving<br/>parquet + context/*.json]
+    WEB[Tavily search] --> AGENTS[xray.agents<br/>context, macro, narrator]
+    LLM[Helmcode LLM] --> AGENTS
+    SCORE --> AGENTS
+    AGENTS --> SERVING
+    SERVING --> API[xray.api<br/>read-only]
+    API --> DEMO[demo front end]
+    SCORE --> SLACK[xray.integrations.slack]
+```
+
+| Package | Job | Runs | Talks to the network |
+|---|---|---|---|
+| `xray.pipeline` | raw CSVs to parquet to the monthly panel | batch, `make panel` | no |
+| `xray.scoring` | level, trend, drivers, monitor, offer, over the panel | batch | no |
+| `xray.agents` | public context, macro and narrative around a score | batch or on demand, cached | yes: search and model |
+| `xray.integrations` | outbound clients, one module per service | called by scoring | yes: Slack |
+| `xray.api` | serves `data/serving` to the demo | long-running container | no |
+
+Two rules hold the shape together:
+
+- **Dependencies point one way**: `config`/`settings` <- `pipeline` <- `scoring` <- `agents`, `api`.
+  Nothing imports from a stage to its right.
+- **Everything the demo shows is precomputed into `data/serving`.** The API never calls the
+  pipeline, the model or the web during a request. It imports no pandas, so its image stays small
+  and it cannot fail on stage because a third party is slow.
+
+Runtime configuration is `xray.settings` (environment, `XRAY_` prefix, see `docs/infra.md`).
+Paths and dataset constants are `xray.config`.
+
+## 2. The size of the problem
 
 Measured on the real dataset, on one laptop.
 
@@ -20,12 +59,12 @@ A full rebuild from raw CSV takes about ten seconds. That single fact decides mo
 follows: there is no incremental loading, no orchestrator, no scheduler and no database server,
 because none of them would save time worth having.
 
-## 2. Shape
+## 3. Data pipeline
 
 ```
 output/*.csv            raw dump, git-ignored, never modified
    |
-   v  xray.pipeline.clean        pandas, one pass, fixes the traps in section 5
+   v  xray.pipeline.clean        pandas, one pass, fixes the traps in section 6
 data/processed/*.parquet
    |
    v  xray.pipeline.panel        duckdb, as-of aggregation
@@ -38,7 +77,7 @@ panel_group.parquet       250 x 24   <- the contract
 `make panel` runs it. Make tracks the file dependencies, so an unchanged raw dump rebuilds
 nothing and a touched `clean.py` rebuilds from there down.
 
-## 3. Parquet is the system of record, DuckDB is a query engine
+## 4. Parquet is the system of record, DuckDB is a query engine
 
 Never persist a `.duckdb` file. `duckdb.connect()` opens in memory, reads parquet, writes parquet,
 closes.
@@ -72,7 +111,7 @@ Alternatives weighed and rejected: **Postgres** solves concurrency we do not hav
 service plus migrations; **SQLite** is single-writer too and a row store; **Spark, ClickHouse,
 Airflow** are for problems two orders of magnitude larger than this one.
 
-## 4. The panel contract
+## 5. The panel contract
 
 `data/processed/panel_group.parquet`, one row per `(group_id, month)`, 6,000 rows, 24 months from
 2024-09 to 2026-08. `panel_company.parquet` is the same schema keyed by `company_id`.
@@ -114,7 +153,7 @@ the future into every earlier month. Debt behaviour enters through the `debt_rep
 transaction category instead, which is dated. Use the snapshots only for a month-24 view, and
 label it as such.
 
-## 5. What cleaning has to fix
+## 6. What cleaning has to fix
 
 Each of these silently corrupts the score.
 
@@ -148,7 +187,7 @@ aggregate.
 Smaller: 90.2% of transactions have no `counterparty_id`; `category` is `-` on 25% and is
 normalised to `uncategorized`; 4% of transactions carry a non-unit exchange rate.
 
-## 6. Daily data
+## 7. Daily data
 
 The challenge ships one static dump. In production the same tables arrive daily, and the rows are
 not all append-only:
@@ -176,10 +215,81 @@ This has a useful consequence. Once a month is closed, its as-of features can ne
 daily job would only ever recompute the open month, about 250 rows. At this size, rebuild
 everything anyway.
 
-## 7. Docker
+## 8. Agents: public context around the score
 
-One image, built from the repo, with the raw data mounted rather than baked in: 615 MB of CSV
-does not belong in an image.
+The score is computed from the group's own money trail. The agents add what the money trail
+cannot say: what is publicly known about the company, what the economy around it looks like, and
+a written account of where it is weak. They read the score and never change it.
+
+Contract, in `agents/base.py`: every agent implements `run(snapshot: ScoreSnapshot) ->
+AgentReport`. A snapshot is what the engine knows about one group at one month (level, pillars,
+month-on-month deltas, name, country). A report is a summary, a list of findings and a list of
+sources. `Orchestrator` runs the agents in order and returns one report each.
+
+| Agent | State | Reads | Produces |
+|---|---|---|---|
+| `context_retrieval` | working end to end | company name, web search, model | dated financial facts with direction and source |
+| `macro` | placeholder | country, month | conditions that help or hurt liquidity and collections |
+| `narrator` | deterministic, no prose yet | pillars and deltas | which pillars drag the score, worst first |
+
+### Context retrieval
+
+```
+name -> 3 searches in parallel -> drop social, off-topic, low score -> dedupe by URL
+     -> annotate each hit with trust tier and publication date
+     -> model extracts facts as JSON -> AgentReport -> cache
+```
+
+- **Queries.** One per angle a lender checks: results and debt, financing and insolvency,
+  workforce and contracts. The company name is quoted. Four Tavily credits per company: the
+  results query runs at `advanced` depth (2), the other two at `basic` (1 each).
+- **Filtering happens on our side** (`agents/sources.py`). Social networks are dropped by domain,
+  pages that never mention the company are dropped, and so is anything scored under 0.2.
+- **Trust tiers.** Each domain maps to official (BOE, CNMV), registry aggregator, financial
+  press, or other. The tier goes to the model, which prefers the higher tier when sources
+  disagree. It is a blacklist plus ranking, not a whitelist: regional papers at the lowest tier
+  are often the only source for a layoff or a plant closure.
+- **Two dates per fact.** `period` is the fiscal period the fact is about. `published` is when it
+  became public, which is the one that matters for anticipation. `published` comes from Tavily
+  when it gives one, else from the URL: Spanish press puts the date in the path
+  (`/2026/06/26/`, `/2026-03-30/`, `/20200205/`, `/<id>/09/23/`). The model copies it and is told
+  never to guess; an unknown date stays null.
+- **Model.** `agents/llm.py` holds the `LLM` protocol and one client for any OpenAI-compatible
+  endpoint, over httpx. `build_llm(settings)` points it at Helmcode (`HELMCODE_API_KEY`,
+  `XRAY_LLM_MODEL`, default `deepseek-v4-flash`). With no key the agent returns the raw hits.
+- **Cache.** `agents/cache.py`, one JSON file per company in `data/serving/context/`, holding the
+  raw hits and the report, valid for `XRAY_CONTEXT_TTL_DAYS` (default 7). A cached company costs
+  no credits, no model call and no latency. `make context NAME="Cabify"` fills it,
+  `REFRESH=1` forces a new search. A fresh lookup takes 20 to 40 seconds, which is why the demo
+  companies are cached before anyone opens the demo.
+
+Measured on Cabify: 8 sources kept, 13 facts, 11 of them dated, 19 seconds uncached.
+
+What was tried and dropped, so nobody repeats it:
+
+- `topic="finance"` drifts to other companies (El Corte Inglés, Acciona on a Cabify query).
+- `topic="news"` dates every hit but returns aggregators and job boards for Spanish companies.
+  `general` finds El Confidencial, Cinco Días and the registry, and the URL gives the date.
+- Tavily's `exclude_domains` together with `topic="news"` collapses the results to a handful of
+  low-score pages. Hence the filter on our side.
+
+Limits: 1,000 Tavily credits a month on the current plan, 100 requests a minute on a dev key.
+Three parallel requests per company are far from the rate limit; credits are the real budget,
+about 250 uncached companies a month.
+
+## 9. API
+
+`xray.api` is a FastAPI app that serves what is already in `data/serving`. At start-up it opens
+an in-memory DuckDB and creates one view per parquet file it finds; with no files it still
+starts, so the container can come up before the pipeline has run. One router per resource under
+`api/routers/`, registered in `api/main.py`; `health` is the only one so far. A global handler
+turns any unexpected error into a plain 500: a demo must not show a stack trace. Conventions are
+in `.claude/rules/api-design.md`.
+
+## 10. Docker
+
+Two images from one `Dockerfile`. The `pipeline` target is built from the repo with the raw data
+mounted rather than baked in: 615 MB of CSV does not belong in an image.
 
 ```bash
 make docker-build      # build xray:latest, 754 MB, about 90 s cold
@@ -191,11 +301,11 @@ Point it at a dump somewhere else with `make docker-pipeline RAW_DIR=output`.
 The image carries no data, so it rebuilds in seconds when only the source changes. `UV_NO_CACHE=1`
 keeps uv's download cache out of the layer, which is worth 480 MB. The 552 MB that remain are
 numpy, scipy, pandas, pyarrow and scikit-learn.
-The demo image, which is the one that matters in front of the jury, comes when the API lands: it
-bakes the processed parquet, which is a few MB, and needs no volume, no network and no database.
-Adding it is a second stage on this Dockerfile plus a `CMD`.
+The `api` target is the demo image, the one that matters in front of the jury. It installs
+without the pipeline dependency group, so no pandas, bakes `data/serving` in, and needs no volume,
+no network and no database. `make api-up` builds and runs it; `docs/infra.md` has the detail.
 
-## 8. When this stops being right
+## 11. When this stops being right
 
 The full rebuild is ten seconds at 3.46 M rows on one core. It stays under a minute well past
 Embat's real customer count, so a nightly full rebuild is a defensible production answer, not just
@@ -206,3 +316,10 @@ no longer fits one machine's memory; the API must serve many concurrent users wi
 reads from live state; or retention and schema evolution need managing. The first three point at
 Postgres for state with DuckDB kept for analytics. The last points at Iceberg or Delta, both of
 which DuckDB can read, so the query layer survives the move.
+
+The agents have their own version of this. A JSON file per company is right for a demo and for a
+few hundred companies. Past that, the cache belongs in the same store as the scores, refreshes
+should be scheduled by how fast a company's news moves rather than by a flat TTL, and a second
+search backend (Brave, or the BOE open data API for insolvency notices) removes the single
+point of failure. The `tools/` layout already allows it: one module per service, and the agent
+does not know which one answered.
