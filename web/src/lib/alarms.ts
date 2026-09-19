@@ -111,6 +111,11 @@ export function useAlarms() {
     );
   }, []);
 
+  // One test message down the alarm's channel. Rejects with the server's reason when it cannot.
+  const test = useCallback(async (id: number) => {
+    await call<void>(`/${id}/test`, { method: "POST" });
+  }, []);
+
   // A request in plain words. Resolves to the question still open when the API needs more.
   const create = useCallback(async (text: string, groupId: string): Promise<string | null> => {
     try {
@@ -125,5 +130,5 @@ export function useAlarms() {
     }
   }, []);
 
-  return { state, reload: load, change, remove, create };
+  return { state, reload: load, change, remove, test, create };
 }

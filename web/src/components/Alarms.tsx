@@ -58,30 +58,47 @@ function changesOf(draft: Draft): AlarmChanges {
 function Editor({
   alarm,
   onSave,
+  onTest,
   onCancel,
 }: {
   alarm: Alarm;
   onSave: (changes: AlarmChanges) => Promise<void>;
+  onTest: () => Promise<void>;
   onCancel: () => void;
 }) {
   const [draft, setDraft] = useState(() => draftOf(alarm));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [busy, setBusy] = useState<"" | "saving" | "testing">("");
+  // What the last action came back with: a sent test, or the reason it did not go.
+  const [note, setNote] = useState<{ text: string; failed: boolean } | null>(null);
   const onLine = draft.kind === "above" || draft.kind === "below";
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const incomplete =
     (onLine && draft.line === "") || (draft.channel === "email" && !draft.email.includes("@"));
+  // The test goes down the saved channel, so an unsaved change to it is tested only once saved.
+  const changed = JSON.stringify(draft) !== JSON.stringify(draftOf(alarm));
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    setSaving(true);
-    setError("");
+    setBusy("saving");
+    setNote(null);
     try {
       await onSave(changesOf(draft));
     } catch (e) {
-      setError((e as Error).message);
-      setSaving(false);
+      setNote({ text: (e as Error).message, failed: true });
+      setBusy("");
     }
+  };
+
+  const test = async () => {
+    setBusy("testing");
+    setNote(null);
+    try {
+      await onTest();
+      setNote({ text: `Test sent to ${delivers(alarm)}.`, failed: false });
+    } catch (e) {
+      setNote({ text: (e as Error).message, failed: true });
+    }
+    setBusy("");
   };
 
   return (
@@ -156,14 +173,26 @@ function Editor({
           )}
         </span>
       </label>
-      {error && (
-        <p className="alarm-edit__error" role="alert">
-          {error}
+      {note && (
+        <p
+          className={`alarm-edit__note ${note.failed ? "is-failed" : ""}`}
+          role={note.failed ? "alert" : "status"}
+        >
+          {note.text}
         </p>
       )}
       <div className="alarm-edit__actions">
-        <button type="submit" className="alarm-edit__save" disabled={saving || incomplete}>
-          {saving ? "Saving" : "Save"}
+        <button type="submit" className="alarm-edit__save" disabled={busy !== "" || incomplete}>
+          {busy === "saving" ? "Saving" : "Save"}
+        </button>
+        <button
+          type="button"
+          className="link"
+          disabled={busy !== "" || changed}
+          title={changed ? "Save first: the test goes down the saved channel" : undefined}
+          onClick={test}
+        >
+          {busy === "testing" ? "Sending a test" : "Send a test"}
         </button>
         <button type="button" className="link" onClick={onCancel}>
           Cancel
@@ -242,13 +271,22 @@ interface AlarmsProps {
   groupId: string;
   onChange: (id: number, changes: AlarmChanges) => Promise<void>;
   onRemove: (id: number) => Promise<void>;
+  onTest: (id: number) => Promise<void>;
   onCreate: (text: string, groupId: string) => Promise<string | null>;
   onRetry: () => void;
 }
 
-/** The alarms in the rule book: what each waits for and where it goes. Switch, edit, delete,
- * or add one in plain words. The agents write the same book from the chat. */
-export function Alarms({ state, groupId, onChange, onRemove, onCreate, onRetry }: AlarmsProps) {
+/** The alarms in the rule book: what each waits for and where it goes. Switch, edit, test,
+ * delete, or add one in plain words. The agents write the same book from the chat. */
+export function Alarms({
+  state,
+  groupId,
+  onChange,
+  onRemove,
+  onTest,
+  onCreate,
+  onRetry,
+}: AlarmsProps) {
   const [editing, setEditing] = useState<number | null>(null);
   const alarms = state.status === "ready" ? state.alarms : [];
 
@@ -318,6 +356,7 @@ export function Alarms({ state, groupId, onChange, onRemove, onCreate, onRetry }
                       await onChange(alarm.id, changes);
                       setEditing(null);
                     }}
+                    onTest={() => onTest(alarm.id)}
                     onCancel={() => setEditing(null)}
                   />
                 )}

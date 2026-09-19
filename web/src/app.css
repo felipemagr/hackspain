@@ -640,8 +640,13 @@ ol {
   color: var(--ink-3);
 }
 
-.alarm-edit__error {
+.alarm-edit__note {
   font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+
+.alarm-edit__note.is-failed {
   color: var(--bad-ink);
 }
 
@@ -650,6 +655,12 @@ ol {
   align-items: center;
   gap: 14px;
   padding-top: 2px;
+}
+
+.alarm-edit__actions .link:disabled {
+  color: var(--ink-3);
+  text-decoration-color: transparent;
+  cursor: default;
 }
 
 .alarm-edit__save {

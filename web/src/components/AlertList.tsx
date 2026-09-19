@@ -34,6 +34,7 @@ export function AlertList({
         groupId={selectedId}
         onChange={alarms.change}
         onRemove={alarms.remove}
+        onTest={alarms.test}
         onCreate={alarms.create}
         onRetry={alarms.reload}
       />

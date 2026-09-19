@@ -1,5 +1,7 @@
 """The alert rule book: who is told, and where, when the monitor fires."""
 
+import smtplib
+
 import httpx
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel
@@ -22,6 +24,12 @@ from xray.scoring.rules import (
 from xray.settings import get_settings
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
+
+NOT_CONFIGURED = {
+    "slack": "Slack is not configured on the server: set XRAY_SLACK_WEBHOOK_URL in .env",
+    "email": "Email is not configured on the server: set XRAY_SMTP_HOST, XRAY_SMTP_USER and "
+    "XRAY_SMTP_PASSWORD in .env",
+}
 
 
 class RuleRequest(BaseModel):
@@ -112,14 +120,14 @@ def test_alert_rule(rule_id: int) -> Response:
             sent = send_slack(f"{subject}\n{body}")
         else:
             sent = send_email(subject, body, to=rule.email_to)
-    except (httpx.HTTPError, OSError) as e:
+    except (httpx.HTTPError, OSError, smtplib.SMTPException) as e:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"The {rule.channel} channel refused the test",
+            detail=f"The {rule.channel} channel refused the test: {str(e)[:120]}",
         ) from e
     if not sent:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"The {rule.channel} channel is not configured on the server",
+            detail=NOT_CONFIGURED[rule.channel],
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

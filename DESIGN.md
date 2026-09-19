@@ -96,8 +96,9 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   when off: it says whether the alarm runs, never a state color; an alarm that is off greys its
   text and says "off". Clicking a row opens it as one `--selected` shape holding a four-field
   form (When, Severity, Groups, Send to) with the usual bordered select and inputs, a bordered
-  Save and a Cancel link. The rail re-reads the book every five seconds, so an alarm set in the
-  chat appears on its own.
+  Save, a "Send a test" link (one message down the saved channel; the result, or the server's
+  reason it could not go, appears above the actions) and a Cancel link. The rail re-reads the
+  book every five seconds, so an alarm set in the chat appears on its own.
 - **Alerts inbox** (`AlertList.tsx`, under the alarms): "Raised N" with Clear all and a clear
   button on row hover. Clearing empties the rail and its count; the rings on the chart stay,
   because they are history.
