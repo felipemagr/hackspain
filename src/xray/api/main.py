@@ -11,7 +11,16 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from xray.api.db import refresh_views
-from xray.api.routers import alerts, chat, client_errors, health, real_groups, tables, version
+from xray.api.routers import (
+    alert_rules,
+    alerts,
+    chat,
+    client_errors,
+    health,
+    real_groups,
+    tables,
+    version,
+)
 from xray.config import MARTS_DIR
 from xray.settings import get_settings
 
@@ -64,6 +73,7 @@ app.include_router(real_groups.router)
 app.include_router(version.router)
 app.include_router(tables.router)
 app.include_router(alerts.router)
+app.include_router(alert_rules.router)
 app.include_router(chat.router)
 app.include_router(client_errors.router)
 app.mount("/viewer/assets", StaticFiles(directory=STATIC_DIR), name="viewer-assets")

@@ -1,7 +1,9 @@
 import pandas as pd
 import pytest
 
+from xray.scoring import notify
 from xray.scoring.notify import dispatch, messages, render
+from xray.scoring.rules import Rule
 
 ALERT = {
     "group_id": "g1",
@@ -81,6 +83,48 @@ class TestMessages:
         out = messages(alerts)
 
         assert (out["key"] == "g1|2026-05|shift|alert").sum() == 1
+
+    def test_a_move_down_is_a_warning_and_its_retraction_is_info(self, alerts):
+        out = messages(alerts).set_index("key")["urgency"]
+
+        assert out["g1|2026-05|shift|alert"] == "warning"
+        assert out["g1|2026-05|jump|reverted"] == "info"
+
+
+class TestRules:
+    @pytest.fixture
+    def outbox(self, monkeypatch) -> dict[str, list[str]]:
+        """What each channel would have sent, subjects only. Slack and SMTP are external."""
+        box: dict[str, list[str]] = {"slack": [], "email": []}
+        monkeypatch.setattr(notify, "send_slack", lambda text: box["slack"].append(text))
+        monkeypatch.setattr(notify, "send_email", lambda s, b: box["email"].append(s))
+        return box
+
+    def test_each_message_goes_to_the_channels_whose_rules_want_it(self, alerts, tmp_path, outbox):
+        rules = [
+            Rule(text="", channel="slack", min_urgency="warning"),
+            Rule(text="", channel="email", groups=["g1"]),
+        ]
+
+        out = dispatch(alerts, channel="rules", rules=rules, ledger_path=tmp_path / "sent.json")
+
+        assert out["channels"].tolist() == [["email", "slack"], ["email", "slack"], ["email"]]
+        assert len(outbox["slack"]) == 2
+        assert len(outbox["email"]) == 3
+        assert "reverted" in outbox["email"][-1]
+
+    def test_what_no_rule_wants_stays_unsent_and_out_of_the_ledger(self, alerts, tmp_path, outbox):
+        ledger = tmp_path / "sent.json"
+        critical_only = [Rule(text="", channel="slack", min_urgency="critical")]
+
+        out = dispatch(alerts, channel="rules", rules=critical_only, ledger_path=ledger)
+
+        assert out.empty
+        assert not ledger.exists()
+        assert outbox == {"slack": [], "email": []}
+        # A rule added later still gets them.
+        later = [Rule(text="", channel="slack")]
+        assert len(dispatch(alerts, channel="rules", rules=later, ledger_path=ledger)) == 3
 
 
 class TestDispatch:

@@ -46,6 +46,7 @@ planning -> plan {purpose, agents, company}
 | Customers | who pays late, concentration, who to chase | `concentration`, `payer_scores`, `overdue_ranked` | `payers` (groups with an ERP only) |
 | Investor | search fund target, roll-up piece or neither; debt capacity | `cash_profile`, `debt_capacity`, `screen`, `comparables` | `scores`, `groups` |
 | Market | is it us or the market | `exa.search`, `tavily.search`, `model.read` | the web, cached a week |
+| Notifier | who is told, and where, when the monitor fires | `rules.parse` (model, patterns without one), `rules.list`, `rules.add` | `data/serving/alert_rules.json`, the rule book `notify --channel rules` routes by |
 
 How a question runs:
 

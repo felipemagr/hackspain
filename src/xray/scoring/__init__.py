@@ -7,6 +7,7 @@
 - trend: smoothing, slope, CUSUM state machine over a level series
 - monitor: jumps and sustained shifts on the level, the alert feed
 - notify: alert rows to Slack or email messages, idempotent
+- rules: who is told where, at which urgency: the rule book behind `notify --channel rules`
 - explain: additive driver decomposition, what moved since last month
 - offer: working-capital limit, price and ranked actions
 - serve: assemble every serving table from the real score

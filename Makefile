@@ -112,7 +112,7 @@ monitor: $(ALERTS) ## Detect jumps and sustained shifts in the score, write the 
 alerts: $(ALERTS) ## Show the alerts not yet sent, send nothing: make alerts [MONTH=2026-05]
 	uv run python -m xray.scoring.notify --dry-run $(if $(MONTH),--month $(MONTH))
 
-notify: $(ALERTS) ## Send the pending alerts: make notify [MONTH=2026-05] [CHANNEL=slack|email]
+notify: $(ALERTS) ## Send the pending alerts: make notify [MONTH=2026-05] [CHANNEL=slack|email|rules]
 	uv run python -m xray.scoring.notify --channel $(or $(CHANNEL),slack) $(if $(MONTH),--month $(MONTH))
 
 serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offers, actions, payers) to data/serving
@@ -122,7 +122,7 @@ serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offer
 submit: ## Score a hidden-test dump end to end: make submit RAW=path/to/csvs [OUT=submission]
 	uv run python -m xray.scoring.submit --raw-dir $(RAW) --out $(or $(OUT),submission)
 
-replay: ## Land the dump month by month, publish and alert after each: make replay [FROM=2025-01] [TO=2026-08] [PAUSE=8] [CHANNEL=slack|email|none] [RESET=1] [CHECK=1]
+replay: ## Land the dump month by month, publish and alert after each: make replay [FROM=2025-01] [TO=2026-08] [PAUSE=8] [CHANNEL=slack|email|rules|none] [RESET=1] [CHECK=1]
 	uv run python -m xray.pipeline.replay --raw-dir $(RAW_DIR) \
 		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) $(if $(PAUSE),--pause $(PAUSE)) \
 		$(if $(CHANNEL),--channel $(CHANNEL)) $(if $(RESET),--reset) $(if $(CHECK),--check)

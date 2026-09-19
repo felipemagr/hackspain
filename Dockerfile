@@ -44,8 +44,9 @@ FROM python:3.12-slim AS api
 RUN useradd --create-home --uid 1000 app
 WORKDIR /app
 COPY --from=api-builder /app/.venv /app/.venv
-# Pipeline output. Locally docker compose mounts the live folder over it.
-COPY data/serving /app/data/serving
+# Pipeline output. Locally docker compose mounts the live folder over it. Owned by the app
+# user because the chat writes the alert rule book next to the tables.
+COPY --chown=app:app data/serving /app/data/serving
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     XRAY_ENV=docker \
