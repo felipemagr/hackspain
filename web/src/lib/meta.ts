@@ -36,6 +36,14 @@ export const MIN_HISTORY_MONTHS = 6;
 export const thinHistory = (months: number | null | undefined): months is number =>
   months != null && months < MIN_HISTORY_MONTHS;
 
+export const LOCAL_STATE_META: Record<State, StateMeta> = {
+  ...STATE_META,
+  healthy: { ...STATE_META.healthy, label: "Score 70+" },
+  stable: { ...STATE_META.stable, label: "Score 40–69" },
+  weak: { ...STATE_META.weak, label: "Score below 40" },
+  not_enough_data: { ...STATE_META.not_enough_data, label: "Score unavailable" },
+};
+
 // Comparison series by slot. Validated for color-blind separation against each other; none is a state color.
 export const SERIES_COLORS = ["var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
 

@@ -26,8 +26,7 @@ export function AlertList({
   if (raised.length === 0) {
     return (
       <p className="empty">
-        Nothing raised yet. The monitor speaks when a group starts improving, bending or falling,
-        and stays quiet on a single bad month.
+        {store.localScoring ? "Alerts have not been computed for this scoring profile." : "Nothing raised yet. The monitor speaks when a group starts improving, bending or falling, and stays quiet on a single bad month."}
       </p>
     );
   }

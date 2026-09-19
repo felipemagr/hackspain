@@ -1,6 +1,6 @@
 import { fmtScore } from "../lib/format";
 import { DEFAULT_VIEW, type ListView, type SortKey } from "../lib/listView";
-import { BUCKETS, STATE_META, thinHistory, toneColor, type Bucket } from "../lib/meta";
+import { BUCKETS, LOCAL_STATE_META, STATE_META, thinHistory, toneColor, type Bucket } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { GroupRow, ScoreRow, State } from "../lib/types";
 import { LowDataMark } from "./LowData";
@@ -24,12 +24,17 @@ interface Row {
 
 const stateOf = (r: Row): State => r.score?.state ?? "not_enough_data";
 const bucketOf = (r: Row): Bucket => STATE_META[stateOf(r)].bucket;
+const movement = (score: ScoreRow | undefined): number | null => {
+  if (!score?.localScoring) return score?.trend ?? null;
+  const evolution = score.localScoring.evolution.score;
+  return evolution == null ? null : evolution - 50;
+};
 
 // Groups without the sorted figure go last in either direction.
 function by(value: (r: Row) => number | null | undefined, sign: 1 | -1) {
   return (a: Row, b: Row) => {
-    const va = value(a);
-    const vb = value(b);
+    const va = Number.isFinite(value(a)) ? value(a) : null;
+    const vb = Number.isFinite(value(b)) ? value(b) : null;
     if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1;
     return sign * (va - vb);
   };
@@ -38,8 +43,8 @@ function by(value: (r: Row) => number | null | undefined, sign: 1 | -1) {
 const COMPARE: Record<Exclude<SortKey, "priority">, (a: Row, b: Row) => number> = {
   level_desc: by((r) => r.score?.level, -1),
   level_asc: by((r) => r.score?.level, 1),
-  trend_desc: by((r) => r.score?.trend, -1),
-  trend_asc: by((r) => r.score?.trend, 1),
+  trend_desc: by((r) => movement(r.score), -1),
+  trend_asc: by((r) => movement(r.score), 1),
   name: (a, b) => a.group.name.localeCompare(b.group.name),
 };
 
@@ -90,6 +95,7 @@ export function GroupList({
   favorites,
   onFavorite,
 }: GroupListProps) {
+  const stateMeta = store.localScoring ? LOCAL_STATE_META : STATE_META;
   const all: Row[] = store.groups.map((g) => ({ group: g, score: store.scoreAt(g.group_id, month) }));
   // The chips count what the search and the favorites toggle leave, so a count never promises rows that are not there.
   const found = all.filter(
@@ -152,7 +158,7 @@ export function GroupList({
             <select value={view.sort} onChange={(e) => onView({ ...view, sort: e.target.value as SortKey })}>
               {SORTS.map((s) => (
                 <option key={s.key} value={s.key}>
-                  {s.label}
+                  {store.localScoring && s.key === "trend_desc" ? "Highest evolution" : store.localScoring && s.key === "trend_asc" ? "Lowest evolution" : s.label}
                 </option>
               ))}
             </select>
@@ -183,7 +189,7 @@ export function GroupList({
               .map((s) => s.level);
             const state = score?.state ?? "not_enough_data";
             const months = score?.months_observed;
-            const thin = thinHistory(months);
+            const thin = !store.localScoring && thinHistory(months);
             const favorite = favorites.has(group.group_id);
             return (
               <div
@@ -208,9 +214,9 @@ export function GroupList({
                     <span className="row__sub">
                       <span
                         className="state__dot"
-                        style={{ background: toneColor(STATE_META[state].tone) }}
+                        style={{ background: toneColor(stateMeta[state].tone) }}
                       />
-                      {STATE_META[state].label}
+                      {stateMeta[state].label}
                       {" · "}
                       {group.sector ??
                         [group.country, `${group.n_companies} ${group.n_companies === 1 ? "company" : "companies"}`]
@@ -221,7 +227,9 @@ export function GroupList({
                   <Sparkline series={series} total={store.months.length} />
                   <span className={`row__level ${thin ? "is-thin" : ""}`}>{fmtScore(score?.level)}</span>
                   {/* Under six months there is no trend to draw, so the cell says why instead. */}
-                  {thin ? (
+                  {store.localScoring ? (
+                    <span className="trend" title="Evolution /100; 50 is neutral">Evo {fmtScore(score?.localScoring?.evolution.score)}/100</span>
+                  ) : thin ? (
                     <span className="trend row__caveat">
                       <LowDataMark months={months} />
                     </span>

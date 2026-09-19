@@ -1,5 +1,6 @@
 """FastAPI application for the demo backend."""
 
+import json
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import duckdb
 from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -19,8 +21,10 @@ from xray.api.routers import (
     client_errors,
     health,
     real_groups,
+    scoring,
     tables,
     version,
+    view_chat,
 )
 from xray.config import MARTS_DIR, PROCESSED_DATA_DIR
 from xray.settings import get_settings
@@ -38,8 +42,12 @@ async def lifespan(app: FastAPI):
     app.state.db = duckdb.connect()
     app.state.tables = []
     refresh_views(app)
+    profile_path = settings.serving_dir / "score_profile.json"
+    app.state.score_profile = (
+        json.loads(profile_path.read_text(encoding="utf-8")) if profile_path.is_file() else None
+    )
     app.state.real_tables = set(app.state.tables) & {"real_scores", "real_drivers"}
-    for name in ("real_scores", "real_drivers"):
+    for name in () if "score_entities" in app.state.tables else ("real_scores", "real_drivers"):
         path = MARTS_DIR / f"{name}.parquet"
         if path.is_file():
             escaped = str(path).replace("'", "''")
@@ -63,6 +71,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="X Ray", version="0.1.0", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_settings().cors_origins,
@@ -84,7 +93,7 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
 # page with no key to send.
 app.include_router(health.router)
 app.include_router(real_groups.router)
-for protected in (version, tables, alerts, alert_rules, chat, client_errors):
+for protected in (version, tables, alerts, alert_rules, chat, client_errors, scoring, view_chat):
     app.include_router(protected.router, dependencies=[Depends(require_api_key)])
 app.mount("/viewer/assets", StaticFiles(directory=STATIC_DIR), name="viewer-assets")
 

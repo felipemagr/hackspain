@@ -1,0 +1,318 @@
+﻿<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>X Ray · Lectura financiera</title>
+<style>
+.scorecard{margin-bottom:20px}.weight-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin:12px 0}.weight-grid input{width:90px;padding:6px;border:1px solid #dde5ea;border-radius:6px}.scoretable{min-width:850px}.scoretable td:first-child{max-width:310px}.scoretable small{display:block;color:var(--muted)}.score-actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.score-actions button{padding:7px 12px;background:white;border:1px solid #dde5ea;border-radius:7px}
+:root{color-scheme:light;--bg:#f4f6f8;--paper:#fff;--ink:#172c3b;--muted:#607180;--line:#dde5ea;--accent:#087f83;--accent-soft:#e7f5f3;--good:#16714f;--warn:#976212;--warn-soft:#fff5df;--blue:#4775be;--radius:17px}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:20px}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.55 "Segoe UI",Arial,sans-serif}button,input,select{font:inherit}button,select{cursor:pointer}button:disabled{cursor:default;opacity:.45}a{color:var(--accent)}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #e1a635;outline-offset:3px}button{color:var(--ink)}.skip{position:fixed;left:12px;top:-70px;background:white;padding:12px;z-index:20}.skip:focus{top:10px}.layout{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}.sidebar{background:#152d3c;color:#e1edf2;padding:30px 23px;position:sticky;top:0;height:100vh;display:flex;flex-direction:column}.brand{display:flex;align-items:center;gap:11px;font-size:25px;font-weight:750;letter-spacing:-1px}.brandmark{width:34px;height:34px;display:grid;place-items:center;background:#30b6af;color:#112e3d;border-radius:10px;font-size:22px}.version{color:#aac1ce;font-size:11px;letter-spacing:1.7px;text-transform:uppercase;margin:10px 0 40px}.sidebar nav{display:grid;gap:7px}.sidebar nav a{color:#bfd1dc;text-decoration:none;padding:11px 10px;border-radius:8px;display:flex;gap:12px;font-size:13px}.sidebar nav a:hover{background:#254352;color:white}.sidebar nav span{color:#71a5b5;font-variant-numeric:tabular-nums}.sidefoot{margin-top:auto;padding-top:30px;color:#aac1ce;font-size:12px}.sidefoot strong{display:block;color:#dae9ee;margin-bottom:5px}.main{max-width:1450px;width:100%;padding:28px 40px 60px;margin:auto}.topline{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:22px}.eyebrow{text-transform:uppercase;letter-spacing:1.8px;font-size:10px;font-weight:750;color:var(--muted)}.offline{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:7px}.offline:before{content:"";width:6px;height:6px;background:var(--accent);border-radius:50%}h1,h2,h3,p{margin:0}h1{font-size:32px;line-height:1.2;letter-spacing:-1.1px}h2{font-size:18px;letter-spacing:-.35px}h3{font-size:13px;font-weight:650}.controls{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:25px;display:grid;grid-template-columns:110px minmax(130px,1fr) minmax(170px,1.2fr) minmax(220px,1.3fr);gap:15px;align-items:end}.field label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.9px;margin-bottom:5px}.field input,.field select{width:100%;min-width:0;background:#f8fafb;border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--ink);height:39px}.month-control{display:flex;gap:5px}.month-control button{border:1px solid var(--line);border-radius:8px;background:white;width:33px;flex-shrink:0}.month-control select{flex:1}.search-status{font-size:11px;color:var(--muted);min-height:16px;grid-column:1/-1;margin-top:-8px}.hero{display:flex;justify-content:space-between;align-items:start;gap:24px;margin-bottom:21px}.hero p{color:var(--muted);margin-top:7px}.hero-right{text-align:right;flex-shrink:0}.hero-month{font-size:18px;font-weight:650}.pill{display:inline-block;font-size:10px;letter-spacing:.4px;border-radius:6px;background:#e9eef2;padding:4px 8px;color:#506577;margin-top:7px}.coverage{display:flex;flex-wrap:wrap;gap:8px 18px;padding:11px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:20px;font-size:12px;color:var(--muted)}.coverage b{color:var(--ink);font-weight:600}.observations{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:28px}.observation{background:#eaf0f3;border-radius:10px;padding:12px 14px;font-size:12px;border-left:3px solid #aec1ca}.observation.positive{background:#eaf5f0;border-left-color:#5d9f7c}.observation.warning{background:var(--warn-soft);border-left-color:#c89543}.observation .eyebrow{font-size:9px;display:block;margin-bottom:3px}.dashboard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:23px;min-width:0;scroll-margin-top:20px}.card.wide{grid-column:1/-1}.cardhead{display:flex;justify-content:space-between;gap:15px;margin-bottom:19px;align-items:start}.cardhead .number{color:var(--accent);font-size:10px;font-weight:750;letter-spacing:1px;display:block;margin-bottom:4px}.cardhead .window{font-size:10px;color:var(--muted);border:1px solid var(--line);padding:3px 7px;border-radius:5px;white-space:nowrap}.intro{font-size:12px;color:var(--muted);margin-top:5px;max-width:760px}.big{font-size:39px;line-height:1.2;font-weight:700;letter-spacing:-1.7px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.big.na{font-size:23px;letter-spacing:-.5px;color:var(--muted)}.metric-label{font-size:11px;color:var(--muted);margin-bottom:5px}.metric-note{font-size:11px;color:var(--muted);margin-top:7px}.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin-bottom:16px}.metrics.two{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-value{font-size:22px;font-weight:650;letter-spacing:-.6px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.metric-value.na{font-size:14px;font-weight:500;color:var(--muted)}.positive-text{color:var(--good)}.warning-text{color:var(--warn)}.neutral-text{color:var(--ink)}.rule{border-top:1px solid var(--line);margin:19px 0}.note{padding:11px 13px;background:#f2f6f8;border-radius:8px;font-size:12px;color:#506575;margin-top:14px}.note.warning{background:var(--warn-soft);color:#765019}.note ul{padding-left:18px;margin:0}.chart{margin:15px 0 7px}.chart svg{width:100%;height:150px;display:block;overflow:visible}.chart-label{font-size:10px;color:var(--muted)}.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:10px;color:var(--muted);margin-bottom:6px}.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}.emptychart{height:105px;display:grid;place-items:center;background:#f7f9fa;border-radius:8px;color:var(--muted);font-size:12px}.chart-period{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}.split{display:grid;grid-template-columns:1fr 1fr;gap:28px}.split>div+div{border-left:1px solid var(--line);padding-left:28px}.subheading{font-size:13px;font-weight:700;margin-bottom:14px}.growth-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.growth-item{background:#f7f9fa;padding:14px;border-radius:9px}.growth-item small{display:block;color:var(--muted);font-size:10px;margin-bottom:6px}.growth-item strong{font-size:23px;font-weight:650}.stack{height:20px;display:flex;border-radius:5px;overflow:hidden;margin:15px 0 8px;background:#edf1f4}.stack span{height:100%;min-width:0}.tablewrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums}th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:650}th,td{padding:9px 0;border-bottom:1px solid #edf1f4}th:not(:first-child),td:not(:first-child){text-align:right;padding-left:12px}tbody tr:last-child td{border-bottom:0}.dot{width:8px;height:8px;display:inline-block;border-radius:2px;margin-right:7px}.audit{border-top:1px solid var(--line);margin-top:18px;padding-top:11px;font-size:11px;color:var(--muted)}summary{cursor:pointer;color:#4d6576;font-weight:600;list-style-position:outside;margin-left:14px;padding:3px 0}.audit-content{padding-top:10px;display:grid;gap:9px}.audit-row b{display:block;color:var(--ink);font-weight:600;margin-bottom:2px}.audit-row code{font-family:inherit;white-space:normal;word-break:break-word}.snapshot{padding:15px;background:#f5f8fa;border:1px solid var(--line);border-radius:10px}.snapshot .eyebrow{margin-bottom:9px}.snapshot .metric-value{font-size:27px}.snapshot small{display:block;color:var(--muted);margin-top:5px}.invoice-kpis{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:15px}.invoice-kpis .metric-value{font-size:25px}.aging-title{margin:17px 0 5px;font-size:11px;font-weight:600}.aging-current{color:var(--muted)}.groupblock{margin-top:20px}.member-link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;text-underline-offset:3px;font-size:12px}.mixed{background:var(--warn-soft);border:1px solid #efd7a7;padding:22px;border-radius:var(--radius);margin-bottom:20px}.mixed h2{font-size:17px;margin-bottom:7px}.mixed p{font-size:13px;max-width:780px}.footer{margin-top:28px;font-size:11px;color:var(--muted)}.methodology{background:#edf2f5;border-radius:12px;padding:14px 18px;margin-top:18px}.methodology ul{padding-left:18px;margin:12px 0 0;display:grid;gap:5px}.muted{color:var(--muted)}.hidden{display:none!important}.noscript{padding:24px;background:var(--warn-soft);margin:20px;border-radius:10px}.loading{padding:50px;text-align:center;color:var(--muted)}
+@media(min-width:1600px){.main{padding-left:55px;padding-right:55px}}
+@media(max-width:1150px){.layout{grid-template-columns:170px minmax(0,1fr)}.sidebar{padding:25px 15px}.main{padding:24px}.controls{grid-template-columns:90px 1fr 1.2fr}.field.month-field{grid-column:1/-1}.observations{grid-template-columns:1fr 1fr}.big{font-size:33px}.metrics{gap:10px}.metric-value{font-size:19px}.split{gap:20px}.split>div+div{padding-left:20px}}
+@media(max-width:850px){.layout{display:block}.sidebar{height:auto;position:static;padding:16px 22px;flex-direction:row;align-items:center;gap:20px}.brand{font-size:21px;flex-shrink:0}.brandmark{width:28px;height:28px}.version,.sidefoot{display:none}.sidebar nav{display:flex;gap:0;overflow:auto}.sidebar nav a{white-space:nowrap;padding:8px;font-size:11px}.sidebar nav span{display:none}.main{padding:22px}.card{padding:19px}.dashboard{gap:15px}.hero h1{font-size:28px}}
+@media(max-width:650px){.main{padding:20px 14px 40px}.sidebar nav{display:none}.sidebar{padding:13px 16px}.topline{margin-bottom:15px}.controls{grid-template-columns:105px 1fr;padding:13px;gap:10px}.field.entity-field{grid-column:1/-1}.search-status{margin-top:0}.hero{display:block}.hero-right{text-align:left;margin-top:12px;display:flex;gap:10px;align-items:center}.hero-right .pill{margin:0}.hero-month{font-size:15px}.observations{grid-template-columns:1fr;margin-bottom:20px}.dashboard{grid-template-columns:1fr}.card.wide{grid-column:auto}.split{grid-template-columns:1fr;gap:22px}.split>div+div{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:22px}.metrics{gap:12px}.metric-value{font-size:20px}.coverage{gap:6px 13px}.offline{font-size:10px}.cardhead .window{white-space:normal;text-align:right}.big{font-size:36px}.footer{font-size:10px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+@media print{.sidebar,.controls,.topline,.audit,.methodology,.skip{display:none}.layout{display:block}.main{max-width:none;padding:0}.card{break-inside:avoid}.dashboard{gap:12px}.footer{margin-top:12px}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Saltar al contenido</a>
+<div class="layout">
+<aside class="sidebar" aria-label="Navegación principal">
+  <div class="brand"><span class="brandmark" aria-hidden="true">×</span>X Ray</div>
+  <p class="version">Lectura financiera · V2</p>
+  <nav aria-label="Áreas financieras">
+    <a href="#scoring"><span>00</span>Score y evidencia</a>
+    <a href="#liquidity"><span>01</span>Liquidez</a><a href="#cashflow"><span>02</span>Flujo de caja</a>
+    <a href="#growth"><span>03</span>Crecimiento</a><a href="#structure"><span>04</span>Estructura de salidas</a>
+    <a href="#debt"><span>05</span>Deuda</a><a href="#invoices"><span>06</span>Cobros y pagos</a>
+  </nav>
+  <div class="sidefoot"><strong>Leer el movimiento.</strong>Caja, deuda y facturas, con la información que respalda cada cifra.</div>
+</aside>
+<main id="main" class="main">
+  <div class="topline"><span class="eyebrow">Radar financiero</span><span class="offline">Consulta local · Datos sintéticos</span></div>
+  <div class="controls" aria-label="Seleccionar entidad y mes">
+    <div class="field"><label for="kind">Vista</label><select id="kind"><option value="company">Empresa</option><option value="group">Grupo</option></select></div>
+    <div class="field"><label for="search">Buscar entidad</label><input id="search" type="search" placeholder="COMP_ o GROUP_…" autocomplete="off"></div>
+    <div class="field entity-field"><label for="entity">Entidad</label><select id="entity"></select></div>
+    <div class="field month-field"><label for="month">Mes observado</label><div class="month-control"><button id="previous" aria-label="Mes anterior">‹</button><select id="month"></select><button id="next" aria-label="Mes siguiente">›</button></div></div>
+    <p id="searchStatus" class="search-status" role="status" aria-live="polite"></p>
+  </div>
+  <div id="content"><p class="loading">Preparando la lectura financiera…</p></div>
+  <noscript><p class="noscript">Activa JavaScript para consultar las entidades y sus meses. Los datos están incluidos en este archivo; no se necesita conexión.</p></noscript>
+  <footer class="footer" id="footer"></footer>
+</main>
+</div>
+<script type="application/json" id="xray-data">__DATA_JSON__</script>
+<script>
+(() => {
+'use strict';
+const DATA = JSON.parse(document.getElementById('xray-data').textContent);
+const MONTHS = DATA.meta.months;
+const ENTITIES = DATA.entities;
+const ids = Object.keys(ENTITIES).sort();
+const $ = id => document.getElementById(id);
+const state = {id: ids.find(id => ENTITIES[id].kind === 'company') || ids[0], month: MONTHS.length - 1};
+const valid = value => typeof value === 'number' && Number.isFinite(value);
+const weights = JSON.parse(JSON.stringify(DATA.score_config.weights));
+const scoreLabels={financial:'Capacidad financiera',generation:'Generación antes de deuda',debt_coverage:'Cobertura de deuda',liquidity:'Liquidez',receivables:'Cobros pendientes',payables:'Pagos pendientes',activity:'Actividad',conversion:'Conversión'};
+function aggregateScores(nodes, allocation) {
+  const selected=Object.entries(allocation).filter(([,w])=>w>0), nominal=selected.reduce((s,[,w])=>s+w,0);
+  const available=selected.filter(([k])=>valid(nodes[k]?.score)), availableWeight=available.reduce((s,[,w])=>s+w,0);
+  return {score:availableWeight?available.reduce((s,[k,w])=>s+w*nodes[k].score,0)/availableWeight:null,
+    confidence:nominal&&available.every(([k])=>valid(nodes[k].confidence))?available.reduce((s,[k,w])=>s+w*nodes[k].confidence,0)/nominal:null,
+    coverage:nominal?available.reduce((s,[k,w])=>s+w*(nodes[k].coverage??1),0)/nominal:0};
+}
+function recalculate(scoring) {
+  if(!scoring)return {level:{},evolution:{},families:{},subscores:{}};
+  const subscores=scoring.subscores;
+  const families={...scoring.families,financial:aggregateScores(subscores,weights.financial)};
+  return {...scoring,families,level:aggregateScores(families,weights.level),evolution:aggregateScores(subscores,weights.evolution)};
+}
+const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const num = (value, decimals = 1) => valid(value) ? value.toLocaleString('es-ES', {maximumFractionDigits: decimals, minimumFractionDigits: decimals}) : 'No disponible';
+const pct = value => valid(value) ? num(value * 100, 1) + '%' : 'No disponible';
+const days = value => valid(value) ? num(value, 1) + ' días' : 'No disponible';
+const date = value => value ? new Date(value.slice(0,10) + 'T12:00:00').toLocaleDateString('es-ES', {day:'numeric',month:'short',year:'numeric'}) : 'Fecha no disponible';
+const monthName = value => new Date(value + '-01T12:00:00').toLocaleDateString('es-ES', {month:'long', year:'numeric'});
+const amount = (value, currency) => {
+  if (!valid(value)) return 'No disponible';
+  try { return new Intl.NumberFormat('es-ES', {style:'currency',currency:currency || 'EUR',maximumFractionDigits:Math.abs(value)<100?2:0}).format(value); }
+  catch { return num(value,0) + ' ' + esc(currency || ''); }
+};
+const short = value => {
+  if (!valid(value)) return '—';
+  const abs = Math.abs(value);
+  return abs >= 1e9 ? num(value/1e9,1)+' mil M' : abs >= 1e6 ? num(value/1e6,1)+' M' : abs >= 1e3 ? num(value/1e3,0)+' mil' : num(value,0);
+};
+const current = () => ENTITIES[state.id];
+const record = () => current().monthly[state.month] || {};
+function readHash() {
+  const params = new URLSearchParams(location.hash.slice(1));
+  if (params.has('entity') && ENTITIES[params.get('entity')]) state.id = params.get('entity');
+  const index = MONTHS.indexOf(params.get('month'));
+  if (index >= 0) state.month = index;
+}
+function writeHash() {
+  const hash = '#entity=' + encodeURIComponent(state.id) + '&month=' + MONTHS[state.month];
+  try { history.replaceState(null, '', hash); } catch { /* Some local-file viewers do not expose history. */ }
+}
+function selectOptions() {
+  const query = $('search').value.trim().toLowerCase();
+  const kind = $('kind').value;
+  const matches = ids.filter(id => ENTITIES[id].kind === kind && (id.toLowerCase().includes(query) || (ENTITIES[id].group_id || '').toLowerCase().includes(query)));
+  $('entity').innerHTML = matches.length ? matches.map(id => '<option value="'+esc(id)+'">'+esc(id)+'</option>').join('') : '<option value="">Sin coincidencias</option>';
+  $('entity').disabled = !matches.length;
+  if (matches.includes(state.id)) $('entity').value = state.id;
+  else if (matches.length) { state.id = matches[0]; render(); }
+  $('searchStatus').textContent = matches.length + (kind === 'group' ? ' grupos' : ' empresas') + (query ? ' coinciden con la búsqueda.' : ' disponibles.');
+}
+function memberLink(id) { return '<button class="member-link" data-entity="'+esc(id)+'">'+esc(id)+'</button>'; }
+function metric(label, value, formatted, note = '', tone = '') {
+  return '<div><div class="metric-label">'+esc(label)+'</div><div class="metric-value '+(!valid(value)?'na':tone)+'">'+formatted+'</div>'+(note?'<div class="metric-note">'+esc(note)+'</div>':'')+'</div>';
+}
+function note(text, warning = false) { return '<p class="note'+(warning?' warning':'')+'">'+esc(text)+'</p>'; }
+function scoringCard(e,r) {
+  const s=recalculate(r.scoring), l=s.level, evolution=s.evolution;
+  const scoreText=v=>valid(v)?num(v,1)+' / 100':'No disponible';
+  let body='<div class="metrics">'+metric('Nivel de salud financiera',l.score,scoreText(l.score),'Mayor puntuación: mejor lectura de las señales disponibles')+metric('Confianza en la evidencia',l.confidence,scoreText(l.confidence),'Historia × perímetro × calidad; no es probabilidad de acierto')+metric('Evolución independiente',evolution.score,scoreText(evolution.score),'Actividad y conversión; 50 es referencia, no salud media')+'</div>';
+  body+='<p class="metric-note">Cobertura ponderada: '+pct(l.coverage)+'. Confianza de evolución: '+scoreText(evolution.confidence)+'. Caja: sólo foto del 1 sep 2026, incorporada en la lectura final.</p>';
+  const trajectory={monthly:e.monthly.map(row=>{const score=recalculate(row.scoring);return {level:score.level.score,evolution:score.evolution.score};})};
+  body+=chart(trajectory,[{key:'level',label:'Nivel',color:'#087f83'},{key:'evolution',label:'Evolución',color:'#d49339'}],'Nivel y evolución con los pesos actuales',v=>num(v,0));
+  body+='<details class="audit"><summary>Desglose de scores, evidencia y pesos</summary><div class="tablewrap"><table class="scoretable"><thead><tr><th>Señal y significado</th><th>Valor base</th><th>Score</th><th>Confianza</th><th>Peso nominal</th><th>Peso efectivo</th></tr></thead><tbody>';
+  const meanings={generation:'Generación / (entradas + costes antes de deuda), 3 meses',debt_coverage:'Generación / servicio de deuda observado, 3 meses',liquidity:'Días de salidas cubiertos por la caja final',receivables:'Calidad de antigüedad por importe abierto con fecha conocida',payables:'Calidad de antigüedad por importe abierto con fecha conocida',activity:'Variación de entradas entre dos ventanas de 3 meses',conversion:'Cambio en la generación relativa entre ventanas de 3 meses'};
+  for(const [key,node] of Object.entries(s.subscores)) {
+    const scope=['activity','conversion'].includes(key)?'evolution':['generation','debt_coverage'].includes(key)?'financial':'level';
+    const nodes=scope==='level'?s.families:s.subscores, allocation=weights[scope];
+    const total=Object.values(allocation).reduce((a,b)=>a+b,0), available=Object.entries(allocation).reduce((sum,[k,w])=>sum+(valid(nodes[k].score)?w:0),0);
+    let effective=valid(node.score)&&available?allocation[key]/available:0;
+    if(scope==='financial'){const levelWeight=Object.entries(weights.level).reduce((sum,[k,w])=>sum+(valid(s.families[k].score)?w:0),0);effective*=levelWeight?weights.level.financial/levelWeight:0;}
+    const prefix=key==='receivables'?'rec':key==='payables'?'pay':null;
+    const raw=prefix?amount(r[prefix+'_open'],e.currency)+'<small>Abierto · vencido '+amount(r[prefix+'_overdue'],e.currency)+'</small>':num(node.raw_value,3);
+    body+='<tr><td>'+esc(scoreLabels[key])+'<small>'+esc(meanings[key])+'</small><small>Historia '+pct(node.history)+' · perímetro '+pct(node.perimeter)+' · calidad '+pct(node.quality)+'</small></td><td>'+raw+'</td><td>'+scoreText(node.score)+'</td><td>'+scoreText(node.confidence)+'</td><td>'+pct(allocation[key]/total)+'<small>'+esc(scope==='financial'?'Dentro de financiera':scope==='evolution'?'Dentro de evolución':'Dentro del nivel')+'</small></td><td>'+pct(effective)+'<small>'+esc(scope==='evolution'?'En evolución':'En el nivel')+'</small></td></tr>';
+  }
+  body+='</tbody></table></div><p class="metric-note">La capacidad financiera combina generación y cobertura de deuda. Su peso efectivo en el nivel es '+pct(valid(s.families.financial.score)?weights.level.financial/Object.entries(weights.level).reduce((sum,[k,w])=>sum+(valid(s.families[k].score)?w:0),0):0)+'. Los pesos efectivos se normalizan sólo entre señales disponibles; la confianza conserva el peso de las ausentes.</p></details>';
+  body+='<details class="audit" id="weight-editor"><summary>Ajustar pesos de esta consulta</summary><p class="metric-note">Los valores se normalizan dentro de cada bloque. Cambian los agregados y su confianza; las métricas y sub-scores permanecen iguales.</p>';
+  for(const scope of ['level','financial','evolution']) body+='<h3>'+({level:'Nivel',financial:'Capacidad financiera',evolution:'Evolución'})[scope]+'</h3><div class="weight-grid">'+Object.entries(weights[scope]).map(([key,w])=>'<label>'+esc(scoreLabels[key])+'<br><input type="number" min="0" step="1" value="'+Number((w*100).toFixed(3))+'" data-weight-scope="'+scope+'" data-weight-key="'+key+'" aria-label="Peso '+esc(scoreLabels[key])+'"></label>').join('')+'</div>';
+  body+='<div class="score-actions"><button type="button" data-apply-weights>Aplicar pesos</button><button type="button" data-reset-weights>Restablecer valores</button><span id="weight-error" role="status"></span></div></details>';
+  body+=note('Configuración provisional '+DATA.score_config.version+'. Curvas expertas sin validación predictiva. Un dato ausente no recibe 100 ni se sustituye por cero.');
+  const dpoWarning=DATA.score_config.warnings.dpo_days;
+  if(valid(r.dpo)&&r.dpo>dpoWarning)body+=note('DPO estimado superior a '+dpoWarning+' días: revisar plazos y cobertura. Esta advertencia no penaliza el score.',true);
+  return '<div class="scorecard">'+card('scoring','00','Score y evidencia','0–100','Empresa y grupo: importes agregados antes de calcular ratios.',body,true)+'</div>';
+}
+function audit(rows) {
+  return '<details class="audit"><summary>Ver cálculo y alcance</summary><div class="audit-content">'+rows.map(row => '<div class="audit-row"><b>'+esc(row[0])+'</b><span>'+esc(row[1])+'</span></div>').join('')+'</div></details>';
+}
+function card(id, n, title, window, description, body, wide = false) {
+  return '<section id="'+id+'" class="card'+(wide?' wide':'')+'" aria-labelledby="heading-'+id+'"><div class="cardhead"><div><span class="number">'+n+'</span><h2 id="heading-'+id+'">'+title+'</h2><p class="intro">'+description+'</p></div><span class="window">'+window+'</span></div>'+body+'</section>';
+}
+function chart(entity, specs, title, formatter = short) {
+  const rows = entity.monthly.slice(0, state.month + 1);
+  const values = rows.flatMap(row => specs.map(spec => row[spec.key])).filter(valid);
+  const legend = '<div class="legend">'+specs.map(spec => '<span><i style="background:'+spec.color+'"></i>'+esc(spec.label)+'</span>').join('')+'</div>';
+  if (!values.length) return '<div class="chart">'+legend+'<div class="emptychart">Sin datos para esta trayectoria</div></div>';
+  const W=560,H=145,L=62,R=12,T=10,B=22;
+  let low=Math.min(0,...values), high=Math.max(0,...values);
+  if (high===low) { high+=1; low-=1; }
+  const x = i => L + i / Math.max(MONTHS.length - 1,1) * (W-L-R);
+  const y = v => T + (high-v)/(high-low)*(H-T-B);
+  let svg = '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(title)+'"><title>'+esc(title)+'</title><desc>Valores mensuales hasta '+esc(monthName(MONTHS[state.month]))+'. Los huecos corresponden a datos no disponibles. Eje sin recortes.</desc>';
+  [high,low].forEach(v => { svg += '<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'" stroke="#e4ebef"/><text x="'+(L-8)+'" y="'+(y(v)+3)+'" text-anchor="end" font-size="9" fill="#607180">'+esc(formatter(v))+'</text>'; });
+  if(low<0 && high>0) svg+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+y(0)+'" y2="'+y(0)+'" stroke="#bac9d1" stroke-dasharray="3 3"/>';
+  svg += '<line x1="'+x(state.month)+'" x2="'+x(state.month)+'" y1="'+T+'" y2="'+(H-B)+'" stroke="#d3dfe4" stroke-dasharray="3 3"/>';
+  specs.forEach(spec => {
+    let path='', started=false;
+    rows.forEach((row,i) => { const v=row[spec.key]; if (!valid(v)) { started=false; return; } path += (started?' L':' M')+x(i)+' '+y(v); started=true; });
+    svg += '<path d="'+path+'" fill="none" stroke="'+spec.color+'" stroke-width="2" stroke-linejoin="round"/>';
+    rows.forEach((row,i) => { const v=row[spec.key]; if(valid(v)) svg+='<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(i===state.month?3.4:2)+'" fill="'+spec.color+'"><title>'+esc(monthName(MONTHS[i])+': '+spec.label+' '+formatter(v))+'</title></circle>'; });
+  });
+  svg+='</svg>';
+  return '<div class="chart">'+legend+svg+'<div class="chart-period"><span>'+esc(monthName(MONTHS[0]))+'</span><span>'+esc(monthName(MONTHS[MONTHS.length-1]))+'</span></div></div>';
+}
+function liquidity(e,r) {
+  const money=v=>amount(v,e.currency);
+  let body='<div class="metric-label">Días de salidas cubiertos por el saldo disponible</div><div class="big '+(!valid(r.buffer_days)?'na':'')+'">'+days(r.buffer_days)+'</div>';
+  body+='<p class="metric-note">'+(r.cash_date?'Saldo observado el '+esc(date(r.cash_date))+', posterior al cierre del mes':'Saldo histórico no disponible')+'</p><div class="rule"></div>';
+  body+='<div class="metrics two">'+metric('Saldo bancario',r.cash,money(r.cash))+metric('Salidas diarias medias',r.daily_outflow,money(r.daily_outflow),'Ventana de tres meses')+'</div>';
+  if(!valid(r.cash)) body+=note('No se reconstruye un saldo histórico con información posterior. El saldo disponible corresponde únicamente a la fecha de la foto bancaria.');
+  else if(!valid(r.buffer_days)) body+=note('No hay base de salidas suficiente para calcular días de cobertura. Un saldo disponible no garantiza capacidad de pago futura.');
+  if(valid(e.liquid_accounts_covered)&&valid(e.liquid_accounts_total)) body+='<p class="metric-note">'+num(e.liquid_accounts_covered,0)+' de '+num(e.liquid_accounts_total,0)+' cuentas líquidas con saldo en la foto final.</p>';
+  body+=audit([['Días de cobertura','Saldo / salidas diarias medias = '+money(r.cash)+' / '+money(r.daily_outflow)+' = '+days(r.buffer_days)],['Base de salidas','Salidas acumuladas en tres meses: '+money(r.outflow_3m)+' / '+num(r.window_days_3m,0)+' días calendario = '+money(r.daily_outflow)+' al día.'],['Lectura','La cobertura describe la relación entre saldo y salidas recientes. No es una previsión de caja ni un límite de crédito.']]);
+  return card('liquidity','01','Liquidez','Saldo observado','Cobertura de salidas seleccionadas: sin transferencias, inversión ni movimientos de efectivo.',body);
+}
+function cashflow(e,r) {
+  const money=v=>amount(v,e.currency);
+  const excludedIn=valid(r.total_inflow)&&valid(r.inflow)?r.total_inflow-r.inflow:null;
+  const excludedOut=valid(r.total_outflow)&&valid(r.outflow)?r.total_outflow-r.outflow:null;
+  const totalNet=valid(r.total_inflow)&&valid(r.total_outflow)?r.total_inflow-r.total_outflow:null;
+  let body='<div class="metrics">'+metric('Entradas bancarias totales',r.total_inflow,money(r.total_inflow))+metric('Salidas bancarias totales',r.total_outflow,money(r.total_outflow))+metric('Neto bancario total',totalNet,money(totalNet),'Entradas totales menos salidas totales',valid(totalNet)&&totalNet<0?'warning-text':valid(totalNet)&&totalNet>0?'positive-text':'')+'</div>';
+  body+='<div class="rule"></div><div class="metrics">'+metric('Entradas seleccionadas',r.inflow,money(r.inflow))+metric('Salidas seleccionadas',r.outflow,money(r.outflow))+metric('Neto seleccionado',r.net,money(r.net),'Entradas seleccionadas menos salidas seleccionadas',valid(r.net)&&r.net<0?'warning-text':valid(r.net)&&r.net>0?'positive-text':'')+'</div>';
+  body+=note('La selección separa transferencias, inversión y movimientos de efectivo; el total conserva todos los movimientos comparables.');
+  body+=chart(e,[{key:'inflow',label:'Entradas seleccionadas',color:'#087f83'},{key:'outflow',label:'Salidas seleccionadas',color:'#778aa8'},{key:'net',label:'Neto seleccionado',color:'#d49339'}],'Entradas, salidas y neto del flujo seleccionado mensual');
+  body+=audit([['Flujo mostrado del mes',money(r.inflow)+' − '+money(r.outflow)+' = '+money(r.net)],['Entradas: conciliación con el total','Total bancario '+money(r.total_inflow)+' − entradas mostradas '+money(r.inflow)+' = '+money(excludedIn)+' fuera del flujo mostrado.'],['Salidas: conciliación con el total','Total bancario '+money(r.total_outflow)+' − salidas mostradas '+money(r.outflow)+' = '+money(excludedOut)+' fuera del flujo mostrado.'],['Neto bancario total',money(r.total_inflow)+' − '+money(r.total_outflow)+' = '+money(totalNet)+'. Total de movimientos bancarios disponibles, distinto del flujo mostrado.'],['Transferencias, dentro de los importes separados','Entrantes: '+money(r.transfer_in)+'. Salientes: '+money(r.transfer_out)+'. También se separan inversión y movimientos de efectivo.'],['Cobertura',num(r.tx_count,0)+' movimientos en el mes; '+num(r.excluded_tx_count,0)+' movimientos excluidos por divisa o producto sin correspondencia.'],['Alcance','El flujo mostrado excluye transferencias, inversión y movimientos de efectivo. No es la variación íntegra del saldo ni un flujo de caja operativo contable. Son cobros y pagos bancarios, no ventas devengadas ni beneficio contable.']]);
+  return card('cashflow','02','Flujo de caja','Mensual','Totales bancarios y selección de movimientos, visibles por separado.',body);
+}
+function growthTile(label,value,benefit) {
+  const tone=valid(value)&&value!==0&&benefit ? (value>0?'positive-text':'warning-text') : '';
+  return '<div class="growth-item"><small>'+label+'</small><strong class="'+tone+'">'+pct(value)+'</strong></div>';
+}
+function growth(e,r) {
+  const side=(title,mom,yoy,key,color)=>'<div><h3 class="subheading">'+title+'</h3><div class="growth-grid">'+growthTile('Frente al mes anterior',r[mom],false)+growthTile('Frente al mismo mes del año anterior',r[yoy],false)+'</div>'+chart(e,[{key,label:title,color}],'Trayectoria mensual de '+title.toLowerCase())+'</div>';
+  let body='<div class="split">'+side('Entradas bancarias','inflow_mom','inflow_yoy','inflow','#087f83')+side('Salidas bancarias','outflow_mom','outflow_yoy','outflow','#778aa8')+'</div>';
+  if(r.perimeter_changed) body+=note('El perímetro de actividad cambió. La variación puede incluir incorporación o salida de cuentas o empresas; no equivale por sí sola a crecimiento orgánico.',true);
+  body+='<div class="rule"></div><h3 class="subheading">Facturación ERP · lectura complementaria</h3><div class="metrics">'+metric('Facturas emitidas este mes',r.rec_issued,amount(r.rec_issued,e.currency))+metric('Variación mensual',r.rec_issued_mom,pct(r.rec_issued_mom))+metric('Variación interanual',r.rec_issued_yoy,pct(r.rec_issued_yoy))+'</div>';
+  const previous=e.monthly[state.month-1]||{},lastYear=e.monthly[state.month-12]||{};
+  const calculation=(field,base,value)=>'('+amount(r[field],e.currency)+' / '+amount(base[field],e.currency)+' − 1) × 100 = '+pct(value);
+  body+=audit([['Entradas · variación mensual',calculation('inflow',previous,r.inflow_mom)],['Entradas · variación interanual',calculation('inflow',lastYear,r.inflow_yoy)],['Salidas · variación mensual',calculation('outflow',previous,r.outflow_mom)],['Salidas · variación interanual',calculation('outflow',lastYear,r.outflow_yoy)],['Facturas emitidas · variación mensual',calculation('rec_issued',previous,r.rec_issued_mom)],['Facturas emitidas · variación interanual',calculation('rec_issued',lastYear,r.rec_issued_yoy)],['Comparabilidad','Cada comparación conserva su ventana. Una base nula o no disponible no se convierte en crecimiento cero. Las cifras bancarias no son equivalentes a facturación.'],['Dirección','Una subida de entradas o una bajada de salidas no se califica automáticamente como mejor salud: se lee junto al flujo neto y la actividad.']]);
+  return card('growth','03','Crecimiento','Mes y año','Comparaciones explícitas, sin mezclar horizontes en una misma curva.',body,true);
+}
+const COMPONENTS=[['payroll','Nóminas y seguridad social','#087f83'],['debt_service','Amortización e intereses','#4775be'],['suppliers','Proveedores y suministros','#87b0ba'],['tax','Impuestos','#9b91b5'],['fees','Comisiones','#d49c50'],['uncategorized','Sin categoría','#aab6c1'],['other','Otras salidas','#d2dce3']];
+function structure(e,r) {
+  const known=COMPONENTS.filter(c=>valid(r[c[0]]));
+  const total=known.reduce((sum,c)=>sum+r[c[0]],0);
+  let body='<div class="metric-label">Salidas del mes</div><div class="big '+(!valid(r.outflow)?'na':'')+'">'+amount(r.outflow,e.currency)+'</div>';
+  if(total>0) body+='<div class="stack" role="img" aria-label="Composición de salidas; importes y porcentajes detallados en la tabla">'+known.filter(c=>r[c[0]]>0).map(c=>'<span style="width:'+(r[c[0]]/total*100)+'%;background:'+c[2]+'" title="'+esc(c[1]+': '+amount(r[c[0]],e.currency))+'"></span>').join('')+'</div>';
+  body+='<div class="tablewrap"><table><thead><tr><th scope="col">Destino</th><th scope="col">Importe</th><th scope="col">% salidas</th></tr></thead><tbody>'+COMPONENTS.map(([key,label,color])=>'<tr><td><span class="dot" style="background:'+color+'"></span>'+label+'</td><td>'+amount(r[key],e.currency)+'</td><td>'+pct(valid(r[key])&&valid(r.outflow)&&r.outflow>0?r[key]/r.outflow:null)+'</td></tr>').join('')+'</tbody></table></div>';
+  if(valid(r.outflow)&&known.length===COMPONENTS.length&&Math.abs(total-r.outflow)>Math.max(1,Math.abs(r.outflow)*.001)) body+=note('La suma de categorías ('+amount(total,e.currency)+') no coincide con las salidas ('+amount(r.outflow,e.currency)+'). La barra representa las categorías disponibles; revisa la cobertura.',true);
+  body+=audit([['Peso de cada categoría','Importe de la categoría / salidas del mismo mes × 100.'],['Deuda','Amortización e intereses se incluyen una vez en la composición. Las comisiones figuran por separado.'],['Lectura','El peso de nóminas, proveedores o impuestos describe la estructura de pagos. No es por sí mismo una clasificación de riesgo. Los importes sin categoría permanecen visibles.']]);
+  return card('structure','04','Estructura de salidas','Mensual','Salidas seleccionadas, sin transferencias, inversión ni movimientos de efectivo.',body);
+}
+function debt(e,r) {
+  const s=e.debt_snapshot||{};
+  let body='<div class="metrics two">'+metric('Pagos por deuda este mes',r.debt_service,amount(r.debt_service,e.currency),'Amortización e intereses')+metric('Intereses identificados',r.interest,amount(r.interest,e.currency),'Incluidos en pagos por deuda')+'</div>';
+  body+='<div class="metrics two">'+metric('Pagos de deuda / entradas · 3m',r.dsr_3m,pct(r.dsr_3m))+metric('Pagos de deuda / entradas · 12m',r.dsr_12m,pct(r.dsr_12m))+'</div>';
+  body+=chart(e,[{key:'debt_service',label:'Pagos por deuda',color:'#4775be'}],'Pagos mensuales de deuda identificados');
+  if(state.month===MONTHS.length-1){
+    body+='<div class="snapshot"><div class="eyebrow">Saldo de deuda registrado · '+esc(date(s.date || DATA.meta.snapshot_date))+'</div><div class="metric-value '+(!valid(s.owed)?'na':'')+'">'+amount(s.owed,e.currency)+'</div><small>'+esc(s.coverage_note || 'La cifra depende de los saldos de productos disponibles.')+'</small><small>'+num(s.known_balance_count,0)+' saldos conocidos de '+num(s.product_count,0)+' productos registrados.</small><small>Garantías contingentes, separadas de la deuda dispuesta: '+amount(s.guarantees,e.currency)+' ('+num(s.guarantee_product_count,0)+' productos).</small></div>';
+  } else body+=note('El saldo de deuda sólo está disponible en la foto final. No se atribuye ese saldo a meses anteriores.');
+  body+=note('Cero pagos identificados no significa ausencia de deuda. La carga observada tampoco mide por sí sola la capacidad de cumplir pagos futuros.');
+  const ratioAudit=window=>{
+    const rows=e.monthly.slice(Math.max(0,state.month-window+1),state.month+1);
+    const eligible=valid(r['dsr_'+window+'m']);
+    const paid=eligible?rows.reduce((sum,row)=>sum+row.debt_service,0):null;
+    const inflow=eligible?rows.reduce((sum,row)=>sum+row.inflow,0):null;
+    return amount(paid,e.currency)+' / '+amount(inflow,e.currency)+' × 100 = '+pct(r['dsr_'+window+'m']);
+  };
+  body+=audit([['Carga de deuda · tres meses',ratioAudit(3)],['Carga de deuda · doce meses',ratioAudit(12)],['Ventanas separadas','Tres meses refleja pagos recientes; doce meses aporta contexto cuando existe historia suficiente. Sólo se calcula con una ventana completa comparable.'],['Stock frente a flujo','Los pagos mensuales son movimientos. El saldo pendiente es una foto de productos de deuda con una fecha y cobertura propias.']]);
+  return card('debt','05','Deuda','Flujos + foto final','Cuánto se paga y qué saldo se conoce, sin confundir ambos.',body);
+}
+const AGING=[['current','No vencido'],['d1_30','Vencido · 1–30 días'],['d31_60','Vencido · 31–60 días'],['d61_90','Vencido · 61–90 días'],['d90_plus','Vencido · más de 90 días'],['unknown_due','Vencimiento no disponible']];
+function invoices(e,r) {
+  const side=(prefix,title,ratio)=>{
+    const aging=r[prefix+'_aging']||{};
+    return '<div><h3 class="subheading">'+title+'</h3><div class="invoice-kpis">'+metric(ratio.toUpperCase(),r[ratio],days(r[ratio]),'Pendiente frente a emisión reciente')+metric('Vencido / pendiente',r[prefix+'_overdue_share'],pct(r[prefix+'_overdue_share']),'Mismo denominador en ambos lados')+'</div><div class="metrics two">'+metric('Pendiente total',r[prefix+'_open'],amount(r[prefix+'_open'],e.currency))+metric('Vencido pendiente',r[prefix+'_overdue'],amount(r[prefix+'_overdue'],e.currency))+'</div><p class="aging-title">Antigüedad de los importes pendientes</p><div class="tablewrap"><table><thead><tr><th scope="col">Estado al cierre</th><th scope="col">Importe</th></tr></thead><tbody>'+AGING.map(([key,label])=>'<tr><td>'+label+'</td><td>'+amount(aging[key],e.currency)+'</td></tr>').join('')+'</tbody></table></div><p class="metric-note">'+num(r[prefix+'_companies'],0)+' de '+num(r.total_companies,0)+' empresas con este lado observado.</p><p class="metric-note">'+num(r[prefix+'_invoice_count'],0)+' facturas del mes · '+(prefix==='rec'?'Emisión':'Recepción')+' del mes: '+amount(r[prefix+'_issued'],e.currency)+'</p></div>';
+  };
+  let body='<div class="split">'+side('rec','Cobros · clientes','dso')+side('pay','Pagos · proveedores','dpo')+'</div>';
+  body+=note('Cobertura ERP: '+num(r.invoice_companies,0)+' de '+num(r.total_companies,0)+' empresas; '+num(r.invoice_history_months,0)+' meses de historia de facturas.'+(r.invoice_estimated?' Los pendientes históricos se estiman a partir de las fechas disponibles.':''),r.invoice_estimated || (valid(r.invoice_companies)&&valid(r.total_companies)&&r.invoice_companies<r.total_companies));
+  body+=audit([['Porcentaje vencido en cobros',amount(r.rec_overdue,e.currency)+' / '+amount(r.rec_open,e.currency)+' × 100 = '+pct(r.rec_overdue_share)],['Porcentaje vencido en pagos',amount(r.pay_overdue,e.currency)+' / '+amount(r.pay_open,e.currency)+' × 100 = '+pct(r.pay_overdue_share)],['DSO · pendiente frente a emisión',amount(r.rec_open,e.currency)+' / ('+amount(r.rec_issued_3m,e.currency)+' / '+num(r.window_days_3m,0)+' días calendario) = '+days(r.dso)],['DPO · pendiente frente a recepción',amount(r.pay_open,e.currency)+' / ('+amount(r.pay_issued_3m,e.currency)+' / '+num(r.window_days_3m,0)+' días calendario) = '+days(r.dpo)],['Lectura conjunta','DSO y DPO son ratios stock/flujo, no el promedio de días de cada factura. Un plazo alto puede reflejar condiciones comerciales, crecimiento, vencidos o una base de emisión pequeña. Un saldo vencido pendiente no establece por sí solo incumplimiento definitivo.'],['Antigüedad','Los importes se separan por su vencimiento al cierre del mes. Vencimiento no disponible permanece visible y no se presume puntual.']]);
+  return card('invoices','06','Cobros y pagos','ERP · al cierre','Dos lados de la misma relación comercial, con vencidos y cobertura visibles.',body,true);
+}
+function members(e) {
+  if(e.kind!=='group'||!e.members?.length) return '';
+  const mixed=e.currency_mixed;
+  const total=e.monthly[state.month]?.inflow;
+  return '<section class="card groupblock" aria-labelledby="members-heading"><div class="cardhead"><div><span class="number">Detalle del grupo</span><h2 id="members-heading">La contribución de cada empresa</h2><p class="intro">'+(mixed?'Importes en la divisa de cada empresa. No se suman divisas distintas.':'Peso por entradas del mes; no es una puntuación de riesgo.')+'</p></div></div><div class="tablewrap"><table><thead><tr><th scope="col">Empresa</th><th scope="col">Divisa</th><th scope="col">Entradas</th><th scope="col">Flujo neto</th><th scope="col">Peso en entradas</th></tr></thead><tbody>'+e.members.map(id=>{
+    const child=ENTITIES[id];if(!child)return '';
+    const row=child.monthly[state.month]||{};
+    const weight=!mixed&&valid(total)&&total>0&&valid(row.inflow)?row.inflow/total:null;
+    return '<tr><td>'+memberLink(id)+'</td><td>'+esc(child.currency)+'</td><td>'+amount(row.inflow,child.currency)+'</td><td>'+amount(row.net,child.currency)+'</td><td>'+pct(weight)+'</td></tr>';
+  }).join('')+'</tbody></table></div></section>';
+}
+function historyTable(e) {
+  return '<details class="methodology"><summary>Consultar trayectoria en tabla</summary><div class="tablewrap"><table><thead><tr><th scope="col">Mes</th><th scope="col">Entradas</th><th scope="col">Salidas</th><th scope="col">Neto</th><th scope="col">Pagos deuda</th><th scope="col">DSO</th><th scope="col">DPO</th></tr></thead><tbody>'+e.monthly.slice(0,state.month+1).map((r,i)=>'<tr><td>'+esc(monthName(MONTHS[i]))+'</td><td>'+amount(r.inflow,e.currency)+'</td><td>'+amount(r.outflow,e.currency)+'</td><td>'+amount(r.net,e.currency)+'</td><td>'+amount(r.debt_service,e.currency)+'</td><td>'+days(r.dso)+'</td><td>'+days(r.dpo)+'</td></tr>').join('')+'</tbody></table></div></details>';
+}
+function render() {
+  const e=current();if(!e)return;
+  const r=record();
+  $('month').value=state.month;
+  $('previous').disabled=state.month===0;
+  $('next').disabled=state.month===MONTHS.length-1;
+  const entitySubtitle=e.kind==='group' ? (e.members?.length||0)+' empresas · '+(e.currency_mixed?'varias divisas':e.currency) : 'Empresa · '+e.currency;
+  let html='<header class="hero"><div><h1>'+esc(e.id)+'</h1><p>'+esc(entitySubtitle)+(e.kind==='company'&&ENTITIES[e.group_id]?' · '+memberLink(e.group_id):'')+'</p></div><div class="hero-right"><div class="hero-month">'+esc(monthName(MONTHS[state.month]))+'</div><span class="pill">Score provisional</span></div></header>';
+  html+='<div class="coverage"><span><b>'+num(r.tx_count,0)+'</b> movimientos</span><span><b>'+num(r.invoice_companies,0)+' / '+num(r.total_companies,0)+'</b> empresas con facturas</span><span>Actividad del mes: <b>'+(r.active===true?'registrada':r.active===false?'sin actividad registrada':'no disponible')+'</b></span></div>';
+  if(e.fx_estimated||e.fx_partial)html+=note('Importes en euros de referencia estimados mediante media anual previa aproximada; no son tipos exactos de cada operación. Monedas originales: '+(e.original_currency||[]).join(', ')+'. Empresas con conversión completa: '+num(e.fx_covered_companies,0)+' / '+e.members.length+'.'+(e.fx_partial?' Hay importes excluidos por falta de tipo de cambio.':''),e.fx_partial);
+  html+=scoringCard(e,r);
+  if(e.currency_mixed){
+    html+='<div class="mixed"><h2>Este grupo contiene varias divisas</h2><p>No hay un importe agregado comparable sin conversión homogénea. Consulta las filiales en su divisa para leer caja, deuda y facturas.</p></div>'+members(e);
+  } else {
+    const observations=(r.observations||[]).filter(o=>o&&o.text);
+    html+='<div class="observations" aria-label="Observaciones del mes">'+(observations.length?observations.map(o=>'<div class="observation '+(['positive','warning'].includes(o.tone)?o.tone:'')+'"><span class="eyebrow">Observación del mes</span>'+esc(o.text)+'</div>').join(''):'<div class="observation"><span class="eyebrow">Lectura del mes</span>Consulta los importes, sus ventanas y su cobertura. Sin observaciones adicionales para este mes.</div>')+'</div>';
+    html+='<div class="dashboard">'+liquidity(e,r)+cashflow(e,r)+growth(e,r)+structure(e,r)+debt(e,r)+invoices(e,r)+'</div>'+members(e)+historyTable(e);
+  }
+  const notes=[...(e.notes||[]),...(r.notes||[])].filter(Boolean);
+  if(notes.length)html+='<div class="note"><ul>'+[...new Set(notes)].map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul></div>';
+  html+='<details class="methodology"><summary>Cómo leer esta página</summary><ul><li>Los importes corresponden al mes elegido salvo cuando se indica una ventana de tres o doce meses, o una fecha de foto.</li><li>No disponible significa que falta información o una base comparable; nunca se sustituye por cero.</li><li>Las curvas muestran valores observados, sin recortar extremos. Los espacios representan datos no disponibles.</li><li>Esta lectura no es una probabilidad de quiebra, un rating ni una demostración de anticipación.</li>'+(DATA.meta.methodology||[]).map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul></details>';
+  $('content').innerHTML=html;
+  writeHash();
+}
+if(!ids.length){$('content').innerHTML=note('No hay entidades disponibles en este archivo.');return;}
+readHash();
+$('kind').value=current().kind;
+$('month').innerHTML=MONTHS.map((m,i)=>'<option value="'+i+'">'+esc(monthName(m))+'</option>').join('');
+$('kind').addEventListener('change',()=>{$('search').value='';selectOptions();});
+$('search').addEventListener('input',selectOptions);
+$('entity').addEventListener('change',event=>{if(ENTITIES[event.target.value]){state.id=event.target.value;render();}});
+$('month').addEventListener('change',event=>{state.month=Number(event.target.value);render();});
+$('previous').addEventListener('click',()=>{if(state.month>0){state.month--;render();}});
+$('next').addEventListener('click',()=>{if(state.month<MONTHS.length-1){state.month++;render();}});
+$('content').addEventListener('click',event=>{const button=event.target.closest('[data-entity]');if(button&&ENTITIES[button.dataset.entity]){state.id=button.dataset.entity;$('kind').value=current().kind;$('search').value='';selectOptions();render();$('entity').focus();}});
+$('content').addEventListener('click',event=>{
+  if(event.target.closest('[data-reset-weights]')) {Object.assign(weights,JSON.parse(JSON.stringify(DATA.score_config.weights)));render();$('weight-editor').open=true;}
+  if(event.target.closest('[data-apply-weights]')) {
+    const next=JSON.parse(JSON.stringify(weights));
+    for(const input of document.querySelectorAll('[data-weight-key]')) {const value=input.value.trim()===''?NaN:Number(input.value);if(!Number.isFinite(value)||value<0){$('weight-error').textContent='Usa pesos numéricos no negativos.';return;}next[input.dataset.weightScope][input.dataset.weightKey]=value;}
+    if(Object.values(next).some(block=>Object.values(block).reduce((a,b)=>a+b,0)<=0)){$('weight-error').textContent='Cada bloque necesita al menos un peso mayor que cero.';return;}
+    for(const block of Object.values(next)){const total=Object.values(block).reduce((a,b)=>a+b,0);for(const key of Object.keys(block))block[key]/=total;}
+    Object.assign(weights,next);render();$('weight-editor').open=true;
+  }
+});
+document.querySelector('.sidebar nav').addEventListener('click',event=>{const link=event.target.closest('a');if(link){const target=document.querySelector(link.getAttribute('href'));if(target){event.preventDefault();target.scrollIntoView();}}});
+window.addEventListener('hashchange',()=>{if(!location.hash.includes('entity='))return;readHash();$('kind').value=current().kind;$('search').value='';selectOptions();render();});
+$('footer').textContent='X Ray V2 · '+ids.filter(id=>ENTITIES[id].kind==='company').length+' empresas · '+ids.filter(id=>ENTITIES[id].kind==='group').length+' grupos · Foto de saldos: '+date(DATA.meta.snapshot_date)+'. Archivo autónomo, sin servicios externos.';
+selectOptions();
+render();
+})();
+</script>
+</body>
+</html>

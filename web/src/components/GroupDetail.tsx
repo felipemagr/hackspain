@@ -13,9 +13,10 @@ import {
   defaultMacro,
 } from "../lib/macro";
 import type { MacroSeries } from "../lib/macro";
-import { PILLAR_LABEL, thinHistory } from "../lib/meta";
+import { PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
+import type { Weights } from "../lib/scoring";
 import { useTween } from "../lib/useTween";
 import { LowDataNote } from "./LowData";
 import { Menu } from "./Menu";
@@ -26,6 +27,8 @@ import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
 import { WhatIf } from "./WhatIf";
+import { CHART_COLORS, DEFAULT_CHART, type ChartConfig } from "../lib/viewAgent";
+import { scoreLabels } from "../lib/scoring";
 
 /** Where a market's level comes from and how it is built. Opens on hover or keyboard focus. */
 function MacroInfo({ macro }: { macro: MacroSeries }) {
@@ -68,6 +71,11 @@ interface GroupDetailProps {
   onFavorite: () => void;
   syncing: boolean;
   onSync: () => void;
+  weights?: Weights;
+  onWeights?: (weights: Weights) => void;
+  evaluating?: boolean;
+  onEntity?: (id: string, kind: "group" | "company") => void;
+  chart?: ChartConfig;
 }
 
 const clock = (d: Date) =>
@@ -76,6 +84,10 @@ const stamp = (d: Date) =>
   `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${clock(d)}`;
 
 function heading(score: ScoreRow): string {
+  if (score.localScoring) {
+    const { level, evolution } = score.localScoring;
+    return `Confidence ${level.confidence == null ? "-" : `${level.confidence.toFixed(0)}%`} · Evolution ${evolution.score == null ? "-" : `${evolution.score.toFixed(1)}/100`}`;
+  }
   const parts: string[] = [];
   if (score.trend != null && Math.abs(score.trend) > 0.15) {
     parts.push(
@@ -97,13 +109,18 @@ export function GroupDetail({
   onFavorite,
   syncing,
   onSync,
+  weights,
+  onWeights,
+  evaluating,
+  onEntity,
+  chart = DEFAULT_CHART,
 }: GroupDetailProps) {
   const group = store.groupById.get(groupId);
   const history = store.scoresByGroup.get(groupId) ?? [];
   const score = store.scoreAt(groupId, month);
   const idx = history.findIndex((s) => s.month === month);
   const prevLevel = idx > 0 ? history[idx - 1].level : null;
-  const since = score && prevLevel != null ? score.level - prevLevel : null;
+  const since = score?.level != null && prevLevel != null ? score.level - prevLevel : null;
   const way =
     since == null || Math.abs(since) < 0.05
       ? ""
@@ -111,7 +128,7 @@ export function GroupDetail({
         ? "is-up"
         : "is-down";
   const line = score ? heading(score) : "";
-  const thin = thinHistory(score?.months_observed);
+  const thin = !store.localScoring && thinHistory(score?.months_observed);
   const [level] = useTween([score?.level ?? NaN]);
   const [macroId, setMacroId] = useState(() =>
     defaultMacro(group?.country ?? null),
@@ -119,12 +136,24 @@ export function GroupDetail({
   if (!group) return null;
 
   const drivers = store.driversAt(groupId, month);
+  const detail = store.localDetails?.get(groupId);
+  const record = detail?.monthly.find((r) => r.month.slice(0, 7) === month.slice(0, 7));
+  const activeWeights = weights ?? store.localWeights?.get(groupId) ?? store.localScoring?.config.weights;
   const offer = store.offerAt(groupId, month);
   const actions = [...(store.actionsByGroup.get(groupId) ?? [])].sort(
     (a, b) => a.rank - b.rank,
   );
   const companies = store.companiesByGroup.get(groupId) ?? [];
   const macro = MACRO_BY_ID.get(macroId) ?? null;
+  const chartHistory = (metric: string) => metric === "level" ? history : history.map(row => ({ ...row, level: row.localScoring?.families[metric]?.score ?? null }));
+  const periodStart = chart.months ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - chart.months, 1)).toISOString().slice(0, 10) : "";
+  const observed = new Map(chart.series.map(metric => [metric, chartHistory(metric).filter(row => row.month <= month && row.month >= periodStart && row.level != null && Number.isFinite(row.level)).length]));
+  const omitted = store.localScoring ? chart.series.filter(metric => observed.get(metric)! < 2) : [];
+  const chartSeries = chart.series.filter(metric => !omitted.includes(metric));
+  const chartPrimary = chartSeries[0];
+  const primaryName = chartPrimary === "level" ? group.name : scoreLabels[chartPrimary];
+  const showMarket = chartSeries.length === 1 && chartPrimary === "level";
+  const chartComparisons = chartSeries.slice(1).map(metric => ({ name: metric === "level" ? "Health score" : scoreLabels[metric], history: chartHistory(metric) }));
 
   return (
     <article className="detail" aria-label={group.name}>
@@ -165,12 +194,13 @@ export function GroupDetail({
               group.sector,
               group.country,
               `${group.n_companies} ${group.n_companies === 1 ? "company" : "companies"}`,
-              `${fmtEur(group.annual_revenue_eur)} revenue`,
+              !store.localScoring && `${fmtEur(group.annual_revenue_eur)} revenue`,
               store.updatedAt && `updated ${stamp(store.updatedAt)}`,
             ]
               .filter(Boolean)
               .join(" · ")}
           </p>
+          {detail && (detail.entity.kind === "group" || detail.entity.fx_estimated || detail.entity.fx_partial) && <p className="detail__meta">{detail.entity.fx_partial ? "Partial EUR coverage: some exchange rates are unavailable. " : detail.entity.fx_estimated ? "EUR amounts include estimated currency conversion. " : "EUR aggregation. "}{detail.entity.kind === "group" && "Intragroup flows are not eliminated."}</p>}
         </div>
         {score && (
           <div className="score">
@@ -181,7 +211,7 @@ export function GroupDetail({
               {Number.isFinite(level) ? level.toFixed(0) : "-"}
             </span>
             <div>
-              <StateTag state={score.state} />
+              {!score.localScoring && <StateTag state={score.state} />}
               <p className="score__line">
                 {line}
                 {since != null && (
@@ -202,12 +232,13 @@ export function GroupDetail({
 
       <section>
         <div className="section-head">
-          <h2>Health score, {monthLong(month)}</h2>
-          <div className="compare">
+          <h2>{(omitted.length ? null : chart.title) ?? (showMarket ? "Health score" : "Pillar scores")}, {monthLong(month)}</h2>
+          {store.localScoring && <span className="hint">{store.localWeights?.has(groupId) ? "Custom weights" : "Default weights"}</span>}
+          {showMarket && <div className="compare">
             {macro && (
               <span className="legend">
                 <span className="legend__item">
-                  <span className="key" style={{ background: "var(--ink)" }} />
+                  <span className="key" style={{ background: CHART_COLORS[chart.color] }} />
                   {group.name}
                 </span>
                 <span className="legend__item">
@@ -251,16 +282,20 @@ export function GroupDetail({
               </p>
             </Menu>
             {macro && <MacroInfo macro={macro} />}
-          </div>
+          </div>}
         </div>
-        <TrajectoryChart
+        {chartSeries.length > 0 ? <TrajectoryChart
+          config={chart}
           months={store.months}
           month={month}
           onMonth={onMonth}
-          primary={{ name: group.name, history }}
-          macro={macro}
-          alerts={store.alerts.filter((a) => a.group_id === groupId)}
-        />
+          primary={{ name: primaryName, history: chartHistory(chartPrimary) }}
+          compare={chartComparisons}
+          macro={showMarket ? macro : null}
+          alerts={chartPrimary === "level" ? store.alerts.filter((a) => a.group_id === groupId) : []}
+        /> : <p className="empty">A time chart needs at least two observations in this period.</p>}
+        {chartSeries.length > 0 && !showMarket && <div className="view-chart-legend">{chartSeries.map((metric, index) => <span className="legend__item" key={metric}><span className="key" style={{ background: index === 0 ? CHART_COLORS[chart.color] : SERIES_COLORS[index - 1] }} />{metric === "level" ? "Health score" : scoreLabels[metric]}</span>)}</div>}
+        {omitted.length > 0 && <p className="view-chart-note" role="status">{omitted.map(metric => `${metric === "level" ? "Health score" : scoreLabels[metric]} omitted: ${observed.get(metric) === 1 ? "only 1 observation" : "no observations"} in this period.`).join(" ")}</p>}
       </section>
 
       {!score ? (
@@ -272,24 +307,24 @@ export function GroupDetail({
         <div className="columns">
           <section>
             <div className="section-head">
-              <h2>The five pillars</h2>
-              <span className="hint">what each moved this month</span>
+              <h2>{store.localScoring ? "The four pillars" : "The five pillars"}</h2>
+              <span className="hint">{store.localScoring ? "available evidence and effective weights" : "what each moved this month"}</span>
             </div>
-            <Pillars score={score} drivers={drivers} />
-            {companies.length > 1 && (
+            <Pillars score={score} drivers={drivers} weights={activeWeights} cashDate={typeof record?.cash_date === "string" ? record.cash_date : undefined} />
+            {(companies.length > 1 || (store.localScoring && companies.length > 0)) && (
               <>
                 <div className="section-head section-head--spaced">
                   <h2>Companies in the group</h2>
-                  <span className="hint">share of inflow</span>
+                  <span className="hint">{store.localScoring ? "open company" : "share of inflow"}</span>
                 </div>
                 {companies.map((c) => {
                   const months = c.months_observed;
-                  const short = thinHistory(months);
+                  const short = !store.localScoring && thinHistory(months);
                   return (
                     <div className="company" key={c.company_id}>
                       <span className="company__name">
-                        {c.name}
-                        {c.is_weakest && (
+                        {store.localScoring && onEntity ? <button className="link" onClick={() => onEntity(c.company_id, "company")}>{c.name}</button> : c.name}
+                        {!store.localScoring && c.is_weakest && (
                           <span className="company__flag">drags the group</span>
                         )}
                         {short && (
@@ -299,7 +334,7 @@ export function GroupDetail({
                         )}
                       </span>
                       <span className="company__share">
-                        {((c.inflow_share ?? 0) * 100).toFixed(0)}%
+                        {store.localScoring ? "" : `${((c.inflow_share ?? 0) * 100).toFixed(0)}%`}
                       </span>
                       <span
                         className={`company__level ${short ? "is-thin" : ""}`}
@@ -359,7 +394,7 @@ export function GroupDetail({
               </p>
             ) : (
               <p className="empty">
-                No line this month: the score is too low or too young.
+                {store.localScoring ? "Working-capital offers are not available for this scoring profile." : "No line this month: the score is too low or too young."}
               </p>
             )}
           </section>
@@ -367,7 +402,7 @@ export function GroupDetail({
       )}
 
       {score && <OwnHistory history={history} month={month} />}
-      {score && <WhatIf score={score} />}
+      {score && <WhatIf score={score} weights={activeWeights} onWeights={onWeights} evaluating={evaluating} />}
       {score && <PromptPay store={store} groupId={groupId} month={month} />}
     </article>
   );

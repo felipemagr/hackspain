@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertList } from "./components/AlertList";
 import { Chat } from "./components/Chat";
 import { CurrencyToggle } from "./components/CurrencyToggle";
 import { FleetRail } from "./components/FleetRail";
 import { GroupDetail } from "./components/GroupDetail";
 import { GroupList } from "./components/GroupList";
+import { ViewAgent } from "./components/ViewAgent";
+import { DEFAULT_CHART, withViewWeights, type ChartConfig } from "./lib/viewAgent";
 import { useChat } from "./lib/chat";
 import { useDisplayCurrency } from "./lib/currency";
 import { DEFAULT_VIEW } from "./lib/listView";
 import { fetchVersion, loadStore, type Store } from "./lib/load";
+import { loadLocalStore, withLocalDetail } from "./lib/localStore";
+import { scoringRequest } from "./lib/scoring";
+import type { EntityDetail, Weights } from "./lib/scoring";
 import { alertKey } from "./lib/meta";
 import { useStoredSet } from "./lib/useStoredSet";
 
@@ -19,11 +24,18 @@ const DEFAULT_GROUP = "GROUP_0220";
 // How often to ask the API whether a new build of the tables was published.
 const POLL_MS = 3000;
 
-export default function App() {
-  const [store, setStore] = useState<Store | null>(null);
+export default function App({ localScoring = false }: { localScoring?: boolean }) {
+  const [kind, setKind] = useState<"group" | "company">(params.get("kind") === "company" ? "company" : "group");
+  const [profiles, setProfiles] = useState<Record<string, Weights>>({});
+  const [evaluating, setEvaluating] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [baseStore, setStore] = useState<Store | null>(null);
+  const [viewWeights, setViewWeights] = useState<Record<string, Record<string, number>>>({});
+  const [charts, setCharts] = useState<Record<string, ChartConfig>>({});
+  const store = useMemo(() => baseStore ? withViewWeights(baseStore, viewWeights) : null, [baseStore, viewWeights]);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
-  const [selectedId, setSelectedId] = useState(params.get("group") ?? DEFAULT_GROUP);
+  const [selectedId, setSelectedId] = useState(params.get("entity") ?? params.get("group") ?? DEFAULT_GROUP);
   const [view, setView] = useState(DEFAULT_VIEW);
   const [favorites, updateFavorites] = useStoredSet("xray.favorites");
   const [cleared, updateCleared] = useStoredSet("xray.clearedAlerts");
@@ -32,30 +44,44 @@ export default function App() {
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
   const [syncing, setSyncing] = useState(false);
-  const chat = useChat();
+  const chat = useChat(localScoring);
   useDisplayCurrency(month);
+
+  const loadCurrent = async () => {
+    if (!localScoring) return loadStore();
+    let next = await loadLocalStore(kind);
+    const custom = Object.entries(profiles).filter(([id]) => next.groupById.has(id));
+    const details = await Promise.all(custom.map(([id, weights]) => scoringRequest<EntityDetail>(`/entities/${encodeURIComponent(id)}/evaluate`, weights)));
+    details.forEach((detail, index) => { next = withLocalDetail(next, detail, custom[index][1]); });
+    return next;
+  };
 
   // Held for a moment so a sync that finds nothing new is still seen to have happened.
   // A sync that fails keeps the data already on screen.
   const sync = () => {
     setSyncing(true);
-    Promise.all([loadStore(), new Promise((done) => setTimeout(done, 700))])
+    Promise.all([loadCurrent(), new Promise((done) => setTimeout(done, 700))])
       .then(([s]) => setStore(s))
-      .catch((e: Error) => console.warn("sync failed", e))
+      .catch((e: Error) => { if (localScoring) setDetailError(e.message); else console.warn("sync failed", e); })
       .finally(() => setSyncing(false));
   };
 
   useEffect(() => {
-    loadStore()
+    let active = true;
+    setStore(null);
+    setError(null);
+    loadCurrent()
       .then((s) => {
+        if (!active) return;
         setStore(s);
-        const asked = params.get("month");
-        setMonth(asked && s.months.includes(asked) ? asked : s.months[s.months.length - 1]);
+        const askedValue = params.get("month");
+        const asked = localScoring && askedValue ? `${askedValue.slice(0, 7)}-01` : askedValue;
+        setMonth(current => current && s.months.includes(current) ? current : asked && s.months.includes(asked) ? asked : s.months[s.months.length - 1]);
         // Open on the group worth opening on: a deep link wins; then, when the portfolio holds
         // named groups (the synthetic demo beside the challenge ids), the named one that is
         // bending while still looking fine, the Velasco of that portfolio; then the default id.
         setSelectedId((id) => {
-          if (params.get("group") && s.groupById.has(id)) return id;
+          if ((localScoring || params.get("group")) && s.groupById.has(id)) return id;
           const velasco = (pool: typeof s.groups) =>
             [...pool]
               .filter((g) => s.latestMonth(g.group_id)?.state === "bending")
@@ -66,8 +92,24 @@ export default function App() {
           return s.groupById.has(id) ? id : (velasco(s.groups)?.group_id ?? id);
         });
       })
-      .catch((e: Error) => setError(e.message));
-  }, []);
+      .catch((e: Error) => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, [localScoring, kind]);
+
+  const readyKind = store?.localScoring?.kind;
+  const selectedWeights = profiles[selectedId];
+  const loadedAt = store?.syncedAt.getTime();
+  useEffect(() => {
+    if (!localScoring || !readyKind || !selectedId) return;
+    const controller = new AbortController();
+    setEvaluating(true);
+    setDetailError("");
+    scoringRequest<EntityDetail>(`/entities/${encodeURIComponent(selectedId)}${selectedWeights ? "/evaluate" : ""}`, selectedWeights, controller.signal)
+      .then(detail => setStore(current => current?.localScoring?.kind === readyKind ? withLocalDetail(current, detail, selectedWeights) : current))
+      .catch((e: Error) => { if (!controller.signal.aborted) setDetailError(e.message); })
+      .finally(() => { if (!controller.signal.aborted) setEvaluating(false); });
+    return () => controller.abort();
+  }, [localScoring, readyKind, selectedId, selectedWeights, loadedAt]);
 
   // Live mode: the pipeline publishes a new build, the API's version changes, the tables are
   // fetched again. A viewer parked on the latest month follows the data forward; anyone
@@ -100,7 +142,7 @@ export default function App() {
   if (error) {
     return (
       <p className="splash">
-        Could not load the data ({error}). Run <code>make web-data</code> and reload.
+        Could not load the data ({error}). {localScoring ? "The scoring service must be available. Reload to retry." : <>Run <code>make web-data</code> and reload.</>}
       </p>
     );
   }
@@ -139,7 +181,7 @@ export default function App() {
         </div>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === "groups"} onClick={() => setTab("groups")}>
-            Groups <span>{store.groups.length}</span>
+            {localScoring && kind === "company" ? "Companies" : "Groups"} <span>{store.groups.length}</span>
           </button>
           <button role="tab" aria-selected={tab === "alerts"} onClick={() => setTab("alerts")}>
             Alerts <span>{alertCount}</span>
@@ -149,6 +191,7 @@ export default function App() {
           </button>
           <CurrencyToggle />
         </div>
+        {localScoring && <label className="local-scope">View <select aria-label="Entity scope" value={kind} onChange={event => setKind(event.target.value as "group" | "company")}><option value="group">Groups</option><option value="company">Companies</option></select></label>}
         <div className="side__scroll">
           {tab === "agents" ? (
             <FleetRail
@@ -187,6 +230,7 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
+        {detailError && <p role="alert">{detailError}</p>}
         {tab === "agents" ? (
           <Chat
             key={chat.activeId ?? "new"}
@@ -194,12 +238,23 @@ export default function App() {
             fleet={chat.fleet}
             turns={chat.turns}
             busy={chat.busy}
-            onAsk={(question) => chat.ask(question, month)}
+            onAsk={(question) => chat.ask(question, month, localScoring ? {
+              entityId: selectedId,
+              weights: store.localWeights?.get(selectedId) ?? store.localScoring?.config.weights,
+            } : undefined)}
             onStop={chat.stop}
             onNew={() => chat.open(null)}
           />
         ) : (
           <GroupDetail
+            chart={charts[selectedId] ?? DEFAULT_CHART}
+            weights={store.localWeights?.get(selectedId) ?? store.localScoring?.config.weights}
+            onWeights={localScoring ? weights => {
+              setViewWeights(current => { const next = { ...current }; delete next[selectedId]; return next; });
+              setProfiles(current => ({ ...current, [selectedId]: weights }));
+            } : undefined}
+            evaluating={evaluating}
+            onEntity={localScoring ? (id, scope) => { setSelectedId(id); setKind(scope); } : undefined}
             store={store}
             groupId={selectedId}
             month={month}
@@ -211,6 +266,25 @@ export default function App() {
           />
         )}
       </main>
+      {localScoring && store.localScoring && tab !== "agents" && <ViewAgent
+        key={`${selectedId}-${month}`}
+        entityId={selectedId}
+        month={month}
+        evaluating={evaluating}
+        weights={store.localWeights?.get(selectedId) ?? store.localScoring.config.weights}
+        chart={charts[selectedId] ?? DEFAULT_CHART}
+        customized={Boolean(viewWeights[selectedId] || charts[selectedId])}
+        onReset={() => {
+          setViewWeights(current => { const next = { ...current }; delete next[selectedId]; return next; });
+          setCharts(current => { const next = { ...current }; delete next[selectedId]; return next; });
+        }}
+        onApply={actions => {
+          for (const action of actions) {
+            if (action.type === "set_weights") setViewWeights(current => ({ ...current, [selectedId]: action.weights }));
+            if (action.type === "set_chart") setCharts(current => ({ ...current, [selectedId]: action.chart }));
+          }
+        }}
+      />}
     </div>
   );
 }

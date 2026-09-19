@@ -70,7 +70,7 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
           <h2>Pay early with the money you can count on</h2>
         </div>
         <p className="empty">
-          {hasErp
+          {store.localScoring ? "Payment timing estimates are not available for this scoring profile." : hasErp
             ? "Nothing to work with this month: this group has no customer invoice open, neither falling due nor already past due."
             : "This group runs no ERP, so it files no invoices at all. Without a receivables book there is nothing to bring forward, and the customer panels are blank for the same reason."}
         </p>

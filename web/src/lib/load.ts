@@ -1,5 +1,6 @@
 import { API_HEADERS, API_URL } from "./chat";
 import { PILLAR_LABEL, STATE_META } from "./meta";
+import type { EntityDetail, ScoringConfig, Weights } from "./scoring";
 import type {
   ActionRow,
   AlertRow,
@@ -27,6 +28,9 @@ export interface Version {
 }
 
 export interface Store {
+  localScoring?: { config: ScoringConfig; kind: "group" | "company" };
+  localDetails?: Map<string, EntityDetail>;
+  localWeights?: Map<string, Weights>;
   /** Which build the tables came from; null when read from the static copy. */
   version: Version | null;
   /** When the data was last built, or when the static copy last changed. */

@@ -208,8 +208,9 @@ optional severity floor and the groups it watches.
 ### Scope: what we are not building
 
 No user accounts, no multi-tenant, no real lender integration, no live data ingestion, no mobile.
-The demo is read-only over precomputed results. Anything that does not appear in the five minutes
-above does not get built.
+The demo is read-only over precomputed results.
+The optional local scorecard provides company/group views and an AI button for temporary pillar weights and chart settings.
+The view assistant reads evidence through the selected month and changes browser settings without writing data or recomputing component scores.
 
 ---
 
@@ -228,6 +229,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Anchor table: raw ratio to 0-100, pillar weights | `src/xray/scoring/anchors.py` |
 | Level score, per group or per company | `src/xray/scoring/score.py` |
 | Provisional score and drivers for the local internal viewer | `src/xray/scoring/score_baseline.py`, `make score-baseline` |
+| Optional local company/group scorecard and export | `src/xray/v2.py`, `src/xray/v2_scores.py`, `src/xray/scoring/local_serving.py`, `api/routers/scoring.py`; setup in `docs/local-scoring-v3.md` |
 | Proxy distress labels for validation | `src/xray/scoring/events.py` |
 | Discrimination, trajectory, stability, ablation | `src/xray/scoring/validate.py` |
 | Smoothing, slope, state machine on the level series | `src/xray/scoring/trend.py` |
@@ -237,6 +239,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Who is told, where, from which urgency: the rule book, written in plain words through the chat | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py`, `make replay CHANNEL=rules` |
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
+| Natural-language view controls and local evidence | `src/xray/agents/view.py`, `api/routers/view_chat.py`, `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts` |
 | Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |
 | Live demo: months land one at a time, the web and Slack follow | `src/xray/pipeline/replay.py` (`make replay`), `serve.publish`, `api/routers/version.py`, `api/routers/tables.py`, polling in `web/src/App.tsx` |
 | Live demo: named companies connect to the platform in batches and are scored on the spot | `src/xray/pipeline/synth.py` (the synthetic dump), `src/xray/pipeline/onboard.py` (`make demo`) |
@@ -261,6 +264,10 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
 
 - **The unit of scoring is the group.** Aggregate companies up to it. Split train/validation **by
   group**, never by row or by month, to mimic the hidden test.
+- **The optional local scorecard also exposes companies.** Its configuration and serving export are separate from the baseline engine.
+- **AI weight actions blend existing local pillars.** The session overlay does not alter component scores, stored observations or the baseline engine.
+- **AI charts require two finite observations per series in the visible period.** Missing observations remain missing; a snapshot is not a historical series.
+- **The view prompt requires evidence for facts, numbers and dates.** It requires missing data to be acknowledged and relationships to be identified as interpretations, without invented causal explanations.
 - **No look-ahead.** A feature for month `t` uses only data up to `t`. `balances.csv` is a final
   snapshot at 1 Sep 2026, so it is month-24 information only and cannot feed any earlier month.
 - **Debt fields are extraction-time too.** `debt_products.outstanding`, `granted` and `liquidity`

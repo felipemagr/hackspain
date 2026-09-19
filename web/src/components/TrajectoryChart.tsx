@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { monthLong, monthShort } from "../lib/format";
 import { alignMacro, type MacroSeries } from "../lib/macro";
-import { STATE_META, toneColor } from "../lib/meta";
+import { SERIES_COLORS, STATE_META, toneColor } from "../lib/meta";
 import type { AlertRow, ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
+import { CHART_COLORS, DEFAULT_CHART, type ChartConfig } from "../lib/viewAgent";
 
 export interface ChartSeries {
   name: string;
@@ -17,7 +18,9 @@ interface TrajectoryChartProps {
   primary: ChartSeries;
   /** Market health level behind the score, on the same 0-100 axis. Null when none is picked. */
   macro: MacroSeries | null;
+  compare?: (ChartSeries | null)[];
   alerts: AlertRow[];
+  config?: ChartConfig;
 }
 
 const H = 300;
@@ -38,7 +41,9 @@ export function TrajectoryChart({
   onMonth,
   primary,
   macro,
+  compare = [],
   alerts,
+  config = DEFAULT_CHART,
 }: TrajectoryChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(880);
@@ -59,23 +64,35 @@ export function TrajectoryChart({
   }, []);
 
   // The axis opens where the oldest drawn series starts, not where the portfolio does.
-  const oldest = primary.history[0]?.month;
-  const months = oldest ? timeline.slice(timeline.indexOf(oldest)) : timeline;
+  const oldest = [primary, ...compare].flatMap((series) => series?.history[0]?.month ?? []).sort()[0];
+  const fullMonths = oldest ? timeline.slice(timeline.indexOf(oldest)) : timeline;
+  const periodStart = config.months
+    ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - config.months, 1)).toISOString().slice(0, 10)
+    : "";
+  const months = config.months
+    ? fullMonths.filter(value => value >= periodStart && value <= month)
+    : fullMonths;
+  const primaryColor = CHART_COLORS[config.color];
   const n = months.length;
   const cursor = months.indexOf(month);
   const target = align(months, primary.history);
   const a = useTween(target);
   const macroVals = macro ? alignMacro(macro, months) : [];
+  const compareTargets = compare.map(series => series ? align(months, series.history) : months.map(() => NaN));
+  const flat = useTween(compareTargets.flat());
+  const others = compare.flatMap((series, index) =>
+    series ? [{ ...series, color: SERIES_COLORS[index], vals: flat.slice(index * n, (index + 1) * n) }] : [],
+  );
 
   const zi = zoom ? [months.indexOf(zoom[0]), months.indexOf(zoom[1])] : [];
-  const [i0, i1] = zi[0] >= 0 && zi[1] > zi[0] ? zi : [0, Math.max(n - 1, 1)];
+  const [i0, i1] = zi[0] >= 0 && zi[1] > zi[0] ? zi : [0, Math.max(n - 1, 0)];
   const zoomed = i0 > 0 || i1 < n - 1;
   // Zoomed in, the score axis closes on what is drawn; the full window keeps the fixed 0 to 100.
-  const seen = [target, macroVals]
+  const seen = [target, macroVals, ...compareTargets]
     .flatMap((vals) => vals.slice(i0, i1 + 1))
     .filter(Number.isFinite);
   const yLo =
-    zoomed && seen.length
+    zoomed && config.type !== "bar" && seen.length
       ? Math.max(0, Math.floor((Math.min(...seen) - 5) / 10) * 10)
       : 0;
   const yHi =
@@ -85,8 +102,11 @@ export function TrajectoryChart({
   const [v0, v1, lo, hi] = useTween([i0, i1, yLo, yHi]);
 
   const bottom = H - M.bottom;
-  const plotW = width - M.left - M.right;
-  const x = (i: number) => M.left + ((i - v0) / (v1 - v0)) * plotW;
+  const plotW = Math.max(0, width - M.left - M.right);
+  const slotWidth = plotW / Math.max(v1 - v0 + 1, 1);
+  const x = (i: number) => M.left + (config.type === "bar"
+    ? (i - v0 + .5) * slotWidth
+    : ((i - v0) / Math.max(v1 - v0, 1)) * plotW);
   const y = (v: number) =>
     M.top + (1 - (v - lo) / (hi - lo)) * (bottom - M.top);
   const path = (vals: number[], from: number, to: number) => {
@@ -104,9 +124,10 @@ export function TrajectoryChart({
   };
   const indexAt = (clientX: number) => {
     const rect = wrap.current!.getBoundingClientRect();
-    const i = Math.round(
-      i0 + ((clientX - rect.left - M.left) / plotW) * (i1 - i0),
-    );
+    const fraction = (clientX - rect.left - M.left) / Math.max(plotW, 1);
+    const i = config.type === "bar"
+      ? i0 + Math.floor(fraction * (i1 - i0 + 1))
+      : Math.round(i0 + fraction * (i1 - i0));
     return Math.max(i0, Math.min(i1, i));
   };
   const setRange = (from: number, to: number) =>
@@ -126,14 +147,23 @@ export function TrajectoryChart({
     setRange(from, from + size);
   };
 
-  const first = a.findIndex(Number.isFinite);
-  const area =
-    first >= 0 && cursor > first
-      ? `${path(a, first, cursor)}L${x(cursor).toFixed(1)},${bottom}L${x(first).toFixed(1)},${bottom}Z`
-      : "";
+  const areaPath = (values: number[]) => {
+    let result = "";
+    let start = -1;
+    for (let index = 0; index <= cursor + 1; index++) {
+      if (index <= cursor && Number.isFinite(values[index])) {
+        if (start < 0) start = index;
+      } else if (start >= 0) {
+        result += `${path(values, start, index - 1)}L${x(index - 1)},${bottom}L${x(start)},${bottom}Z`;
+        start = -1;
+      }
+    }
+    return result;
+  };
   const cursorSeen = cursor >= i0 && cursor <= i1;
   const endLabels = [
-    { v: a[cursor], color: "var(--ink)" },
+    { v: a[cursor], color: primaryColor },
+    ...others.map(series => ({ v: series.vals[cursor], color: series.color })),
     ...(macro ? [{ v: macroVals[cursor], color: MACRO_COLOR }] : []),
   ]
     .filter((l) => cursorSeen && Number.isFinite(l.v))
@@ -153,8 +183,11 @@ export function TrajectoryChart({
   );
   const every = i1 - i0 > 12 ? 3 : i1 - i0 > 6 ? 2 : 1;
 
-  const hoverAlert =
-    hover != null ? alerts.find((al) => al.month === months[hover]) : undefined;
+  const activeHover = hover != null && hover >= i0 && hover <= i1 && hover < n ? hover : null;
+  const hoverAlert = activeHover != null ? alerts.find((al) => al.month === months[activeHover]) : undefined;
+  const barSeries = [{ name: primary.name, color: primaryColor, vals: a }, ...others];
+  const barWidth = Math.min(24, slotWidth * .7 / barSeries.length);
+  const barGap = Math.min(1, barWidth * .15);
 
   return (
     <div className="chart" ref={wrap}>
@@ -162,7 +195,7 @@ export function TrajectoryChart({
         width={width}
         height={H}
         role="img"
-        aria-label={`Health score of ${primary.name} over ${n} months${macro ? `, against ${macro.name}` : ""}. Click to move to a month, drag across months to zoom in.`}
+        aria-label={`${config.type} chart of ${primary.name}${others.map(series => ` and ${series.name}`).join("")} over ${n} months${macro ? `, against ${macro.name}` : ""}. Click to move to a month, drag across months to zoom in.`}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           press.current = { index: indexAt(e.clientX), clientX: e.clientX };
@@ -179,7 +212,7 @@ export function TrajectoryChart({
           press.current = null;
           setDrag(null);
           if (!p) return;
-          if (!drag) return onMonth(months[indexAt(e.clientX)]);
+          if (!drag) { if (n) onMonth(months[indexAt(e.clientX)]); return; }
           const from = Math.min(drag.from, drag.to);
           const to = Math.max(drag.from, drag.to);
           // A drag shorter than the narrowest zoom still opens a readable window.
@@ -194,8 +227,8 @@ export function TrajectoryChart({
       >
         <defs>
           <linearGradient id="wash" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--ink)" stopOpacity="0.07" />
-            <stop offset="1" stopColor="var(--ink)" stopOpacity="0" />
+            <stop offset="0" stopColor={primaryColor} stopOpacity="0.07" />
+            <stop offset="1" stopColor={primaryColor} stopOpacity="0" />
           </linearGradient>
           {/* A little wider than the plot, so a dot on the edge month is not cut in half. */}
           <clipPath id="plot">
@@ -206,9 +239,12 @@ export function TrajectoryChart({
               height={bottom - M.top + 14}
             />
           </clipPath>
+          <clipPath id="bar-plot">
+            <rect x={M.left} y={M.top} width={plotW} height={bottom - M.top} />
+          </clipPath>
         </defs>
 
-        {[M.top, bottom].map((py) => (
+        {config.show_grid && [M.top, bottom].map((py) => (
           <line
             key={py}
             x1={M.left}
@@ -218,7 +254,7 @@ export function TrajectoryChart({
             className="chart__grid"
           />
         ))}
-        {yTicks
+        {config.show_grid && yTicks
           .filter((t) => THRESHOLDS[t] && t > yLo && t < yHi)
           .map((t) => (
             <line
@@ -238,7 +274,7 @@ export function TrajectoryChart({
             textAnchor="end"
             className="chart__tick"
           >
-            {THRESHOLDS[t]} {t}
+            {primary.history.some(row => row.localScoring) ? "" : THRESHOLDS[t]} {t}
           </text>
         ))}
         {months.map((m, i) =>
@@ -274,18 +310,26 @@ export function TrajectoryChart({
             />
           )}
 
-          {area && <path d={area} fill="url(#wash)" />}
+          {config.type === "area" && <>
+            <path d={areaPath(a)} fill="url(#wash)" />
+            {others.map(series => <path key={series.color} d={areaPath(series.vals)} fill={series.color} opacity={.06} />)}
+          </>}
 
-          {/* months after the selected one stay visible, but recede */}
-          <path
-            d={path(a, cursor, n - 1)}
-            className="chart__line chart__line--ahead"
-          />
-          <path
-            d={path(a, 0, cursor)}
-            className="chart__line"
-            stroke="var(--ink)"
-          />
+          {config.type !== "bar" && <>
+            {/* months after the selected one stay visible, but recede */}
+            <path d={path(a, cursor, n - 1)} className="chart__line chart__line--ahead" />
+            {others.map(series => <path key={`ahead-${series.color}`} d={path(series.vals, cursor, n - 1)} className="chart__line chart__line--ahead" />)}
+            {others.map(series => <path key={series.color} d={path(series.vals, 0, cursor)} className="chart__line" stroke={series.color} />)}
+            <path d={path(a, 0, cursor)} className="chart__line" stroke={primaryColor} />
+          </>}
+          {config.type === "bar" && <g clipPath="url(#bar-plot)">
+            {barSeries.flatMap((series, seriesIndex) => series.vals.map((value, index) =>
+              Number.isFinite(value) && index >= i0 && index <= i1
+                ? <rect key={`${seriesIndex}-${index}`} x={x(index) - barWidth * barSeries.length / 2 + seriesIndex * barWidth}
+                    y={y(value)} width={barWidth - barGap} height={Math.max(0, bottom - y(value))}
+                    fill={series.color} opacity={index > cursor ? .25 : .85} />
+                : null))}
+          </g>}
 
           {alerts.map((al) => {
             const i = months.indexOf(al.month);
@@ -302,10 +346,10 @@ export function TrajectoryChart({
             );
           })}
 
-          {hover != null && hover !== cursor && (
+          {activeHover != null && activeHover !== cursor && (
             <line
-              x1={x(hover)}
-              x2={x(hover)}
+              x1={x(activeHover)}
+              x2={x(activeHover)}
               y1={M.top}
               y2={bottom}
               className="chart__crosshair"
@@ -320,17 +364,20 @@ export function TrajectoryChart({
               className="chart__cursor"
             />
           )}
-          {Number.isFinite(a[cursor]) && (
+          {config.type !== "bar" && Number.isFinite(a[cursor]) && (
             <circle
               cx={x(cursor)}
               cy={y(a[cursor])}
               r={4.5}
               className="chart__dot"
-              fill="var(--ink)"
+              fill={primaryColor}
             />
           )}
+          {config.type !== "bar" && others.map(series => Number.isFinite(series.vals[cursor]) && (
+            <circle key={series.color} cx={x(cursor)} cy={y(series.vals[cursor])} r={4.5} className="chart__dot" fill={series.color} />
+          ))}
         </g>
-        {endLabels.map((l, i) => (
+        {config.type !== "bar" && endLabels.map((l, i) => (
           <text
             key={i}
             x={x(cursor) + 10}
@@ -343,16 +390,19 @@ export function TrajectoryChart({
         ))}
       </svg>
 
-      {hover != null && (
+      {activeHover != null && (
         <div
           className="tooltip"
           style={{
-            left: x(hover),
-            transform: `translateX(${hover - i0 > (i1 - i0) * 0.7 ? "calc(-100% - 12px)" : "12px"})`,
+            left: x(activeHover),
+            transform: `translateX(${activeHover - i0 > (i1 - i0) * 0.7 ? "calc(-100% - 12px)" : "12px"})`,
           }}
         >
-          <div className="tooltip__title">{monthLong(months[hover])}</div>
-          {[{ s: primary, v: a[hover], color: "var(--ink)" }].map(
+          <div className="tooltip__title">{monthLong(months[activeHover])}</div>
+          {[
+            { s: primary, v: a[activeHover], color: primaryColor },
+            ...others.map(series => ({ s: series, v: series.vals[activeHover], color: series.color })),
+          ].map(
             ({ s, v, color }) => (
               <div className="tooltip__row" key={color}>
                 <span className="key" style={{ background: color }} />
@@ -361,13 +411,13 @@ export function TrajectoryChart({
               </div>
             ),
           )}
-          {macro && Number.isFinite(macroVals[hover]) && (
+          {macro && Number.isFinite(macroVals[activeHover]) && (
             <div className="tooltip__row">
               <span
                 className="key key--dashed"
                 style={{ background: MACRO_COLOR }}
               />
-              <strong>{macroVals[hover].toFixed(0)}</strong>
+              <strong>{macroVals[activeHover].toFixed(0)}</strong>
               <span>{macro.name}</span>
             </div>
           )}

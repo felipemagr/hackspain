@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { displayCurrency } from "./currency";
+import type { Weights } from "./scoring";
 
 // The agent service. The rest of the demo reads static JSON and works without it.
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
@@ -60,6 +61,8 @@ export interface Turn {
   id: number;
   question: string;
   month: string;
+  entityId?: string;
+  weights?: Weights;
   phase: Phase;
   purpose: string | null;
   agents: AgentRun[];
@@ -115,7 +118,7 @@ export const WRITER_RULES = [
 export function writerStatus(turn: Turn | undefined): AgentStatus | "idle" {
   if (turn?.phase === "writing") return "running";
   if (turn?.check?.untraced.length) return "failed";
-  return turn?.check ? "done" : "idle";
+  return turn?.check || turn?.phase === "done" ? "done" : "idle";
 }
 
 export function checkNote(check: FigureCheck): string {
@@ -194,9 +197,9 @@ const CHATS_KEY = "xray.chats.v2";
 const WORKING: Phase[] = ["planning", "agents", "writing"];
 
 // A turn cut short by a reload never finished: it comes back as stopped.
-function readChats(): Conversation[] {
+function readChats(key: string): Conversation[] {
   try {
-    const chats = JSON.parse(localStorage.getItem(CHATS_KEY) ?? "[]") as Conversation[];
+    const chats = JSON.parse(localStorage.getItem(key) ?? "[]") as Conversation[];
     return chats.map((chat) => ({
       ...chat,
       turns: chat.turns.map((t) => (WORKING.includes(t.phase) ? { ...t, phase: "stopped" } : t)),
@@ -206,10 +209,11 @@ function readChats(): Conversation[] {
   }
 }
 
-export function useChat() {
+export function useChat(localScoring = false) {
+  const storageKey = localScoring ? "xray.localScoring.chats" : CHATS_KEY;
   const [fleet, setFleet] = useState<FleetState>({ status: "waking" });
   // Newest first. activeId null is a new conversation nobody has asked in yet.
-  const [chats, setChats] = useState(readChats);
+  const [chats, setChats] = useState(() => readChats(storageKey));
   const [activeId, setActiveId] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
   const turns = chats.find((chat) => chat.id === activeId)?.turns ?? [];
@@ -235,18 +239,20 @@ export function useChat() {
   useEffect(() => {
     if (streaming) return;
     try {
-      localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+      localStorage.setItem(storageKey, JSON.stringify(chats));
     } catch {
       // private window: the conversations still work for the session
     }
-  }, [chats, streaming]);
+  }, [chats, streaming, storageKey]);
 
   const ask = useCallback(
-    async (question: string, month: string) => {
+    async (question: string, month: string, context?: { entityId: string; weights?: Weights }) => {
+      const entityId = context?.entityId;
+      const weights = context?.weights;
       const id = Date.now();
       const chatId = activeId ?? id;
       const history = turns
-        .filter((t) => t.answer)
+        .filter((t) => t.answer && (!localScoring || (t.entityId === entityId && t.month === month && JSON.stringify(t.weights) === JSON.stringify(weights))))
         .flatMap((t) => [
           { role: "user", content: t.question },
           { role: "assistant", content: t.answer },
@@ -263,6 +269,8 @@ export function useChat() {
         id,
         question,
         month,
+        entityId,
+        weights,
         phase: "planning",
         purpose: null,
         agents: [],
@@ -283,7 +291,8 @@ export function useChat() {
           headers: { "Content-Type": "application/json", ...API_HEADERS },
           body: JSON.stringify({
             message: question,
-            month,
+            ...(localScoring ? { entity_id: entityId, weights } : {}),
+            month: localScoring ? month.slice(0, 7) : month,
             history,
             currency: displayCurrency(),
           }),
@@ -301,7 +310,7 @@ export function useChat() {
           }));
       }
     },
-    [turns, activeId],
+    [turns, activeId, localScoring],
   );
 
   const stop = useCallback(() => abort.current?.abort(), []);

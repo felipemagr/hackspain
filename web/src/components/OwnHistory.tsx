@@ -46,7 +46,7 @@ function rankOf(values: number[], v: number): number {
 }
 
 export function OwnHistory({ history, month }: OwnHistoryProps) {
-  const measured = history.filter((s) => s.state !== "not_enough_data");
+  const measured = history.filter((s): s is ScoreRow & { level: number } => s.level != null && Number.isFinite(s.level) && (s.localScoring != null || s.state !== "not_enough_data"));
   const today = measured.find((s) => s.month === month);
   const levels = measured.map((s) => s.level);
   const lo = levels.length ? Math.min(...levels) : 0;
@@ -62,8 +62,7 @@ export function OwnHistory({ history, month }: OwnHistoryProps) {
           <span className="hint">own range, not the portfolio</span>
         </div>
         <p className="empty">
-          No reading in {monthLong(month)}: the first five months of a group come out without
-          enough history, and placing a month needs at least two scored ones.
+          No reading in {monthLong(month)}: placing a month needs at least two scored months and an available score for the selected month.
         </p>
       </section>
     );
