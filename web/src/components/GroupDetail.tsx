@@ -7,6 +7,7 @@ import { useTween } from "../lib/useTween";
 import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
+import { PromptPay } from "./PromptPay";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
@@ -264,6 +265,7 @@ export function GroupDetail({
 
       {score && <OwnHistory history={history} month={month} />}
       {score && <WhatIf score={score} />}
+      {score && <PromptPay store={store} groupId={groupId} month={month} />}
     </article>
   );
 }
