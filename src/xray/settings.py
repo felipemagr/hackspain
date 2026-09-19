@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     serving_dir: Path = PROJECT_ROOT / "data" / "serving"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     slack_webhook_url: str | None = None
+    tavily_api_key: str | None = None
 
 
 @lru_cache

@@ -103,6 +103,7 @@ src/xray/
   settings.py      runtime settings from .env (XRAY_ prefix)
   notify.py        Slack alert delivery
   api/             FastAPI demo backend
+  agents/          research, macro and narrator agents around the score (scaffold)
 tests/             lean pytest suite
 notebooks/         exploration only, outputs stripped on commit
 data/raw/          the dataset (git-ignored)

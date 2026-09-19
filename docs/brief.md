@@ -218,6 +218,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Bump vs fall, alerting | `src/xray/monitor.py` |
 | Alert delivery to Slack | `src/xray/notify.py` |
 | Limit, price, ranked actions | `src/xray/offer.py` |
+| Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Hidden-test predictions for the leaderboard | `src/xray/submit.py` |
 | Precomputed results the demo reads | parquet in `data/serving/`, written by the pipeline, read by the API through in-memory DuckDB |
 | API for the demo | `src/xray/api/` (see `.claude/rules/api-design.md`) |
