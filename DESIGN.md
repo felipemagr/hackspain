@@ -51,8 +51,9 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 ## Components
 
 - **Brand mark** (`App.tsx`, `public/favicon.svg`): three ink facets in the angular language of
-  Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: what the X ray
-  sees. The favicon sets it in white on an ink tile. Sources and rejected options in `docs/brand/`.
+  Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: the lit
+  lantern of the lighthouse. The favicon sets it in white on an ink tile. Sources and rejected
+  options in `docs/brand/`.
 - **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
 - **State tag**: 7-8px dot plus label.

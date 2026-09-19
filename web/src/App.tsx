@@ -148,7 +148,7 @@ export default function App() {
               <path fill="currentColor" d="M14 3l6 9-6 9zM4 6.3 14 3 7.6 12zM4 17.7 7.6 12 14 21z" />
               <path fill="url(#brand-inside)" d="M9.4 12l3.7-5.2v10.4z" />
             </svg>
-            X Ray
+            Lighthouse
             {store.version && (
               <span
                 className="live"

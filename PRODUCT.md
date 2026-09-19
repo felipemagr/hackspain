@@ -59,7 +59,7 @@ both directions, and decomposes every number into named drivers.
 
 ## Brand Commitments
 
-Name: **X Ray**. Voice: a tool a CFO trusts with a lending decision — precise, calm, no black
+Name: **Lighthouse** (Embat Lighthouse in lockups; the repo and package keep the working name X Ray). Voice: a tool a CFO trusts with a lending decision — precise, calm, no black
 box. Look, pinned by the team: light, calm and minimal. The less on screen the better, no
 clutter, no decoration that reads as generated. Visual system: `DESIGN.md`.
 
