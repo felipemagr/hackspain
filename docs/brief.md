@@ -185,7 +185,8 @@ for:
 
 ### The demo, five minutes
 
-It runs live. `make replay FROM=2025-01 PAUSE=8 CHANNEL=slack` is started before walking on:
+It runs live. `make lighthouse` brings the whole thing up in one terminal (data, API, web);
+`make replay FROM=2025-01 PAUSE=8 CHANNEL=slack` in a second one is started before walking on:
 every eight seconds a month of data lands, the score is recomputed from what was known by then,
 the web refreshes on its own and the month's alerts arrive in the Slack channel on the projector.
 Nobody clicks anything to make the portfolio move.
@@ -218,7 +219,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Convert money columns to euros with annual rates | `src/xray/pipeline/fx.py`, `src/xray/pipeline/fx_rates.csv` |
 | Monthly panel per group, no look-ahead | `src/xray/pipeline/panel.py` |
 | Daily extracts, as-of reads | `src/xray/pipeline/lake.py` |
-| Whole pipeline end to end | `python -m xray.pipeline`, `make panel` |
+| Whole pipeline end to end | `python -m xray.pipeline`, `make panel`; everything up to a running API and web: `make lighthouse` |
 | Anchor table: raw ratio to 0-100, pillar weights | `src/xray/scoring/anchors.py` |
 | Level score, per group or per company | `src/xray/scoring/score.py` |
 | Provisional score and drivers for the local internal viewer | `src/xray/scoring/score_baseline.py`, `make score-baseline` |

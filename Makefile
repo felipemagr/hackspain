@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
         events score score-baseline validate monitor alerts notify serve submit replay demo demo-data \
-        api api-up api-down slack-test email-test \
+        lighthouse api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
 
@@ -27,7 +27,9 @@ inspect: ## Print shape and dtypes of every CSV in data/raw
 	uv run python -m xray.pipeline.data
 
 $(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/pipeline/clean.py
-	uv run python -m xray.pipeline.clean
+	@test -n "$(wildcard $(RAW_DIR)/*.csv)" || { \
+		echo "No CSVs in $(RAW_DIR). Drop the nine challenge files there, or pass RAW_DIR=path/to/csvs"; exit 1; }
+	XRAY_DATA_DIR=$(RAW_DIR) uv run python -m xray.pipeline.clean
 	@touch $@
 
 $(CASH): $(CLEAN_STAMP) src/xray/pipeline/cash.py
@@ -49,7 +51,18 @@ fx: ## Refresh the yearly euro rates (ECB, pegs, the data) in src/xray/pipeline/
 	uv run python -m xray.pipeline.fx
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
-	uv run python -m xray.pipeline
+	XRAY_DATA_DIR=$(RAW_DIR) uv run python -m xray.pipeline
+
+# Everything, one command. Data first (clean, cash, panel, score, monitor, serving tables, the
+# JSON copy the web falls back to), then the API and the web side by side; Ctrl-C stops both.
+lighthouse: install $(WEB_DEPS) serve ## From the raw CSVs to a running demo: load, score, publish, then API on :8000 and web on :5173. make lighthouse [RAW_DIR=path/to/csvs]
+	@echo
+	@echo "  Lighthouse is coming up."
+	@echo "  web  http://localhost:5173        api  http://localhost:8000/docs"
+	@echo "  In another terminal: make replay FROM=2025-01 PAUSE=8 to watch the real months land,"
+	@echo "  or make demo FROM=2025-01 PAUSE=8 for the named synthetic portfolio. Ctrl-C stops both."
+	@echo
+	$(MAKE) -j2 api web
 
 EVENTS := $(MARTS_DIR)/events.parquet
 SCORES := $(MARTS_DIR)/scores.parquet
@@ -141,8 +154,12 @@ email-test: ## Send a test alert to the SMTP host in .env
 	uv run python -m xray.integrations.email
 
 # Web demo
-web-install: ## Install the demo front end dependencies
-	cd web && npm install
+WEB_DEPS := web/node_modules/.package-lock.json
+
+$(WEB_DEPS): web/package.json web/package-lock.json
+	cd web && npm install --no-audit --no-fund
+
+web-install: $(WEB_DEPS) ## Install the demo front end dependencies
 
 web-data: ## Export data/serving parquet to web/public/data as JSON for the front end
 	uv run python -m xray.pipeline.export_serving

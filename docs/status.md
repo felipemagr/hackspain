@@ -51,10 +51,11 @@ data, `stub` exists but returns a placeholder, `todo` is not written.
 | Agent: peers | `src/xray/agents/peers.py` | built | `data/serving/context/` | `make peers NAME="Cabify"` |
 | Agent: macro | `src/xray/agents/macro.py` | stub | | |
 | Agent: narrator | `src/xray/agents/narrator.py` | partial: ranks weak pillars, prose pass not wired | | |
-| CI | `Makefile` | built | lint, format, 139 tests, green | `make ci` |
+| CI | `Makefile` | built | lint, format, 147 tests, green | `make ci` |
 
-Real score end to end, and live: `make api`, `make web`, `make replay` shows the portfolio move
-month by month with alerts landing as they would have. `groups.name` is the `group_id` because
+Real score end to end, and live: `make lighthouse` brings data, API and web up in one command;
+`make replay` (or `make demo`) beside it shows the portfolio move month by month with alerts
+landing as they would have. `groups.name` is the `group_id` because
 the dataset has no trading names (Q9).
 
 ```mermaid

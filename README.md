@@ -78,11 +78,23 @@ flowchart LR
 
 ## Quickstart
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+.
+Requires [uv](https://docs.astral.sh/uv/), Python 3.12+ and Node 20+.
+
+```bash
+# drop the nine dataset CSVs into data/raw/, then:
+make lighthouse                  # everything: install, load, score, publish, API on :8000, web on :5173
+make lighthouse RAW_DIR=output   # same, CSVs somewhere else
+```
+
+One command, a few minutes the first time (npm install and the 615 MB of CSV), about fifteen
+seconds after that. Ctrl-C stops the API and the web together. With it running, a second terminal
+can feed the months in live: `make replay FROM=2025-01 PAUSE=8` on the challenge data, or
+`make demo FROM=2025-01 PAUSE=8` on the named synthetic portfolio.
+
+Piece by piece:
 
 ```bash
 make install     # uv sync + nbstripout git filter
-# drop the dataset CSVs into data/raw/  (or set XRAY_DATA_DIR)
 make inspect     # shape, columns and dtypes of every table found
 make test
 make quality     # ruff check + format check

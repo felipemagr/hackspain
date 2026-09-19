@@ -154,18 +154,19 @@ screen leaves no trace. If the API is asleep the report is lost, which is accept
 The front end reads the API when one answers `/api/v1/version` and falls back to its baked JSON otherwise, so the deployed site works with no API and the same build goes live the moment an API is reachable. On stage, everything runs on the laptop:
 
 ```bash
-make api                                   # or make api-up; serves data/serving, views follow the files
-make web                                   # http://localhost:5173, shows a pulsing "live" badge
-make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # a month lands every 8 s, alerts go to Slack
+make lighthouse [RAW_DIR=path/to/csvs]           # load, score, publish, then API :8000 and web :5173 together
+make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # second terminal: a month lands every 8 s, alerts go to Slack
 ```
+
+`make lighthouse` is `install`, `npm install` when `web/node_modules` is missing or stale, the pipeline up to the serving tables (skipping what is already built), the JSON export, then `make -j2 api web`: both processes in one terminal, Ctrl-C stops both. Separately: `make api` (or `make api-up` in Docker) and `make web`.
 
 Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `xray-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
 
 ### With names the room knows: `make demo`
 
 ```bash
-make api && make web           # in two terminals, as above
-make demo FROM=2025-01 PAUSE=8 CHANNEL=slack
+make lighthouse                # as above, in one terminal
+make demo FROM=2025-01 PAUSE=8 CHANNEL=slack   # in another
 make serve                     # afterwards: put the real challenge tables back in data/serving
 ```
 
