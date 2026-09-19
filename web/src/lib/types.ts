@@ -20,12 +20,14 @@ export type Pillar =
 export interface GroupRow {
   group_id: string;
   name: string;
-  sector: string;
-  country: string;
+  /** The challenge dataset carries no sector; only the mock tables fill it. */
+  sector: string | null;
+  country: string | null;
   n_companies: number;
   has_erp: boolean;
   annual_revenue_eur: number;
-  archetype: string;
+  /** Mock tables only. */
+  archetype?: string;
 }
 
 export interface ScoreRow {

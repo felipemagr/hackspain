@@ -45,13 +45,13 @@ export const PILLARS: PillarMeta[] = [
   {
     key: "liquidity",
     label: "Liquidity",
-    weight: 25,
+    weight: 40,
     evidence: (s) => (s.buffer_days == null ? null : `${s.buffer_days.toFixed(0)} days of cash`),
   },
   {
     key: "cash_generation",
     label: "Cash generation",
-    weight: 25,
+    weight: 20,
     evidence: (s) =>
       s.operating_margin == null ? null : `${(s.operating_margin * 100).toFixed(0)}% margin`,
   },
@@ -64,13 +64,13 @@ export const PILLARS: PillarMeta[] = [
   {
     key: "collections",
     label: "Collections",
-    weight: 15,
+    weight: 10,
     evidence: (s) => terms(s.ar_days_beyond_terms, "collecting"),
   },
   {
     key: "debt_burden",
     label: "Debt burden",
-    weight: 15,
+    weight: 10,
     evidence: (s) => (s.dscr == null ? null : `${s.dscr.toFixed(2)}x debt cover`),
   },
 ];

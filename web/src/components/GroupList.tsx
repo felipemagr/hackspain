@@ -46,7 +46,12 @@ export function GroupList({ store, month, selectedId, onSelect }: GroupListProps
               >
                 <span className="row__text">
                   <span className="row__name">{group.name}</span>
-                  <span className="row__sub">{group.sector}</span>
+                  <span className="row__sub">
+                    {group.sector ??
+                      [group.country, `${group.n_companies} ${group.n_companies === 1 ? "company" : "companies"}`]
+                        .filter(Boolean)
+                        .join(" · ")}
+                  </span>
                 </span>
                 <Sparkline series={series} total={store.months.length} />
                 <span className="row__level">{fmtScore(score?.level)}</span>

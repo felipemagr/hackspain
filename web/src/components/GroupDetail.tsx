@@ -57,9 +57,14 @@ export function GroupDetail({
         <div>
           <h1>{group.name}</h1>
           <p className="detail__meta">
-            {group.sector} · {group.country} · {group.n_companies}{" "}
-            {group.n_companies === 1 ? "company" : "companies"} · {fmtEur(group.annual_revenue_eur)}{" "}
-            revenue
+            {[
+              group.sector,
+              group.country,
+              `${group.n_companies} ${group.n_companies === 1 ? "company" : "companies"}`,
+              `${fmtEur(group.annual_revenue_eur)} revenue`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         {score && (
