@@ -59,10 +59,11 @@ export function delivers(alarm: Alarm): string {
   return alarm.email_to ? `Email to ${alarm.email_to}` : "Email";
 }
 
+// A GET carries no content type, so the poll stays a simple request with no preflight.
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}/api/v1/alert-rules${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...API_HEADERS, ...(init.headers ?? {}) },
+    headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...API_HEADERS },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
