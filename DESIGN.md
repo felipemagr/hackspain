@@ -93,9 +93,10 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
   under, every tool call with input, output and time, findings and sources. Tool calls are the
   one place monospace is used, because they are code. No bubbles, no avatars, no modal.
-- **Starter questions** (`Chat.tsx`): the first one is chosen by the group's state, the rest
-  show who may be asking (CFO, lender, a what-if, the country). The group is changed with the
-  "Ask about" select in the chat header; naming another group's id in a question compares it.
+- **Chat guide** (`Chat.tsx`): an empty conversation shows no suggested questions. It shows a
+  short lead and a five-row guide, topic at weight 500 and one plain line on what it answers,
+  one row per agent's ground. The group is changed with the "Ask about" select in the chat
+  header; naming another group's id in a question compares it.
 - **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
   the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
   button on hover. "New conversation" is a text link in the section head. The section is sticky at

@@ -15,22 +15,13 @@ import { monthLong } from "../lib/format";
 import type { Store } from "../lib/load";
 import { StateTag } from "./StateTag";
 
-// The first question depends on where the group stands. The rest show the range of people who
-// ask: the CFO, a lender, an investor.
-const OPENERS: Record<string, string> = {
-  healthy: "What keeps this group healthy, and what would break it?",
-  stable: "What keeps this group where it is?",
-  improving: "What is driving the improvement, and will it hold?",
-  bending: "What started to bend, and when was it first visible?",
-  falling: "What is pulling the level down, and since when?",
-  bump: "Is this month a bump or the start of a fall?",
-  weak: "What holds the level down, and what lifts it fastest?",
-};
-const STARTERS = [
-  "Who do we chase this week, and how much rides on them?",
-  "What if we lift collections 10 points?",
-  "Would a lender renew our credit line?",
-  "Is it us, or is the country moving too?",
+// What the chat is good for, in the words of the person asking. Each line is one agent's ground.
+const GUIDE: [string, string][] = [
+  ["Why the score moved", "Which pillar moved it, since when, and whether it is a bump or a fall."],
+  ["Who to chase", "Customers paying late, what is overdue and how much billing rides on them."],
+  ["What a move would do", "Lift a pillar and see the level and the credit line reprice."],
+  ["Where the group stands", "Against the portfolio, or against another group named by its id."],
+  ["What is happening outside", "The country around the group, or a real company you name."],
 ];
 
 const host = (url: string) => {
@@ -254,9 +245,6 @@ export function Chat({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [turns]);
 
-  const opener = score && OPENERS[score.state];
-  const starters = opener ? [opener, ...STARTERS] : STARTERS;
-
   const send = (question: string) => {
     const text = question.trim();
     if (!text || busy || !ready) return;
@@ -295,17 +283,20 @@ export function Chat({
       <div className="chat__scroll" ref={scroller}>
         <div className="chat__column">
           {turns.length === 0 ? (
-            <div className="starters">
-              <p className="starters__lead">
-                Ask anything about this group, as its CFO, a lender or an investor. The planner
-                works out who is asking and guides the agents. Name another group to compare.
-                Open any agent to see its rules and every step it took.
+            <div className="guide">
+              <p className="guide__lead">
+                Ask in your own words, as the group's CFO, a lender or an investor. The planner
+                works out who is asking and guides the agents. Open any agent in the answer to see
+                its rules and every step it took.
               </p>
-              {starters.map((question) => (
-                <button key={question} onClick={() => send(question)} disabled={!ready}>
-                  {question}
-                </button>
-              ))}
+              <dl>
+                {GUIDE.map(([topic, what]) => (
+                  <div key={topic}>
+                    <dt>{topic}</dt>
+                    <dd>{what}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           ) : (
             turns.map((turn) => <TurnView key={turn.id} turn={turn} members={members} />)
