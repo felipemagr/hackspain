@@ -19,7 +19,7 @@ services:
 
   # The API. Free instances sleep after 15 min idle and take about a minute to wake.
   - type: web
-    name: xray-api
+    name: lighthouse-api
     runtime: docker
     plan: free
     region: frankfurt
