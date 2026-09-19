@@ -121,7 +121,7 @@ Both jobs run in parallel and use no secrets. There is no CD job: Render redeplo
 | `xray` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
 | `xray-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
 
-- The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables change, run `make web-data` and commit.
+- The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables or the agent cache change, run `make publish` (re-exports the JSON and stages what Render serves), then commit and push.
 - `data/serving/context/*.json` (agent context cache) is in git for the same reason: a git build has no other way to get it.
 - The API needs no secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
 - Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.

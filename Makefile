@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
         events score validate api api-up api-down slack-test context peers test test-quick lint \
-        format quality ci clean web-install web-data web web-build
+        format quality ci clean web-install web-data web web-build publish
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
@@ -103,6 +103,10 @@ web: web-data ## Run the demo front end on http://localhost:5173
 
 web-build: web-data ## Build the demo front end into web/dist
 	cd web && npm run build
+
+publish: web-data ## Stage everything Render serves (tables, JSON copies, agent cache): commit and push after
+	git add data/serving/*.parquet data/serving/context web/public/data
+	git status --short data/serving web/public/data
 
 # Agents
 context: ## Public context for one company, cached in data/serving/context: make context NAME="Cabify" [REFRESH=1]
