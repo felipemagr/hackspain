@@ -1606,7 +1606,43 @@ select:hover {
   padding: 0 48px 28px;
 }
 
+/* Groups offered while a $ is being typed. It opens upward: the composer sits at the bottom. */
+.mentions {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 10;
+  min-width: 232px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px -8px rgb(5 11 44 / 0.22);
+}
+
+.mentions button {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mentions button:hover,
+.mentions button.is-picked {
+  background: var(--hover);
+}
+
 .composer__field {
+  position: relative;
   max-width: 760px;
   display: flex;
   align-items: flex-end;

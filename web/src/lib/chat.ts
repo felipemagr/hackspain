@@ -44,6 +44,11 @@ export interface Suggestion {
   detail: string;
 }
 
+export interface FigureCheck {
+  figures: number;
+  untraced: string[];
+}
+
 export type Phase = "planning" | "agents" | "writing" | "done" | "stopped" | "error";
 
 export interface Turn {
@@ -58,6 +63,8 @@ export interface Turn {
   agents: AgentRun[];
   suggestion: Suggestion | null;
   answer: string;
+  // The writer's figures, checked against the agent reports once the answer ends.
+  check?: FigureCheck;
   ms?: number;
   error?: string;
 }
@@ -78,6 +85,7 @@ type Dispatched = { id: string; reason: string };
 type ChatEvent =
   | { type: "planning" | "writing" }
   | { type: "plan"; purpose: string; company: string | null; agents: Dispatched[] }
+  | ({ type: "check" } & FigureCheck)
   | { type: "dispatch"; agents: Dispatched[] }
   | ({ type: "agent"; id: string; status: AgentStatus } & Partial<AgentRun>)
   | ({ type: "step"; agent: string } & Step)
@@ -94,6 +102,25 @@ export function runNote(run: AgentRun): string {
   if (run.status === "failed") return "failed";
   if (run.status === "done") return secs(run.ms ?? 0);
   return run.steps.findLast((step) => step.status === "running")?.tool ?? "starting";
+}
+
+// The writer is a member of the fleet like any other: it runs, it ends, and its work is checked.
+export const WRITER_RULES = [
+  "Writes only from the agent reports.",
+  "Every figure in the answer is checked against those reports, at the precision it has.",
+  "Counts up to twelve are words, not figures.",
+];
+
+export function writerStatus(turn: Turn | undefined): AgentStatus | "idle" {
+  if (turn?.phase === "writing") return "running";
+  if (turn?.check?.untraced.length) return "failed";
+  return turn?.check ? "done" : "idle";
+}
+
+export function checkNote(check: FigureCheck): string {
+  if (check.untraced.length)
+    return `${check.untraced.length} of ${check.figures} figures not in the reports`;
+  return check.figures ? `${check.figures} figures, all traced` : "no figures to trace";
 }
 
 const queued = (agents: Dispatched[], followUp: boolean): AgentRun[] =>
@@ -139,6 +166,8 @@ function apply(turn: Turn, event: ChatEvent): Turn {
       return { ...turn, phase: "writing" };
     case "token":
       return { ...turn, answer: turn.answer + event.text };
+    case "check":
+      return { ...turn, check: { figures: event.figures, untraced: event.untraced } };
     case "error":
       return { ...turn, phase: "error", error: event.message };
     case "done":

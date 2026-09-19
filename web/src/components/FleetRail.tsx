@@ -1,4 +1,11 @@
-import { runNote, type Conversation, type FleetState, type Turn } from "../lib/chat";
+import {
+  checkNote,
+  runNote,
+  writerStatus,
+  type Conversation,
+  type FleetState,
+  type Turn,
+} from "../lib/chat";
 
 // A turn id is the time it was asked.
 function ago(then: number): string {
@@ -98,7 +105,6 @@ function Fleet({
 
   const live = new Map(turn?.agents.map((a) => [a.id, a]));
   const planning = turn?.phase === "planning";
-  const writing = turn?.phase === "writing";
 
   return (
     <>
@@ -133,12 +139,14 @@ function Fleet({
       })}
       <div className="list__head">Answer</div>
       <div className="agent">
-        <span className="agent__dot" data-status={writing ? "running" : "idle"} />
+        <span className="agent__dot" data-status={writerStatus(turn)} />
         <span className="row__text">
           <span className="row__name">Writer</span>
-          <span className="row__sub">Writes the answer. Adds no numbers.</span>
+          <span className="row__sub">Writes the answer. Every figure is checked.</span>
         </span>
-        <span className="row__when">{writing ? "writing" : ""}</span>
+        <span className="row__when">
+          {turn?.phase === "writing" ? "writing" : turn?.check ? checkNote(turn.check) : ""}
+        </span>
       </div>
       {!fleet.model && (
         <p className="fleet__foot">No model key set: answers are the raw reports.</p>

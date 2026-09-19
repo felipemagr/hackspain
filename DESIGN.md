@@ -85,10 +85,15 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
   and the writer, each with its live state and the tool it is running. The detail pane holds the
   conversation. A turn is the question at 22px, a line saying what the planner read it as, a
-  trace of the agents dispatched (dot, name, one-line report, time), then the answer as prose at
+  trace of the agents dispatched (dot, name, one-line report, time) closed by the writer's own
+  row, which ends on its figure check ("32 figures, all traced"), then the answer as prose at
   15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
   under, every tool call with input, output and time, findings and sources. Tool calls are the
   one place monospace is used, because they are code. No bubbles, no avatars, no modal.
+- **Group mentions** (`Chat.tsx`): there is no group selector in the chat. The question is about
+  the open group; typing `$` opens a list of groups above the composer (arrows, Enter or Tab to
+  pick, Escape to dismiss). A `$GROUP` that opens the question becomes its subject, one anywhere
+  else is compared. The first starter question is chosen by the group's state.
 - **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
   the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
   button on hover. "New conversation" is a text link in the section head. The section is sticky at
