@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
+.PHONY: help install inspect clean-data cash panel pipeline score mock sql notebook docker-build docker-pipeline \
         api api-up api-down slack-test context test test-quick lint format quality ci clean
 
 RAW_DIR ?= data/raw
@@ -8,6 +8,7 @@ MARTS_DIR := data/marts
 CLEAN_STAMP := $(PROCESSED_DIR)/.clean.stamp
 CASH := $(MARTS_DIR)/cash_monthly.parquet
 PANEL := $(MARTS_DIR)/panel_group.parquet
+SCORE := $(MARTS_DIR)/real_scores.parquet
 IMAGE ?= xray:latest
 
 help: ## Show this help
@@ -32,6 +33,9 @@ $(CASH): $(CLEAN_STAMP) src/xray/pipeline/cash.py
 $(PANEL): $(CASH) src/xray/pipeline/panel.py
 	uv run python -m xray.pipeline.panel
 
+$(SCORE): $(PANEL) src/xray/scoring/score.py
+	uv run python -m xray.scoring.score
+
 clean-data: $(CLEAN_STAMP) ## Stage data/raw as parquet in data/processed
 
 cash: $(CASH) ## Reconstruct the monthly cash mart
@@ -40,6 +44,8 @@ panel: $(PANEL) ## Build the monthly panel mart, rebuilding upstream layers as n
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
 	uv run python -m xray.pipeline
+
+score: $(SCORE) ## Calculate real monthly group scores and drivers from the panel
 
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock

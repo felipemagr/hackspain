@@ -2,16 +2,20 @@
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import duckdb
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from xray.api.routers import health
+from xray.api.routers import health, real_groups
+from xray.config import MARTS_DIR
 from xray.settings import get_settings
 
 logger = logging.getLogger(__name__)
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 @asynccontextmanager
@@ -25,6 +29,13 @@ async def lifespan(app: FastAPI):
     for path in sorted(settings.serving_dir.glob("*.parquet")):
         app.state.db.sql(f"create view {path.stem} as select * from '{path}'")
         app.state.tables.append(path.stem)
+    app.state.real_tables = set(app.state.tables) & {"real_scores", "real_drivers"}
+    for name in ("real_scores", "real_drivers"):
+        path = MARTS_DIR / f"{name}.parquet"
+        if path.is_file():
+            escaped = str(path).replace("'", "''")
+            app.state.db.sql(f"create or replace view {name} as select * from '{escaped}'")
+            app.state.real_tables.add(name)
     if not app.state.tables:
         logger.warning("No parquet tables found in %s", settings.serving_dir)
     yield
@@ -50,3 +61,11 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
 
 
 app.include_router(health.router)
+app.include_router(real_groups.router)
+app.mount("/viewer/assets", StaticFiles(directory=STATIC_DIR), name="viewer-assets")
+
+
+@app.get("/viewer", include_in_schema=False)
+def viewer() -> FileResponse:
+    """Open the internal viewer for calculated group scores."""
+    return FileResponse(STATIC_DIR / "viewer.html")

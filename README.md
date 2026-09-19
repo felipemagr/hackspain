@@ -94,6 +94,10 @@ make api-up      # same API in Docker, reads data/serving/*.parquet
 make slack-test  # send a test alert to the Slack webhook
 ```
 
+To inspect the calculated scores locally, run `make score`, then `make api`, and open
+[the internal viewer](http://localhost:8000/viewer). It reads `data/marts/real_scores.parquet`
+and `real_drivers.parquet`; the invented `DEMO_*` serving data is not shown there.
+
 ## Repo layout
 
 ```

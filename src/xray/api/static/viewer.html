@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Explorador de scores · X Ray</title>
+  <link rel="stylesheet" href="/viewer/assets/viewer.css">
+  <script src="/viewer/assets/viewer.js" defer></script>
+</head>
+<body>
+  <!-- Direction: internal analysis desk. Purpose: inspect calculated evidence. Audience: hackathon team. Structure: searchable group rail, trajectory, drivers, quality. Mood: precise and restrained. Finish: keyboard focus, empty/loading/error, mobile stack. -->
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">X</span><span>X Ray <span class="brand-divider">/</span> Explorador</span></div>
+    <span class="topbar-note">Scores reales · base provisional</span>
+  </header>
+  <div class="workspace">
+    <aside class="rail" aria-label="Grupos">
+      <div class="rail-head">
+        <h1>Grupos</h1>
+        <p id="group-count" class="muted">Cargando datos…</p>
+        <label class="search-label" for="search">Buscar grupo</label>
+        <input id="search" type="search" placeholder="Ej. GROUP_0042" autocomplete="off">
+      </div>
+      <div id="group-list" class="group-list" role="listbox" aria-label="Seleccionar grupo"></div>
+      <div class="rail-foot">Datos calculados, sin etiquetas inferidas ni grupos DEMO_*.</div>
+    </aside>
+    <main class="main" id="main">
+      <div id="status" class="status" role="status">Cargando resultados…</div>
+      <div id="content" hidden>
+        <div class="page-heading">
+          <div>
+            <div class="heading-row"><h2 id="group-title"></h2><span id="state-badge" class="badge"></span></div>
+            <p id="month-label" class="muted"></p>
+          </div>
+          <label class="month-picker">Mes observado
+            <select id="month-select" aria-label="Mes observado"></select>
+          </label>
+        </div>
+
+        <section class="score-strip" aria-label="Resumen del score">
+          <div class="primary-number"><span id="score-value">—</span><span class="unit">/ 100</span><span class="metric-label">Nivel de salud</span></div>
+          <div class="strip-item"><span class="metric-label">Tendencia mensual</span><strong id="trend-value">—</strong><span class="metric-note">pendiente robusta, 6 meses</span></div>
+          <div class="strip-item"><span class="metric-label">Cobertura de pilares</span><strong id="coverage-value">—</strong><span class="metric-note">peso disponible del modelo</span></div>
+          <div class="strip-item"><span class="metric-label">Meses observados</span><strong id="observed-value">—</strong><span class="metric-note">del historial del grupo</span></div>
+        </section>
+
+        <section class="section trajectory-section" aria-labelledby="trajectory-title">
+          <div class="section-heading"><h3 id="trajectory-title">Trayectoria</h3><p>Selecciona un punto para ver qué lo explica.</p></div>
+          <div id="chart" class="chart" role="img" aria-label="Evolución mensual del nivel de salud"></div>
+          <div class="chart-legend"><span><i class="legend-line"></i>Nivel calculado</span><span><i class="legend-gap"></i>Sin score</span><span>Umbrales de referencia: 40 · 70</span></div>
+        </section>
+
+        <div class="detail-grid">
+          <section class="section" aria-labelledby="drivers-title">
+            <div class="section-heading"><h3 id="drivers-title">Pilares y cambio mensual</h3><p>Contribución al nivel respecto a 50; no es una probabilidad.</p></div>
+            <div class="table-wrap"><table><thead><tr><th>Pilar</th><th>Valor</th><th>Contribución</th><th>Δ contrib.</th></tr></thead><tbody id="drivers-body"></tbody></table></div>
+            <p id="cap-note" class="inline-note" hidden>El nivel se limitó a 50 por una señal crítica de liquidez o pagos; las contribuciones explican el nivel previo al límite.</p>
+          </section>
+          <section class="section" aria-labelledby="quality-title">
+            <div class="section-heading"><h3 id="quality-title">Lectura y calidad del dato</h3><p>Indicadores observables del mes seleccionado.</p></div>
+            <dl id="facts" class="facts"></dl>
+            <div id="quality-notes" class="quality-notes"></div>
+          </section>
+        </div>
+        <footer class="method-note">Score exploratorio, no rating crediticio calibrado. Un dato ausente se muestra como «—», nunca como cero.</footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

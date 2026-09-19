@@ -44,9 +44,13 @@ _ADDITIVE = (
     "n_tx",
     "inflow",
     "outflow",
+    "operating_inflow",
+    "operating_outflow",
+    "uncategorized_amount",
     "salary_outflow",
     "tax_outflow",
     "debt_repayment_outflow",
+    "interest_outflow",
     "fee_outflow",
     "n_counterparties",
     "ar_open",
@@ -57,6 +61,8 @@ _ADDITIVE = (
     "ap_paid",
     "ar_collected_days",
     "ap_paid_days",
+    "ar_late_days",
+    "ap_late_days",
     "n_invoices_issued",
     "n_invoices_received",
 )
@@ -80,7 +86,7 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         ))::date as month
     ),
     spine as (
-        select c.company_id, c.group_id, m.month, last_day(m.month) as month_end
+        select c.company_id, c.group_id, c.currency, m.month, last_day(m.month) as month_end
         from read_parquet('{companies_path}') c cross join months m
     ),
     tx as (select * from read_parquet('{tx_path}')),
@@ -94,12 +100,22 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
             count(distinct counterparty_id) as n_counterparties,
             sum(case when amount > 0 then amount else 0 end) as inflow,
             sum(case when amount < 0 then -amount else 0 end) as outflow,
+            sum(case when amount > 0 and category in
+                ('collection', 'bulk_collection', 'pos_settlement')
+                then amount else 0 end) as operating_inflow,
+            sum(case when amount < 0 and category in
+                ('payment', 'bulk_payment', 'utility', 'salary', 'social_security', 'tax')
+                then -amount else 0 end) as operating_outflow,
+            sum(case when category = 'uncategorized' then abs(amount) else 0 end)
+                as uncategorized_amount,
             sum(case when amount < 0 and category = 'salary' then -amount else 0 end)
                 as salary_outflow,
             sum(case when amount < 0 and category = 'tax' then -amount else 0 end)
                 as tax_outflow,
             sum(case when amount < 0 and category = 'debt_repayment' then -amount else 0 end)
                 as debt_repayment_outflow,
+            sum(case when amount < 0 and category = 'interest_charge' then -amount else 0 end)
+                as interest_outflow,
             sum(case when amount < 0 and category = 'fee' then -amount else 0 end)
                 as fee_outflow
         from tx group by 1, 2
@@ -133,7 +149,13 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
                      else 0 end) as ar_collected_days,
             sum(case when side = 'payable'
                      then abs(amount) * date_diff('day', issuance_date, payment_date)
-                     else 0 end) as ap_paid_days
+                     else 0 end) as ap_paid_days,
+            sum(case when side = 'receivable'
+                     then abs(amount) * greatest(date_diff('day', due_date, payment_date), 0)
+                     else 0 end) as ar_late_days,
+            sum(case when side = 'payable'
+                     then abs(amount) * greatest(date_diff('day', due_date, payment_date), 0)
+                     else 0 end) as ap_late_days
         from inv
         -- 3% of paid invoices are stamped as paid before they were issued, down to -2139 days.
         -- One of those with a large amount flips a whole month's weighted DSO negative.
@@ -149,16 +171,20 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         from inv where issuance_date is not null group by 1, 2
     )
     select
-        s.company_id, s.group_id, s.month,
+        s.company_id, s.group_id, s.currency, s.month,
         coalesce(e.first_invoice <= s.month_end, false) as has_erp,
         t.n_tx is not null as is_covered,
         coalesce(t.n_tx, 0) as n_tx,
         coalesce(t.n_counterparties, 0) as n_counterparties,
         coalesce(t.inflow, 0) as inflow,
         coalesce(t.outflow, 0) as outflow,
+        coalesce(t.operating_inflow, 0) as operating_inflow,
+        coalesce(t.operating_outflow, 0) as operating_outflow,
+        coalesce(t.uncategorized_amount, 0) as uncategorized_amount,
         coalesce(t.salary_outflow, 0) as salary_outflow,
         coalesce(t.tax_outflow, 0) as tax_outflow,
         coalesce(t.debt_repayment_outflow, 0) as debt_repayment_outflow,
+        coalesce(t.interest_outflow, 0) as interest_outflow,
         coalesce(t.fee_outflow, 0) as fee_outflow,
         coalesce(o.ar_open, 0) as ar_open,
         coalesce(o.ap_open, 0) as ap_open,
@@ -168,6 +194,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(p.ap_paid, 0) as ap_paid,
         coalesce(p.ar_collected_days, 0) as ar_collected_days,
         coalesce(p.ap_paid_days, 0) as ap_paid_days,
+        coalesce(p.ar_late_days, 0) as ar_late_days,
+        coalesce(p.ap_late_days, 0) as ap_late_days,
         coalesce(i.n_invoices_issued, 0) as n_invoices_issued,
         coalesce(i.n_invoices_received, 0) as n_invoices_received,
         ch.cash as cash,
@@ -232,6 +260,7 @@ def build(
     group_base = f"""
         select group_id, month,
             count(*) as n_companies,
+            count(distinct currency) as n_currencies,
             bool_or(has_erp) as has_erp,
             bool_or(is_covered) as is_covered,
             bool_and(has_cash) as has_cash,
