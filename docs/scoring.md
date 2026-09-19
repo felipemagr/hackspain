@@ -259,8 +259,9 @@ apr               = interp(compound, [40, 90] -> [0.125, 0.045]), NaN if not eli
 limit_change_eur  = limit_eur - previous month's limit_eur
 ```
 
-`monthly_inflow_eur = opin_3m / 3`, attached by `serve._with_panel`. Currencies are summed
-without conversion (`brief.md` Q5), so treat the limit as a size ranking until that is settled.
+`monthly_inflow_eur = opin_3m / 3`, attached by `serve._with_panel`. It is real euros: every
+amount is converted in `xray.pipeline.clean` at the average rate of its year (see
+`architecture.md`, data traps).
 
 Actions: at each group's last scored month, the three available pillars with the lowest
 `contrib_*`, one sentence each from `ACTIONS`, with

@@ -21,8 +21,8 @@ Only `collection`, `bulk_collection`, and `pos_settlement` feed known operating 
 `payment`, `bulk_payment`, `utility`, `salary`, `social_security`, and `tax` feed known operating
 outflow. `uncategorized` is never assigned a category. Its share of total transaction volume is
 reported separately as `uncategorized_share`; a high share makes the score less reliable.
-`currency_mixed` flags groups whose companies use multiple currencies. The current group panel
-does not resolve the direction of exchange-rate conversion, so those scores are provisional.
+`currency_mixed` flags groups whose companies use multiple currencies. The pipeline converts
+amounts to euros at the annual rates in `src/xray/pipeline/fx_rates.csv`.
 
 Available pillar weights renormalise to one. The uncapped level is exactly
 `50 + sum(weight * (pillar - 50))`; `real_drivers` records every contribution. A liquidity or
@@ -32,5 +32,4 @@ provisional. They have not been calibrated against future proxy events or the le
 
 The cash pillar uses the panel's back-reconstructed balances only after the first account
 movement. It inherits the assumption that the final snapshot and dated account flows are
-complete. Group totals can also combine currencies: the direction and use of `exchange_rate`
-remain unresolved. Neither condition should be hidden when interpreting the score.
+complete. Mixed-currency groups retain an explicit quality flag beside the converted totals.

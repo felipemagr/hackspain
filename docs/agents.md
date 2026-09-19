@@ -19,30 +19,56 @@ is one summary, a list of findings and a list of sources, ready for the API and 
 `Orchestrator` (`orchestrator.py`) runs the agents in order and returns one report each.
 `build_orchestrator(settings)` gives the default line-up.
 
-## The chat: a fleet on one question
+## The chat: a planner directing a fleet
 
 `fleet.py` turns the agents into a conversation. `run_chat(request, db, settings)` yields events
 that `POST /api/v1/chats` streams as server-sent events, and the Agents tab draws them as they land.
 
+Every agent is the same contract: **a purpose, rules, tools**. Rules are code and are shown on
+screen. Each tool call is a `step` event, so what an agent is doing is visible while it does it.
+No number comes from the model: it classifies the question and writes the answer, SQL over the
+serving tables produces every figure.
+
 ```
-planning -> plan {agents, company} -> agent {id, running} -> agent {id, done, summary, findings,
-sources, ms, cached} ... -> writing -> token ... -> done {ms}
+planning -> plan {purpose, agents, company}
+  -> agent {id, running} -> step {agent, n, tool, input, running} -> step {..., done, output, ms}
+  -> agent {id, done, summary, findings, sources, ms}
+  -> dispatch {agents}            the planner's one follow-up, decided by rules
+  -> suggestion {agent, title, detail}
+  -> writing -> token ... -> done {ms}
 ```
 
-| Step | What runs | Cost |
-|---|---|---|
-| Planner | one model call picks the agents the question needs; rules if the model fails | about 3 s |
-| Data agents | `score`, `monitor`, `credit`: SQL over the serving tables, no model | milliseconds |
-| Web agents | `sector` (any group), `context` and `peers` (real companies only), cached | 0 s cached, 10 to 60 s live |
-| Writer | one streamed model call over the reports, in the language of the question | first token about 3 s |
+| Agent | Answers | Tools | Reads |
+|---|---|---|---|
+| Diagnosis | why the score moved, bump or fall | `pillars_at`, `drivers_window`, `own_history_rank` | `scores`, `drivers` |
+| Monitor | when it was first visible | `alerts_for` | `alerts` |
+| Working capital | the line, its price, what raises it | `offer_at`, `actions_ranked` | `offers`, `actions` |
+| Customers | who pays late, concentration, who to chase | `concentration`, `payer_scores`, `overdue_ranked` | `payers` (groups with an ERP only) |
+| Investor | search fund target, roll-up piece or neither; debt capacity | `cash_profile`, `debt_capacity`, `screen`, `comparables` | `scores`, `groups` |
+| Market | is it us or the market | `exa.search`, `tavily.search`, `model.read` | the web, cached a week |
 
-Two constraints shaped it. Helmcode stalls concurrent requests on one key, so searches run in
-parallel but model calls go through `SerialLLM`, one at a time. And `glm5.3` thinks for 25 s by
-default, so the chat asks for `reasoning_effort="low"`: first token in 3 s. The batch agents keep
-the default effort.
+How a question runs:
 
-`GET /api/v1/agents` lists the roster for the side rail. Without `HELMCODE_API_KEY` the chat still
-answers, with the data agents' summaries and no prose.
+1. **Planner** (one model call, about 3 s, rules if it fails) reads what the question is for
+   (`diagnose`, `anticipate`, `collect`, `finance`, `invest`, `market`) and dispatches only the
+   agents it needs. Diagnosis always runs. Agents run in parallel threads.
+2. **Follow-up**, at most once and by rule, not by the model: if Diagnosis finds collections
+   dragging the level, Customers is dispatched; if the state is bending or falling, Monitor is.
+3. **Draft suggestion**, when the user asked what to do: the customer to chase, or the top ranked
+   move. Built from figures. Anything that moves money is a draft a person signs.
+4. **Writer** streams the answer from the reports, in the language of the question.
+
+What the data does not allow is stated as a rule instead of guessed: counterparty ids do not link
+to other groups, so a customer is judged only on how it paid this group; there is no sector and
+no valuation multiple, so the Investor estimates no enterprise value. The Market agent reads the
+country when there is no sector, and competitors only for a real company the user names.
+
+Two constraints shaped the runtime. Helmcode stalls concurrent requests on one key, so searches
+run in parallel but model calls go through `SerialLLM`, one at a time. And `glm5.3` thinks for
+25 s by default, so the chat asks for `reasoning_effort="low"`: first token in 3 s.
+
+`GET /api/v1/agents` lists the roster with purposes, rules and tools for the side rail and the
+inspector. Without `HELMCODE_API_KEY` the chat still answers, from rules and raw reports.
 
 ## Tools
 

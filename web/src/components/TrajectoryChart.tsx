@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { fmtEarly, monthLong, monthShort } from "../lib/format";
-import { STATE_META, toneColor } from "../lib/meta";
+import { monthLong, monthShort } from "../lib/format";
+import { SERIES_COLORS, STATE_META, toneColor } from "../lib/meta";
 import type { AlertRow, ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
 
@@ -14,7 +14,8 @@ interface TrajectoryChartProps {
   month: string;
   onMonth: (month: string) => void;
   primary: ChartSeries;
-  compare?: ChartSeries;
+  /** One entry per comparison slot, null when free. The slot picks the color. */
+  compare: (ChartSeries | null)[];
   alerts: AlertRow[];
 }
 
@@ -55,7 +56,13 @@ export function TrajectoryChart({
   const n = months.length;
   const cursor = months.indexOf(month);
   const a = useTween(align(months, primary.history));
-  const b = useTween(compare ? align(months, compare.history) : []);
+  // All slots tween as one flat array, so the hook count does not depend on the selection.
+  const flat = useTween(
+    compare.flatMap((c) => (c ? align(months, c.history) : months.map(() => NaN))),
+  );
+  const others = compare.flatMap((c, k) =>
+    c ? [{ ...c, color: SERIES_COLORS[k], vals: flat.slice(k * n, (k + 1) * n) }] : [],
+  );
 
   const x = (i: number) => M.left + (i / (n - 1)) * (width - M.left - M.right);
   const y = (v: number) => M.top + (1 - v / 100) * (H - M.top - M.bottom);
@@ -80,22 +87,22 @@ export function TrajectoryChart({
 
   const first = a.findIndex(Number.isFinite);
   const area =
-    !compare && first >= 0 && cursor > first
+    others.length === 0 && first >= 0 && cursor > first
       ? `${path(a, first, cursor)}L${x(cursor).toFixed(1)},${y(0)}L${x(first).toFixed(1)},${y(0)}Z`
       : "";
   const endLabels = [
     { v: a[cursor], color: "var(--ink)" },
-    ...(compare ? [{ v: b[cursor], color: "var(--series-2)" }] : []),
+    ...others.map((o) => ({ v: o.vals[cursor], color: o.color })),
   ]
     .filter((l) => Number.isFinite(l.v))
-    .map((l) => ({ ...l, py: y(l.v) }));
-  // Two end labels closer than a line of text get pushed apart.
-  if (endLabels.length === 2 && Math.abs(endLabels[0].py - endLabels[1].py) < 14) {
-    const mid = (endLabels[0].py + endLabels[1].py) / 2;
-    const top = endLabels[0].v >= endLabels[1].v ? 0 : 1;
-    endLabels[top].py = mid - 7;
-    endLabels[1 - top].py = mid + 7;
+    .map((l) => ({ ...l, py: y(l.v) }))
+    .sort((p, q) => p.py - q.py);
+  // End labels closer than a line of text get pushed apart, top to bottom, then back inside the plot.
+  for (let k = 1; k < endLabels.length; k++) {
+    endLabels[k].py = Math.max(endLabels[k].py, endLabels[k - 1].py + 14);
   }
+  const overflow = endLabels.length ? endLabels[endLabels.length - 1].py - y(0) : 0;
+  if (overflow > 0) endLabels.forEach((l) => (l.py -= overflow));
 
   const hoverAlert = hover != null ? alerts.find((al) => al.month === months[hover]) : undefined;
 
@@ -105,9 +112,9 @@ export function TrajectoryChart({
         width={width}
         height={H}
         role="img"
-        aria-label={`Health score of ${primary.name}${
-          compare ? ` and ${compare.name}` : ""
-        } over ${n} months. Click to move to a month.`}
+        aria-label={`Health score of ${primary.name}${others
+          .map((o) => ` and ${o.name}`)
+          .join("")} over ${n} months. Click to move to a month.`}
         onPointerMove={(e) => setHover(indexAt(e.clientX))}
         onPointerLeave={() => setHover(null)}
         onClick={(e) => onMonth(months[indexAt(e.clientX)])}
@@ -149,29 +156,13 @@ export function TrajectoryChart({
 
         {/* months after the selected one stay visible, but recede */}
         <path d={path(a, cursor, n - 1)} className="chart__line chart__line--ahead" />
-        {compare && <path d={path(b, cursor, n - 1)} className="chart__line chart__line--ahead" />}
-        {compare && (
-          <path d={path(b, 0, cursor)} className="chart__line" stroke="var(--series-2)" />
-        )}
+        {others.map((o) => (
+          <path key={`ahead-${o.color}`} d={path(o.vals, cursor, n - 1)} className="chart__line chart__line--ahead" />
+        ))}
+        {others.map((o) => (
+          <path key={o.color} d={path(o.vals, 0, cursor)} className="chart__line" stroke={o.color} />
+        ))}
         <path d={path(a, 0, cursor)} className="chart__line" stroke="var(--ink)" />
-
-        {/* how early the monitor spoke: from the alert to the tier change it preceded */}
-        {alerts
-          .filter((al) => al.tier_change_month && fmtEarly(al.anticipation_months))
-          .map((al) => {
-            const i1 = months.indexOf(al.month);
-            const i2 = months.indexOf(al.tier_change_month!);
-            if (i1 < 0 || i2 < 0) return null;
-            const by = y(0) - 12;
-            return (
-              <g key={`early-${al.month}`} className="chart__early">
-                <path d={`M${x(i1)},${by - 4}V${by}H${x(i2)}V${by - 4}`} />
-                <text x={(x(i1) + x(i2)) / 2} y={by - 7} textAnchor="middle">
-                  seen {fmtEarly(al.anticipation_months)}
-                </text>
-              </g>
-            );
-          })}
 
         {alerts.map((al) => {
           const i = months.indexOf(al.month);
@@ -194,8 +185,18 @@ export function TrajectoryChart({
         {cursor >= 0 && (
           <line x1={x(cursor)} x2={x(cursor)} y1={M.top} y2={y(0)} className="chart__cursor" />
         )}
-        {compare && Number.isFinite(b[cursor]) && (
-          <circle cx={x(cursor)} cy={y(b[cursor])} r={4.5} className="chart__dot" fill="var(--series-2)" />
+        {others.map(
+          (o) =>
+            Number.isFinite(o.vals[cursor]) && (
+              <circle
+                key={o.color}
+                cx={x(cursor)}
+                cy={y(o.vals[cursor])}
+                r={4.5}
+                className="chart__dot"
+                fill={o.color}
+              />
+            ),
         )}
         {Number.isFinite(a[cursor]) && (
           <circle cx={x(cursor)} cy={y(a[cursor])} r={4.5} className="chart__dot" fill="var(--ink)" />
@@ -218,9 +219,9 @@ export function TrajectoryChart({
           <div className="tooltip__title">{monthLong(months[hover])}</div>
           {[
             { s: primary, v: a[hover], color: "var(--ink)" },
-            ...(compare ? [{ s: compare, v: b[hover], color: "var(--series-2)" }] : []),
+            ...others.map((o) => ({ s: o, v: o.vals[hover], color: o.color })),
           ].map(({ s, v, color }) => (
-            <div className="tooltip__row" key={s.name}>
+            <div className="tooltip__row" key={color}>
               <span className="key" style={{ background: color }} />
               <strong>{Number.isFinite(v) ? v.toFixed(0) : "-"}</strong>
               <span>{s.name}</span>

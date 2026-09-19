@@ -1,29 +1,43 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertList } from "./components/AlertList";
 import { Chat } from "./components/Chat";
+import { CurrencyToggle } from "./components/CurrencyToggle";
 import { FleetRail } from "./components/FleetRail";
 import { GroupDetail } from "./components/GroupDetail";
 import { GroupList } from "./components/GroupList";
 import { useChat } from "./lib/chat";
+import { useDisplayCurrency } from "./lib/currency";
 import { monthLong } from "./lib/format";
+import { DEFAULT_VIEW } from "./lib/listView";
 import { loadStore, type Store } from "./lib/load";
+import { alertKey } from "./lib/meta";
+import { useStoredSet } from "./lib/useStoredSet";
 
-// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043&month=2026-08-01&tab=alerts|agents
+// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043,GROUP_0173&month=2026-08-01&tab=alerts|agents
 const params = new URLSearchParams(window.location.search);
 // The brief's Velasco: healthy at 94, bending alarm at 82, tier crossed four months later.
 const DEFAULT_GROUP = "GROUP_0220";
+// A comparison keeps its slot, and so its color, while others come and go. "" is a free slot.
+const COMPARE_SLOTS = 4;
+const askedCompare = (params.get("compare") ?? "").split(",").filter(Boolean);
 
 export default function App() {
   const [store, setStore] = useState<Store | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("group") ?? DEFAULT_GROUP);
-  const [compareId, setCompareId] = useState(params.get("compare") ?? "");
+  const [compareSlots, setCompareSlots] = useState(() =>
+    Array.from({ length: COMPARE_SLOTS }, (_, k) => askedCompare[k] ?? ""),
+  );
+  const [view, setView] = useState(DEFAULT_VIEW);
+  const [favorites, updateFavorites] = useStoredSet("xray.favorites");
+  const [cleared, updateCleared] = useStoredSet("xray.clearedAlerts");
   const askedTab = params.get("tab");
   const [tab, setTab] = useState<"groups" | "alerts" | "agents">(
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
   const chat = useChat();
+  useDisplayCurrency(month);
 
   useEffect(() => {
     loadStore()
@@ -46,7 +60,12 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement
+      )
+        return;
       if (e.key === "ArrowLeft") stepMonth(-1);
       if (e.key === "ArrowRight") stepMonth(1);
     };
@@ -65,25 +84,39 @@ export default function App() {
 
   const select = (groupId: string) => {
     setSelectedId(groupId);
-    if (groupId === compareId) setCompareId("");
+    setCompareSlots((slots) => slots.map((id) => (id === groupId ? "" : id)));
   };
+  const toggleCompare = (groupId: string) =>
+    setCompareSlots((slots) => {
+      const next = [...slots];
+      const at = next.indexOf(groupId);
+      if (at >= 0) next[at] = "";
+      else if (next.includes("")) next[next.indexOf("")] = groupId;
+      return next;
+    });
+  const toggleFavorite = (groupId: string) =>
+    updateFavorites((next) => {
+      if (!next.delete(groupId)) next.add(groupId);
+    });
   const i = store.months.indexOf(month);
-  const alertCount = store.alerts.filter((a) => a.month <= month).length;
+  const alertCount = store.alerts.filter(
+    (a) => a.month <= month && !cleared.has(alertKey(a)),
+  ).length;
 
   return (
     <div className="app">
       <aside className="side">
         <div className="side__top">
           <span className="brand">
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+            <svg width="20" height="20" viewBox="2 2 20 20" aria-hidden>
               <defs>
-                <linearGradient id="brand-rise" x1="13" y1="11" x2="22" y2="2" gradientUnits="userSpaceOnUse">
+                <linearGradient id="brand-inside" x1="9.4" y1="17.2" x2="13.1" y2="6.8" gradientUnits="userSpaceOnUse">
                   <stop offset="0" stopColor="#415de6" />
                   <stop offset="1" stopColor="#c357ec" />
                 </linearGradient>
               </defs>
-              <path fill="currentColor" d="M11 11 2 6.5V2h4.5zM11 13l-4.5 9H2v-4.5zM13 13l9 4.5V22h-4.5z" />
-              <path fill="url(#brand-rise)" d="M13 11l4.5-9H22v4.5z" />
+              <path fill="currentColor" d="M14 3l6 9-6 9zM4 6.3 14 3 7.6 12zM4 17.7 7.6 12 14 21z" />
+              <path fill="url(#brand-inside)" d="M9.4 12l3.7-5.2v10.4z" />
             </svg>
             X Ray
           </span>
@@ -115,6 +148,7 @@ export default function App() {
           <button role="tab" aria-selected={tab === "agents"} onClick={() => setTab("agents")}>
             Agents
           </button>
+          <CurrencyToggle />
         </div>
         <div className="side__scroll">
           {tab === "agents" ? (
@@ -124,7 +158,16 @@ export default function App() {
               onRetry={chat.wake}
             />
           ) : tab === "groups" ? (
-            <GroupList store={store} month={month} selectedId={selectedId} onSelect={select} />
+            <GroupList
+              store={store}
+              month={month}
+              selectedId={selectedId}
+              onSelect={select}
+              view={view}
+              onView={setView}
+              favorites={favorites}
+              onFavorite={toggleFavorite}
+            />
           ) : (
             <AlertList
               store={store}
@@ -134,6 +177,9 @@ export default function App() {
                 select(groupId);
                 setMonth(m);
               }}
+              cleared={cleared}
+              onClear={(keys) => updateCleared((next) => keys.forEach((k) => next.add(k)))}
+              onRestore={() => updateCleared((next) => next.clear())}
             />
           )}
         </div>
@@ -157,10 +203,13 @@ export default function App() {
           <GroupDetail
             store={store}
             groupId={selectedId}
-            compareId={compareId}
+            compareSlots={compareSlots}
             month={month}
             onMonth={setMonth}
-            onCompare={setCompareId}
+            onCompare={toggleCompare}
+            onClearCompare={() => setCompareSlots((slots) => slots.map(() => ""))}
+            favorite={favorites.has(selectedId)}
+            onFavorite={() => toggleFavorite(selectedId)}
           />
         )}
       </main>

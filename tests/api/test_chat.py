@@ -8,6 +8,25 @@ def test_agents_lists_the_fleet_the_chat_can_dispatch():
         response = client.get("/api/v1/agents")
 
     assert response.status_code == 200
-    kinds = {agent["id"]: agent["kind"] for agent in response.json()["agents"]}
-    assert kinds["score"] == "data"
-    assert kinds["sector"] == "web"
+    agents = {agent["id"]: agent for agent in response.json()["agents"]}
+    assert list(agents) == [
+        "diagnosis",
+        "monitor",
+        "working_capital",
+        "customers",
+        "investor",
+        "market",
+    ]
+    assert all(agent["rules"] and agent["tools"] for agent in agents.values())
+
+
+def test_client_errors_land_in_the_api_log(caplog):
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/client-errors",
+            json={"message": "x is null", "url": "/?group=G1", "stack": "at GroupDetail " * 900},
+        )
+
+    assert response.status_code == 204
+    assert "client render error on /?group=G1: x is null" in caplog.text
+    assert len(caplog.text) < 5000

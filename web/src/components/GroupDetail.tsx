@@ -1,18 +1,27 @@
-import { fmtEur, fmtSigned, monthLong } from "../lib/format";
-import { PILLARS, PILLAR_LABEL } from "../lib/meta";
+import { useState } from "react";
+import { fmtEur, fmtScore, fmtSigned, monthLong } from "../lib/format";
+import { PILLARS, PILLAR_LABEL, SERIES_COLORS } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
+import { Check, Menu } from "./Menu";
+import { OwnHistory } from "./OwnHistory";
+import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
 
 interface GroupDetailProps {
   store: Store;
   groupId: string;
-  compareId: string;
+  /** One group id per comparison slot, "" when free. */
+  compareSlots: string[];
   month: string;
   onMonth: (month: string) => void;
+  /** Adds the group to a free slot, or removes it. */
   onCompare: (groupId: string) => void;
+  onClearCompare: () => void;
+  favorite: boolean;
+  onFavorite: () => void;
 }
 
 function heading(score: ScoreRow, prevLevel: number | null): string {
@@ -32,11 +41,15 @@ function heading(score: ScoreRow, prevLevel: number | null): string {
 export function GroupDetail({
   store,
   groupId,
-  compareId,
+  compareSlots,
   month,
   onMonth,
   onCompare,
+  onClearCompare,
+  favorite,
+  onFavorite,
 }: GroupDetailProps) {
+  const [query, setQuery] = useState("");
   const group = store.groupById.get(groupId);
   const history = store.scoresByGroup.get(groupId) ?? [];
   const score = store.scoreAt(groupId, month);
@@ -49,13 +62,29 @@ export function GroupDetail({
   const offer = store.offerAt(groupId, month);
   const actions = [...(store.actionsByGroup.get(groupId) ?? [])].sort((a, b) => a.rank - b.rank);
   const companies = store.companiesByGroup.get(groupId) ?? [];
-  const compare = compareId ? store.groupById.get(compareId) : undefined;
+  const compare = compareSlots.map((id) => store.groupById.get(id) ?? null);
+  const nCompare = compare.filter(Boolean).length;
+  const full = nCompare === compareSlots.length;
+  const q = query.trim().toLowerCase();
+  const candidates = store.groups.filter(
+    (g) => g.group_id !== groupId && (!q || g.name.toLowerCase().includes(q)),
+  );
 
   return (
     <article className="detail" aria-label={group.name}>
       <header className="detail__head">
         <div>
-          <h1>{group.name}</h1>
+          <h1>
+            {group.name}
+            <button
+              className={`fav ${favorite ? "is-on" : ""}`}
+              aria-pressed={favorite}
+              aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+              onClick={onFavorite}
+            >
+              <Star filled={favorite} />
+            </button>
+          </h1>
           <p className="detail__meta">
             {[
               group.sector,
@@ -82,28 +111,70 @@ export function GroupDetail({
         <div className="section-head">
           <h2>Health score, {monthLong(month)}</h2>
           <div className="compare">
-            {compare && (
+            {nCompare > 0 && (
               <span className="legend">
-                <span className="key" style={{ background: "var(--ink)" }} />
-                {group.name}
-                <span className="key" style={{ background: "var(--series-2)" }} />
-                {compare.name}
+                <span className="legend__item">
+                  <span className="key" style={{ background: "var(--ink)" }} />
+                  {group.name}
+                </span>
+                {compare.map(
+                  (c, k) =>
+                    c && (
+                      <button
+                        key={c.group_id}
+                        className="legend__item legend__item--remove"
+                        aria-label={`Stop comparing with ${c.name}`}
+                        onClick={() => onCompare(c.group_id)}
+                      >
+                        <span className="key" style={{ background: SERIES_COLORS[k] }} />
+                        {c.name}
+                        <svg width="8" height="8" viewBox="0 0 10 10" aria-hidden>
+                          <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
+                        </svg>
+                      </button>
+                    ),
+                )}
               </span>
             )}
-            <select
-              value={compareId}
-              onChange={(e) => onCompare(e.target.value)}
-              aria-label="Compare with another group"
+            <Menu
+              label={nCompare > 0 ? `Compare · ${nCompare}` : "Compare with..."}
+              ariaLabel="Compare with other groups"
+              align="right"
             >
-              <option value="">Compare with...</option>
-              {store.groups
-                .filter((g) => g.group_id !== groupId)
-                .map((g) => (
-                  <option key={g.group_id} value={g.group_id}>
-                    {g.name}
-                  </option>
-                ))}
-            </select>
+              <input
+                className="menu__search"
+                type="search"
+                placeholder="Find a group"
+                aria-label="Find a group"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+              />
+              <div className="menu__scroll">
+                {candidates.map((g) => {
+                  const on = compareSlots.includes(g.group_id);
+                  return (
+                    <Check
+                      key={g.group_id}
+                      checked={on}
+                      disabled={!on && full}
+                      onChange={() => onCompare(g.group_id)}
+                    >
+                      {g.name}
+                    </Check>
+                  );
+                })}
+                {candidates.length === 0 && <p className="menu__note">No group by that name.</p>}
+              </div>
+              <p className="menu__note menu__foot">
+                {full ? `Up to ${compareSlots.length} at a time` : `${nCompare} of ${compareSlots.length} selected`}
+                {nCompare > 0 && (
+                  <button className="link" onClick={onClearCompare}>
+                    Clear
+                  </button>
+                )}
+              </p>
+            </Menu>
           </div>
         </div>
         <TrajectoryChart
@@ -111,12 +182,9 @@ export function GroupDetail({
           month={month}
           onMonth={onMonth}
           primary={{ name: group.name, history }}
-          compare={
-            compare && {
-              name: compare.name,
-              history: store.scoresByGroup.get(compare.group_id) ?? [],
-            }
-          }
+          compare={compare.map(
+            (c) => c && { name: c.name, history: store.scoresByGroup.get(c.group_id) ?? [] },
+          )}
           alerts={store.alerts.filter((a) => a.group_id === groupId)}
         />
       </section>
@@ -167,8 +235,8 @@ export function GroupDetail({
                       {c.name}
                       {c.is_weakest && <span className="company__flag">drags the group</span>}
                     </span>
-                    <span className="company__share">{(c.inflow_share * 100).toFixed(0)}%</span>
-                    <span className="company__level">{c.level.toFixed(0)}</span>
+                    <span className="company__share">{((c.inflow_share ?? 0) * 100).toFixed(0)}%</span>
+                    <span className="company__level">{fmtScore(c.level)}</span>
                   </div>
                 ))}
               </>
@@ -213,6 +281,8 @@ export function GroupDetail({
           </section>
         </div>
       )}
+
+      {score && <OwnHistory history={history} month={month} />}
     </article>
   );
 }

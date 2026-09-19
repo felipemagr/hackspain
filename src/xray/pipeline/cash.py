@@ -36,6 +36,7 @@ from xray.config import (
     WINDOW_FIRST_MONTH,
     WINDOW_LAST_MONTH,
 )
+from xray.pipeline import fx
 from xray.pipeline.lineage import publish
 
 logger = logging.getLogger(__name__)
@@ -53,15 +54,27 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> pd.DataFrame:
         One row per company per month: `cash`, `n_cash_accounts`, `cash_is_extrapolated`.
     """
     types = ", ".join(f"'{t}'" for t in CASH_ACCOUNT_TYPES)
+    # The series is rolled in each account's own currency and only then converted, month by
+    # month: rolling euros would mix the rate of the snapshot year with the rates of the flows.
+    banking = pd.read_parquet(processed_dir / "banking_products.parquet", columns=["currency"])
+    years = pd.MultiIndex.from_product(
+        [
+            banking["currency"].dropna().unique(),
+            range(int(WINDOW_FIRST_MONTH[:4]), int(WINDOW_LAST_MONTH[:4]) + 1),
+        ],
+        names=["currency", "year"],
+    ).to_frame(index=False)
+    fx_year = years.assign(per_eur=fx.per_eur(years["currency"], years["year"]))  # noqa: F841
     sql = f"""
     with accounts as (
-        select product_id from read_parquet('{processed_dir / "banking_products.parquet"}')
+        select product_id, currency
+        from read_parquet('{processed_dir / "banking_products.parquet"}')
         where type in ({types})
     ),
     final as (
-        select b.product_id, b.company_id, b.balance
+        select b.product_id, b.company_id, b.balance_local as balance, a.currency
         from read_parquet('{processed_dir / "balances.parquet"}') b
-        join accounts using (product_id)
+        join accounts a using (product_id)
     ),
     months as (
         select unnest(generate_series(
@@ -69,7 +82,7 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> pd.DataFrame:
         ))::date as month
     ),
     flow as (
-        select t.product_id, t.month::date as month, sum(t.amount) as flow
+        select t.product_id, t.month::date as month, sum(t.amount_local) as flow
         from read_parquet('{processed_dir / "transactions.parquet"}') t
         join accounts using (product_id)
         group by 1, 2
@@ -81,15 +94,16 @@ def build(processed_dir: Path = PROCESSED_DATA_DIR) -> pd.DataFrame:
         select
             f.company_id,
             m.month,
-            f.balance
+            (f.balance
               - coalesce(t.total_flow, 0)
               + sum(coalesce(fl.flow, 0)) over (
                     partition by f.product_id order by m.month rows unbounded preceding
-                ) as cash
+                )) / coalesce(x.per_eur, 1) as cash
         from final f
         cross join months m
         left join flow fl on fl.product_id = f.product_id and fl.month = m.month
         left join total t on t.product_id = f.product_id
+        left join fx_year x on x.currency = f.currency and x.year = year(m.month)
     ),
     -- Visibility into the cash series starts with the first movement on a cash account, not
     -- with the company's first transaction anywhere: a card-only month tells us nothing here.

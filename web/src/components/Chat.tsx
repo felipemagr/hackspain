@@ -1,16 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { runNote, type AgentRun, type FleetState, type Turn } from "../lib/chat";
+import {
+  runNote,
+  secs,
+  type AgentRun,
+  type FleetMember,
+  type FleetState,
+  type Suggestion,
+  type Turn,
+} from "../lib/chat";
 import { monthLong } from "../lib/format";
 import type { Store } from "../lib/load";
 import { StateTag } from "./StateTag";
 
 const STARTERS = [
-  "Is this a bump or a fall?",
-  "Why did the score change this month?",
+  "Why did the score change, and is it a bump or a fall?",
   "When was this first visible?",
-  "Is the whole sector moving, or only us?",
-  "What should we do this week?",
-  "What happens to our credit line if this continues?",
+  "Which customers will pay us late, and who do we chase this week?",
+  "What does our credit line look like, and what raises it?",
+  "Would this be a good acquisition for a search fund?",
+  "Is it us, or is the market moving too?",
 ];
 
 const host = (url: string) => {
@@ -21,36 +29,61 @@ const host = (url: string) => {
   }
 };
 
-function AgentLine({ run }: { run: AgentRun }) {
+function AgentLine({ run, member }: { run: AgentRun; member: FleetMember | undefined }) {
   const [open, setOpen] = useState(false);
-  const detail = (run.findings?.length ?? 0) + (run.sources?.length ?? 0) > 0;
   const text = run.status === "failed" ? run.error : (run.summary ?? run.reason);
   return (
     <li className="trace__item">
-      <button
-        className="trace__row"
-        onClick={() => setOpen(!open)}
-        disabled={!detail}
-        aria-expanded={detail ? open : undefined}
-      >
+      <button className="trace__row" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span className="agent__dot" data-status={run.status} />
-        <span className="trace__label">{run.label}</span>
-        <span className={run.summary ? "trace__text" : "trace__text is-pending"}>{text}</span>
+        <span className="trace__label">{member?.label ?? run.id}</span>
+        <span className={run.summary ? "trace__text" : "trace__text is-pending"}>
+          {run.followUp && !run.summary ? `Follow-up: ${text}` : text}
+        </span>
         <span className="row__when">{runNote(run)}</span>
       </button>
-      {open && detail && (
+      {open && (
         <div className="trace__detail">
-          <ul>
-            {run.findings?.map((finding) => {
-              // Agents end a finding with "[period, seen date, direction]": evidence, kept quiet.
-              const [, fact, meta] = finding.match(/^(.*?)(?: \[([^\]]*)\])?$/s) ?? [];
-              return (
-                <li key={finding}>
-                  {fact} {meta && <span className="hint">{meta}</span>}
-                </li>
-              );
-            })}
-          </ul>
+          {member && (
+            <>
+              <p className="inspect__purpose">{member.purpose}</p>
+              <h3>Rules it works under</h3>
+              <ul>
+                {member.rules.map((rule) => (
+                  <li key={rule}>{rule}</li>
+                ))}
+              </ul>
+            </>
+          )}
+          <h3>What it did</h3>
+          <ol className="steps">
+            {run.steps.map((step) => (
+              <li key={step.n}>
+                <span className="agent__dot" data-status={step.status} />
+                <code>
+                  {step.tool}({step.input})
+                </code>
+                <span className="steps__out">{step.output ?? "running"}</span>
+                <span className="row__when">{step.ms == null ? "" : secs(step.ms)}</span>
+              </li>
+            ))}
+          </ol>
+          {!!run.findings?.length && (
+            <>
+              <h3>What it found</h3>
+              <ul>
+                {run.findings.map((finding) => {
+                  // Agents end a finding with "[period, seen date, direction]": evidence, kept quiet.
+                  const [, fact, meta] = finding.match(/^(.*?)(?: \[([^\]]*)\])?$/s) ?? [];
+                  return (
+                    <li key={finding}>
+                      {fact} {meta && <span className="hint">{meta}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
           {!!run.sources?.length && (
             <p className="trace__sources">
               {run.sources.map((url) => (
@@ -66,7 +99,32 @@ function AgentLine({ run }: { run: AgentRun }) {
   );
 }
 
-function TurnView({ turn }: { turn: Turn }) {
+// Anything that moves money is a draft until a person signs it.
+function Draft({ suggestion, by }: { suggestion: Suggestion; by: string }) {
+  const [signedAt, setSignedAt] = useState<string | null>(null);
+  return (
+    <aside className="draft">
+      <div>
+        <p className="hint">Draft suggestion from {by}</p>
+        <p className="draft__title">{suggestion.title}</p>
+        <p className="draft__detail">{suggestion.detail}</p>
+      </div>
+      {signedAt ? (
+        <span className="hint">Signed at {signedAt}</span>
+      ) : (
+        <button
+          onClick={() =>
+            setSignedAt(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+          }
+        >
+          Sign
+        </button>
+      )}
+    </aside>
+  );
+}
+
+function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMember> }) {
   const working = ["planning", "agents", "writing"].includes(turn.phase);
   const total = turn.ms ? `${(turn.ms / 1000).toFixed(1)} s` : "";
   return (
@@ -79,14 +137,14 @@ function TurnView({ turn }: { turn: Turn }) {
       <div className="section-head trace__head">
         <span className="hint">
           {turn.phase === "planning"
-            ? "Planner is choosing agents"
-            : `${turn.agents.length} agent${turn.agents.length === 1 ? "" : "s"} dispatched`}
+            ? "Planner is reading the question"
+            : `Read as: ${turn.purpose}. ${turn.agents.length} agent${turn.agents.length === 1 ? "" : "s"} dispatched`}
         </span>
         <span className="hint">{total}</span>
       </div>
       <ol className="trace">
         {turn.agents.map((run) => (
-          <AgentLine key={run.id} run={run} />
+          <AgentLine key={run.id} run={run} member={members.get(run.id)} />
         ))}
       </ol>
       {(turn.answer || turn.phase === "writing") && (
@@ -95,6 +153,12 @@ function TurnView({ turn }: { turn: Turn }) {
             <p key={i}>{para}</p>
           ))}
         </div>
+      )}
+      {turn.suggestion && turn.phase !== "planning" && (
+        <Draft
+          suggestion={turn.suggestion}
+          by={members.get(turn.suggestion.agent)?.label ?? turn.suggestion.agent}
+        />
       )}
       {turn.phase === "error" && <p className="turn__error">{turn.error}</p>}
       {turn.phase === "stopped" && <p className="hint">Stopped.</p>}
@@ -128,6 +192,7 @@ export function Chat({
   const group = store.groupById.get(groupId);
   const score = store.scoreAt(groupId, month);
   const ready = fleet.status === "ready";
+  const members = new Map(fleet.status === "ready" ? fleet.agents.map((a) => [a.id, a]) : []);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -173,8 +238,9 @@ export function Chat({
           {turns.length === 0 ? (
             <div className="starters">
               <p className="starters__lead">
-                Ask anything about this group. A planner picks the agents the question needs, each
-                one reports what it found, and the answer is written from those reports only.
+                Ask anything about this group. The planner reads what the question is for,
+                dispatches the agents it needs and follows up on what they find. Open any agent to
+                see its rules and every step it took.
               </p>
               {STARTERS.map((question) => (
                 <button key={question} onClick={() => send(question)} disabled={!ready}>
@@ -183,7 +249,7 @@ export function Chat({
               ))}
             </div>
           ) : (
-            turns.map((turn) => <TurnView key={turn.id} turn={turn} />)
+            turns.map((turn) => <TurnView key={turn.id} turn={turn} members={members} />)
           )}
         </div>
       </div>

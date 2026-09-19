@@ -1,0 +1,28 @@
+.currency {
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  gap: 2px;
+  font-size: 12.5px;
+}
+
+.tabs .currency button {
+  padding: 3px 7px;
+  border-radius: 6px;
+  box-shadow: none;
+  font-weight: 500;
+  color: var(--ink-3);
+  transition:
+    background 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.tabs .currency button:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.tabs .currency button[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--ink);
+}

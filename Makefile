@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
+.PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
         events score score-baseline validate monitor alerts notify serve submit api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
@@ -44,6 +44,9 @@ cash: $(CASH) ## Reconstruct the monthly cash mart
 
 panel: $(PANEL) ## Build the monthly panel mart, rebuilding upstream layers as needed
 
+fx: ## Refresh the yearly euro rates (ECB, pegs, the data) in src/xray/pipeline/fx_rates.csv
+	uv run python -m xray.pipeline.fx
+
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
 	uv run python -m xray.pipeline
 
@@ -78,8 +81,9 @@ alerts: $(ALERTS) ## Show the alerts not yet sent, send nothing: make alerts [MO
 notify: $(ALERTS) ## Send the pending alerts: make notify [MONTH=2026-05] [CHANNEL=slack|email]
 	uv run python -m xray.scoring.notify --channel $(or $(CHANNEL),slack) $(if $(MONTH),--month $(MONTH))
 
-serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offers, actions) to data/serving
+serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offers, actions, payers) to data/serving
 	uv run python -m xray.scoring.serve
+	uv run python -m xray.scoring.payers
 
 submit: ## Score a hidden-test dump end to end: make submit RAW=path/to/csvs [OUT=submission]
 	uv run python -m xray.scoring.submit --raw-dir $(RAW) --out $(or $(OUT),submission)

@@ -25,7 +25,7 @@ records what the built UI does so later screens follow it instead of inventing a
 | Row hover / selected | `--hover` / `--selected` | `#e8e8ed` / `#dddde6` |
 | Hairline / strong line | `--line` / `--line-strong` | `#e8e8ed` / `#d2d2db` |
 | Text: primary, secondary, muted | `--ink`, `--ink-2`, `--ink-3` | `#050b2c`, `#42444c`, `#6e707c` |
-| Comparison series | `--series-2` | `#8041d1` |
+| Comparison series, by slot | `--series-2` to `--series-5` | `#8041d1`, `#00a39b`, `#b0661a`, `#d0408f` |
 | State marks | `--good --warn --serious --bad --info --neutral` | see `app.css` |
 | State text (deltas) | `--good-ink`, `--bad-ink` | `#007d25`, `#ab2807` |
 | Easing | `--ease` | `cubic-bezier(0.16, 1, 0.3, 1)` |
@@ -50,26 +50,42 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 
 ## Components
 
-- **Brand mark** (`App.tsx`, `public/favicon.svg`): an X of four facets in the angular language of
-  Embat's isotype; three arms in ink, the rising arm in Embat's blue to purple gradient.
+- **Brand mark** (`App.tsx`, `public/favicon.svg`): three ink facets in the angular language of
+  Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: what the X ray
+  sees. The favicon sets it in white on an ink tile. Sources and rejected options in `docs/brand/`.
 - **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
 - **State tag**: 7-8px dot plus label.
 - **Trajectory chart** (`TrajectoryChart.tsx`): fixed 0-100 axis, dotted thresholds at 70 and 40
   labelled on the axis, 2px ink line up to the selected month and a receding grey line after it,
-  a faint ink wash under a single series, alert rings in the state color, a bracket reading
-  "seen N months early", crosshair tooltip, click to move the month. Comparison adds one purple
-  series, a legend and end labels; the wash is dropped.
+  a faint ink wash under a single series, alert rings in the state color, crosshair tooltip, click to move the month. Comparison adds up to four
+  series, a legend and end labels; the wash is dropped. A compared group keeps its slot, and so
+  its color, while others come and go. The legend entries are the remove buttons.
+- **Menu** (`Menu.tsx`): a bordered button that opens a panel of checkboxes, the multi-select
+  used for Compare (with a search field, capped at four) and for the rail's Filter (state and
+  trend). Checked boxes are ink. The one place a shadow is allowed besides the tooltip.
+- **Rail tools** (`GroupList.tsx`): Filter menu, a sort select (by state keeps the buckets; any
+  other sort flattens the list and moves the state onto the row's second line) and a Favorites
+  toggle. Any active filter shows "N of M groups" and a Clear filters link.
+- **Favorite star**: ink outline, filled when on, never a state color. On a row it appears on
+  hover and stays once on; it also sits beside the group name. Kept in localStorage.
+- **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all, a clear button on row hover, and
+  "Restore N cleared" so nothing is lost. Clearing empties the rail and its count; the rings on
+  the chart stay, because they are history.
 - **Pillar row**: label with its evidence in plain words, 4px ink bar, score, signed delta.
-- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the fleet (planner, agents that read
-  the score, agents that read the outside, writer) and the detail pane holds the conversation.
-  A turn is the question at 22px, a trace of the agents dispatched (dot, name, one-line report,
-  time or "from cache"; a row opens to its findings and sources), then the answer as prose at
-  15px, 68ch. No bubbles, no avatars. The composer is the one bordered field, with an ink send
-  button that becomes stop while a turn runs.
+- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
+  and the writer, each with its live state and the tool it is running. The detail pane holds the
+  conversation. A turn is the question at 22px, a line saying what the planner read it as, a
+  trace of the agents dispatched (dot, name, one-line report, time), then the answer as prose at
+  15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
+  under, every tool call with input, output and time, findings and sources. Tool calls are the
+  one place monospace is used, because they are code. No bubbles, no avatars, no modal.
+- **Draft suggestion**: between two strong hairlines under the answer, with the only filled
+  button on the tab, "Sign". Anything that moves money is a draft until a person signs it.
 - **Agent dot**: hollow at rest, blue and pulsing while working, ink once it reported, red when
   it failed. The only motion on the tab besides the streaming caret.
-- **Controls**: borderless icon buttons for the stepper, underline tabs, one bordered select.
+- **Controls**: borderless icon buttons for the stepper, underline tabs, bordered selects and
+  menu buttons, underlined text links for secondary actions (Clear all, Clear filters).
 
 ## Motion
 
@@ -79,7 +95,7 @@ counts between groups and months. CSS transitions are 180ms on backgrounds and 5
 
 ## Deep links
 
-`?group=DEMO_002&compare=DEMO_001&month=2026-08-01&tab=alerts` (or `tab=agents`) opens the demo on a given scene.
+`?group=DEMO_002&compare=DEMO_001,DEMO_003&month=2026-08-01&tab=alerts` (or `tab=agents`) opens the demo on a given scene.
 
 ## Internal score viewer
 
