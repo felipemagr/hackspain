@@ -2262,109 +2262,6 @@ select:hover {
   }
 }
 
-/* ---------- offer controls ---------- */
-
-.promptpay__control-lever {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px;
-  align-items: baseline;
-  column-gap: 14px;
-  padding: 10px 0;
-}
-
-.promptpay__control-label {
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.promptpay__control-value {
-  width: 100%;
-  padding: 0;
-  border: 0;
-  border-bottom: 1px dashed transparent;
-  background: none;
-  font: inherit;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: inherit;
-  text-align: right;
-  cursor: text;
-}
-
-.promptpay__control-value:hover {
-  border-bottom-color: var(--ink-3);
-}
-
-.promptpay__control-value:focus {
-  outline: none;
-  border-bottom: 1px solid currentColor;
-}
-
-.promptpay__control-slider {
-  grid-column: 1 / -1;
-  width: 100%;
-  margin: 8px 0 4px;
-  appearance: none;
-  background: none;
-  cursor: pointer;
-}
-
-.promptpay__control-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--line);
-}
-
-.promptpay__control-slider::-moz-range-track {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--line);
-}
-
-.promptpay__control-slider::-webkit-slider-thumb {
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  margin-top: -5px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--ink);
-}
-
-.promptpay__control-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 0;
-  border-radius: 50%;
-  background: var(--ink);
-}
-
-.promptpay__control-today {
-  grid-column: 1 / -1;
-  font-size: 12.5px;
-  color: var(--ink-3);
-}
-
-.promptpay__control-out {
-  padding: 20px;
-  border-radius: 8px;
-  background: var(--side);
-}
-
-.promptpay__control-level {
-  font-size: 40px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1;
-}
-
-.promptpay__control-note {
-  margin-top: 12px;
-  font-size: 12.5px;
-  color: var(--ink-2);
-  text-wrap: pretty;
-}
-
 /* Early payment: what falls due in the window, and which supplier bills it can pay early. */
 .promptpay {
   margin-top: 48px;
@@ -2476,32 +2373,8 @@ select:hover {
   border-radius: 50%;
 }
 
-.promptpay__aside {
-  max-width: 68ch;
-  margin: 14px 0 0;
-  color: var(--ink-3);
-}
-
-.promptpay__table {
-  margin-top: 24px;
-}
-
-.promptpay__rest th,
-.promptpay__rest td {
-  color: var(--ink-3);
-}
-
-.promptpay__deal {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  align-items: start;
-  gap: 40px;
-  margin-top: 28px;
-}
-
 @media (max-width: 900px) {
-  .promptpay__stats,
-  .promptpay__deal {
+  .promptpay__stats {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
