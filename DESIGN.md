@@ -51,8 +51,8 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 ## Components
 
 - **Lockup** (`App.tsx`): the rail header is `docs/brand/lockup-embat-lighthouse.svg` in markup:
-  Embat's logo in ink, a 22px hairline, then "Lighthouse" in the brand type. The Lighthouse mark
-  below lives on in the favicon only.
+  the Lighthouse mark below, Embat's wordmark in ink, a 22px hairline, then "Lighthouse" in the
+  brand type. The same lockup in white closes the brand video (`docs/brand/video/`).
 - **Brand mark** (`public/favicon.svg`): three ink facets in the angular language of
   Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: the lit
   lantern of the lighthouse. The favicon is the same mark with no tile: ink facets, white in a dark browser. Sources and rejected

@@ -40,3 +40,6 @@ web/dist/
 
 # Synthetic demo dump, lake and anything else make demo writes
 data/demo/
+
+# Brand video takes and renders: large binaries, kept local
+data/video/
