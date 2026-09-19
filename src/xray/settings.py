@@ -26,7 +26,7 @@ class Settings(BaseSettings):
         default=None, validation_alias=AliasChoices("XRAY_HELMCODE_API_KEY", "HELMCODE_API_KEY")
     )
     helmcode_base_url: str = "https://api.helmcode.com/v1"
-    llm_model: str = "deepseek-v4-flash"
+    llm_model: str = "glm5.3"
     context_ttl_days: int = 7
 
 

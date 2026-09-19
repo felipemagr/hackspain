@@ -28,7 +28,7 @@ publication dates; `cache.py` is the JSON cache with a TTL.
 
 `llm.py` holds the `LLM` protocol and `OpenAICompatibleLLM`, a chat-completions client
 over httpx. `build_llm(settings)` points it at Helmcode (`HELMCODE_API_KEY`,
-`XRAY_LLM_MODEL`, default `deepseek-v4-flash`) or returns None when there is no key.
+`XRAY_LLM_MODEL`, default `glm5.3`) or returns None when there is no key.
 
 ## State of each agent
 

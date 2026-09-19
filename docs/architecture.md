@@ -318,7 +318,7 @@ name -> 3 searches in parallel -> drop social, off-topic, low score -> dedupe by
   never to guess; an unknown date stays null.
 - **Model.** `agents/llm.py` holds the `LLM` protocol and one client for any OpenAI-compatible
   endpoint, over httpx. `build_llm(settings)` points it at Helmcode (`HELMCODE_API_KEY`,
-  `XRAY_LLM_MODEL`, default `deepseek-v4-flash`). With no key the agent returns the raw hits.
+  `XRAY_LLM_MODEL`, default `glm5.3`). With no key the agent returns the raw hits.
 - **Cache.** `agents/cache.py`, one JSON file per company in `data/serving/context/`, holding the
   raw hits and the report, valid for `XRAY_CONTEXT_TTL_DAYS` (default 7). A cached company costs
   no credits, no model call and no latency. `make context NAME="Cabify"` fills it,
