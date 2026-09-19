@@ -1,0 +1,30 @@
+{
+  "key": "sector Industrial manufacturing Spain",
+  "stored_at": "2026-09-19T10:23:11.426615+00:00",
+  "payload": {
+    "report": {
+      "agent": "sector",
+      "summary": "Industrial manufacturing in Spain, mixed. Spanish industry shows mixed signals: industrial turnover rose 5.3% year-on-year in June 2026 and production grew 1.1%, but credit to industry is still contracting while services lead the lending recovery, and several critical Spanish sectors face a wave of debt restructurings after summer 2026. Overall the sector is stable-to-positive on demand and output, but financing conditions are uneven and deleveraging pressure persists in industry. Velasco Industrial's score decline in cash generation and debt burden alongside improvements in liquidity and collections looks plausibly sector-related on the financing side, though the company-specific mix cannot be fully ruled out.",
+      "findings": [
+        "sector: Several critical Spanish sectors including renewables, wineries and automotive anticipate a wave of debt restructurings or creditor calls after the summer of 2026. [seen 2026-09-02, hurts]",
+        "sector: The annual rate of the Total Industrial Turnover Index stood at 5.3% seasonally adjusted (9.2% original) in June 2026, with a monthly variation of -0.5% adjusted. [seen 2026-08-14, helps]",
+        "sector: In March 2026, credit to Spanish companies grew 3.6% year-on-year, but industry and construction were still reducing their credit while services led with a 5.4% increase. [seen 2026-08-10, hurts]",
+        "sector: The annual rate of the Industrial Production Index was 1.1% adjusted (3.8% original) in June 2026, with a monthly variation of -0.7% adjusted. [seen 2026-08-06, helps]",
+        "sector: The annual variation of the Industrial Price Index fell 3.5 points in June 2026 to 7.0%, with a monthly rate of 0.0%. [seen 2026-07-24, neutral]",
+        "sector: Industrial Sector turnover decreased by 0.8% in 2024 to EUR 857,826 million, while added value rose 4.1% to EUR 206,064 million. [seen 2026-03-31, neutral]",
+        "sector: The annual variation of the Industrial Price Index rose 10.3 points in March 2026 to 3.4%, with a monthly rate of 6.5%. [seen 2026-04-24, neutral]",
+        "sector: Between 2019 and 2025, Spain's manufacturing industry grew at a similar rate to overall GDP, contrasting with stagnation in the main European economies. [seen 2026-01-12, helps]"
+      ],
+      "sources": [
+        "https://ine.es/dyngs/Prensa/en/ICN0626.htm",
+        "https://ine.es/dyngs/Prensa/en/IPRI0626.htm",
+        "https://www.bbvaresearch.com/en/publicaciones/spain-corporate-credit-returns-but-not-equally-across-the-board/",
+        "https://www.caixabankresearch.com/en/sectoral-analysis/sectoral-observatory/keys-strong-performance-spanish-manufacturing",
+        "https://www.elconfidencial.com/empresas/2026-09-02/sectores-economica-espanola-reestructuraciones-deuda_4415134/",
+        "https://www.ine.es/dyngs/Prensa/en/EEESI2024.htm",
+        "https://www.ine.es/dyngs/Prensa/en/IPI0626.htm",
+        "https://www.ine.es/dyngs/Prensa/en/IPRI0326.htm"
+      ]
+    }
+  }
+}
