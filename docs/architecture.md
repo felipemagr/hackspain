@@ -61,21 +61,49 @@ because none of them would save time worth having.
 
 ## 3. Data pipeline
 
+Three layers, each reading only the one above it. A table never reaches across a layer.
+
+| Layer | Directory | Built by | Holds |
+|---|---|---|---|
+| raw | `data/raw` | nobody, never modified | the nine source CSVs |
+| staging | `data/processed` | `xray.pipeline.clean` | one parquet per source table, cleaned and typed |
+| marts | `data/marts` | `xray.pipeline.cash`, `.panel` | business-facing tables, plus `_lineage.json` |
+
 ```
-output/*.csv            raw dump, git-ignored, never modified
+data/raw/*.csv
    |
-   v  xray.pipeline.clean        pandas, one pass, fixes the traps in section 6
-data/processed/*.parquet
+   v  xray.pipeline.clean    pandas, one pass, fixes the traps in section 6
+data/processed/*.parquet     staging: same grain as the source
    |
-   v  xray.pipeline.panel        duckdb, as-of aggregation
-panel_company.parquet   1,286 x 24
-panel_group.parquet       250 x 24   <- the contract
+   +--> xray.pipeline.cash   rolls balances.csv back into a monthly series
+   |      cash_monthly.parquet       1,266 x 24
    |
-   v                    score, explain, monitor, offer, api
+   v  xray.pipeline.panel    duckdb, as-of aggregation, consumes cash_monthly
+panel_company.parquet        1,286 x 24
+panel_group.parquet            250 x 24   <- the contract
+   |
+   v                         score, explain, monitor, offer, api
 ```
 
 `make panel` runs it. Make tracks the file dependencies, so an unchanged raw dump rebuilds
 nothing and a touched `clean.py` rebuilds from there down.
+
+### Lineage
+
+Every mart table has an entry in `data/marts/_lineage.json` naming the tables it was built from,
+the commit that built it, when, and its shape:
+
+```json
+"cash_monthly": {
+  "built_at": "2026-09-19T08:14:02+00:00",
+  "git_commit": "8b72f12",
+  "sources": ["balances", "banking_products", "transactions"],
+  "rows": 30384,
+  "columns": ["company_id", "month", "cash", "n_cash_accounts", "cash_is_extrapolated"]
+}
+```
+
+So a number on a chart can be traced to the files behind it without reading the code.
 
 ## 4. Parquet is the system of record, DuckDB is a query engine
 
@@ -113,7 +141,7 @@ Airflow** are for problems two orders of magnitude larger than this one.
 
 ## 5. The panel contract
 
-`data/processed/panel_group.parquet`, one row per `(group_id, month)`, 6,000 rows, 24 months from
+`data/marts/panel_group.parquet`, one row per `(group_id, month)`, 6,000 rows, 24 months from
 2024-09 to 2026-08. `panel_company.parquet` is the same schema keyed by `company_id`.
 
 Every value is computed from data at or before that month's last day. A row is what the system
@@ -127,6 +155,10 @@ knew at the end of that month.
 | `is_covered` | bool | At least one transaction this month |
 | `months_observed` | float | Covered months so far |
 | `n_tx`, `n_counterparties` | float | Bank activity |
+| `cash` | float | Reconstructed closing balance, checking and saving only. Null when unknown |
+| `has_cash` | bool | A cash account was found. False for 20 companies, 480 rows |
+| `runway_months` | float | `cash / outflow`. Negative when overdrawn, null when `has_cash` is false |
+| `cash_is_extrapolated` | bool | Month precedes the first cash-account movement, so cash is a flat estimate |
 | `inflow`, `outflow`, `net_flow` | float | Money in, out, and the difference |
 | `salary_outflow`, `tax_outflow`, `debt_repayment_outflow`, `fee_outflow` | float | Outflow by category |
 | `inflow_3m`, `net_flow_3m`, `inflow_mom` | float | Trend, not level |
@@ -145,13 +177,43 @@ before its first one. Check `has_erp` before using it; do not impute across that
 `dpo_days`. They are in the file so a group's DSO stays weighted by invoice value when companies
 roll up, rather than becoming an average of averages. Ignore them otherwise.
 
-### Not in the panel, on purpose
+### Cash, and why recovering it is not a leak
 
-`debt_products.outstanding`, `debt_products.granted` and `balances.balance` are snapshots taken at
-extraction. They describe month 24 and nothing else, so putting them on a month-10 row would leak
-the future into every earlier month. Debt behaviour enters through the `debt_repayment`
-transaction category instead, which is dated. Use the snapshots only for a month-24 view, and
-label it as such.
+`balances.csv` is one snapshot at 2026-09-01. Dropping it would throw away the most intuitive
+health signal there is, so `xray.pipeline.cash` rolls it back instead:
+
+```
+cash(product, t) = balance(2026-09-01) - flows after t
+```
+
+Measured on the real data, the reconstruction holds up: 1,266 of 1,286 companies, median cash flat
+near 90k across all 24 months, implied negative balances falling smoothly from 9.6% to 2.6%. No
+drift, no blow-up. Runway spans 0.01 months at p10 to 5.0 at p90, so there is real discrimination
+in it.
+
+This reads like a leak and is not one. `cash(t)` is the balance that actually stood at month `t`;
+later transactions recover that fact rather than describe it with hindsight. Contrast
+`invoices.status`, which is a real leak because it stamps July's value onto a March row. The
+practical consequence is that the truncation test does not constrain `cash`, so it is checked
+separately in `tests/pipeline/test_cash.py` against a hand-built series.
+
+Two limits, both flagged in the data rather than hidden. Before a company's first cash-account
+movement the series is flat at the implied opening balance, marked by `cash_is_extrapolated`,
+which is 27.8% of company-months. And the roll-back uses cleaned transactions, so the level
+carries a small error from the rows `clean.py` drops. Ranking within a month is unaffected, which
+is what the score uses. Twenty companies have no cash account at all: their `cash` is null and
+`has_cash` is false, never zero, because "no account" and "no money" must not look alike to a
+score.
+
+Only checking and saving accounts count. Cards are a liability, and TPV accounts sweep to zero and
+reconstruct 100% negative.
+
+### Still not in the panel, on purpose
+
+`debt_products.outstanding` and `debt_products.granted` are snapshots with no dated movements
+behind them, so they cannot be rolled back the way balances can. They describe month 24 and
+nothing else. Debt behaviour enters through the dated `debt_repayment` transaction category
+instead. Use the snapshots only for a month-24 view, and label it as such.
 
 ## 6. What cleaning has to fix
 

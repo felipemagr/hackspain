@@ -51,6 +51,7 @@ RUN uv sync --no-dev
 # Raw data is mounted, never baked in: the CSVs are 615 MB and stay out of the image.
 ENV XRAY_DATA_DIR=/data/raw \
     XRAY_PROCESSED_DIR=/data/processed \
+    XRAY_MARTS_DIR=/data/marts \
     XRAY_LAKE_DIR=/data/lake
 
 CMD ["python", "-m", "xray.pipeline"]
