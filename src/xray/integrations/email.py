@@ -4,7 +4,7 @@ import logging
 import smtplib
 from email.message import EmailMessage
 
-from xray.settings import get_settings
+from xray.settings import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,12 @@ TIMEOUT_SECONDS = 10.0
 
 def send_email(subject: str, body: str, to: str | None = None) -> bool:
     """Send one alert, to ``to`` or the configured recipient. Returns False when no SMTP host or
-    recipient is configured."""
-    settings = get_settings()
+    recipient is configured.
+
+    The mail settings are read at send time, not from the cached settings, so `make email-setup`
+    takes effect on a running API.
+    """
+    settings = Settings()
     recipient = to or settings.alert_email_to
     if not (settings.smtp_host and recipient):
         logger.info("Email not configured, alert not sent: %s", subject)

@@ -88,21 +88,27 @@ def db():
     return con
 
 
-def no_keys(tmp_path) -> Settings:
+def no_keys(tmp_path, smtp_host: str | None = "smtp.example.com") -> Settings:
     return Settings(
         _env_file=None,
         serving_dir=tmp_path,
         helmcode_api_key=None,
         exa_api_key=None,
         tavily_api_key=None,
+        smtp_host=smtp_host,
     )
 
 
 def run(
-    db, tmp_path, message: str, currency: str = "EUR", history: list[dict] | None = None
+    db,
+    tmp_path,
+    message: str,
+    currency: str = "EUR",
+    history: list[dict] | None = None,
+    settings: Settings | None = None,
 ) -> list[dict]:
     request = ChatRequest(message=message, month=MONTH, currency=currency, history=history or [])
-    return list(run_chat(request, db, no_keys(tmp_path)))
+    return list(run_chat(request, db, settings or no_keys(tmp_path)))
 
 
 def answer(events: list[dict]) -> str:
@@ -251,6 +257,13 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
         "Rule 2 was off and is back on: Slack gets every alert on any group."
     )
     assert [r.enabled for r in load_rules(tmp_path / RULES_FILE)] == [True, True]
+
+    # An email rule on a server with no mail set up is saved, and the gap is named.
+    events = run(db, tmp_path, "which alert rules are in place?", settings=no_keys(tmp_path, None))
+    assert done(events)["notifier"]["summary"] == (
+        "2 rules in force. Email is not set up on this server: nothing will arrive until "
+        "make email-setup is run."
+    )
 
 
 def test_the_pending_request_stops_at_the_last_answer_that_was_not_a_question():

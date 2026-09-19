@@ -1468,6 +1468,12 @@ def notifier(ctx: AgentContext) -> AgentReport:
         if rules
         else "No alert rules yet: nothing leaves the monitor until one is set."
     )
+    # An email rule on a server with no mail set up would wait for nothing: say so now.
+    if any(r.channel == "email" for r in rules) and not ctx.settings.smtp_host:
+        standing += (
+            " Email is not set up on this server: nothing will arrive until make email-setup "
+            "is run."
+        )
     # A question still open is the whole answer: the state of the book can wait.
     return AgentReport(
         agent="notifier",

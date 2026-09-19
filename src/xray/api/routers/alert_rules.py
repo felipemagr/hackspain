@@ -27,8 +27,7 @@ router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
 NOT_CONFIGURED = {
     "slack": "Slack is not configured on the server: set XRAY_SLACK_WEBHOOK_URL in .env",
-    "email": "Email is not configured on the server: set XRAY_SMTP_HOST, XRAY_SMTP_USER and "
-    "XRAY_SMTP_PASSWORD in .env",
+    "email": "Email is not configured on the server: run make email-setup",
 }
 
 

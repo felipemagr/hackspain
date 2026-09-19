@@ -53,7 +53,7 @@ The contract between the two halves is **one folder**: `data/serving/*.parquet`.
 | Live replay, month by month | laptop with `uv`, or Docker | `make replay [FROM=] [PAUSE=] [CHANNEL=]` | same, plus a running API for the web to follow |
 | API, dev mode | laptop, `uv` | `make api` (auto-reload, docs at `/docs`) | core dependencies only |
 | API, container | Docker, target `api` | `make api-up` / `make api-down` | Docker |
-| Alerts | wherever the pipeline runs | `make slack-test` to try it | `XRAY_SLACK_WEBHOOK_URL` |
+| Alerts | wherever the pipeline runs | `make slack-test`, `make email-setup` (asks for an address and its app password, writes the six `XRAY_SMTP_*`/`XRAY_ALERT_EMAIL_*` lines, sends a test), `make notify CHANNEL=rules` to send what is due | `XRAY_SLACK_WEBHOOK_URL`, the SMTP lines |
 | CI | GitHub Actions | every push to `main` | nothing, no secrets |
 
 ## Local versus deployed

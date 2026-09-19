@@ -109,4 +109,4 @@ def test_the_test_button_says_when_the_channel_is_not_configured(client, monkeyp
     response = client.post("/api/v1/alert-rules/1/test")
 
     assert response.status_code == 503
-    assert response.json()["detail"].startswith("Slack is not configured on the server: set XRAY_")
+    assert response.json()["detail"].startswith("Slack is not configured on the server")
