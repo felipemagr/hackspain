@@ -113,6 +113,11 @@ ol {
   flex: none;
 }
 
+.brand__name {
+  /* Align the text optically with the lettering inside the SVG. */
+  transform: translateY(2px);
+}
+
 .brand__rule {
   width: 1px;
   height: 22px;
