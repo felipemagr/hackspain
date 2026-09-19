@@ -40,10 +40,10 @@ CASH_WINDOW_MONTHS = 3
 NEGATIVE_CASH_WINDOW = 3
 LATENESS_WINDOW_MONTHS = 3
 MARGIN_WINDOW_MONTHS = 6
-MARGIN_MIN_MONTHS = 3
+MARGIN_MIN_MONTHS = 1
 GROWTH_SHORT_MONTHS = 3
 GROWTH_LONG_MONTHS = 12
-GROWTH_MIN_MONTHS = 6
+GROWTH_MIN_MONTHS = 1
 DAYS_PER_MONTH = 365 / 12
 # Reconstructed cash is a long sum of flows, so an emptied account lands at +-1e-10 rather than
 # zero. Overdrawn means below this, not below the sign bit.

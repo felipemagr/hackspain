@@ -41,7 +41,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 
 ## Layout
 
-- Two panes: a 372px side rail (brand, month stepper, Groups / Alerts tabs, list) and the detail.
+- Two panes: a 372px side rail (brand, Groups / Alerts tabs, list) and the detail.
 - Detail content is capped at 1080px: header (name left, score sentence right), chart, then two
   columns: what drives the score and companies on the left, next moves and the line on the right.
 - Sections are a 14px heading with a right-aligned hint over a hairline. Rows have no borders
@@ -51,8 +51,9 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 ## Components
 
 - **Brand mark** (`App.tsx`, `public/favicon.svg`): three ink facets in the angular language of
-  Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: what the X ray
-  sees. The favicon sets it in white on an ink tile. Sources and rejected options in `docs/brand/`.
+  Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: the lit
+  lantern of the lighthouse. The favicon is the same mark with no tile: ink facets, white in a dark browser. Sources and rejected
+  options in `docs/brand/`.
 - **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
 - **State tag**: 7-8px dot plus label.
@@ -76,6 +77,11 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
   it), its score, the raw indicator, and how many points it moved the level this month, signed and
   colored. Figures right-aligned, hairline between rows.
+- **Own-range gauge** (`OwnHistory.tsx`): a half dial that runs from the group's own worst month
+  to its own best. A 6px arc in thirds (low, mid, high); only the third the needle sits in takes
+  its state color, the rest stay hairline grey. Every scored month is a tick outside the arc,
+  today's longer and in ink. Tapered ink needle, the level at 30px under the hub, the ends
+  labelled with value, worst or best, and month. Below it, the zone as a dot plus its words.
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
   and the writer, each with its live state and the tool it is running. The detail pane holds the
   conversation. A turn is the question at 22px, a line saying what the planner read it as, a
@@ -83,11 +89,18 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
   under, every tool call with input, output and time, findings and sources. Tool calls are the
   one place monospace is used, because they are code. No bubbles, no avatars, no modal.
+- **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
+  the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
+  button on hover. "New conversation" is a text link in the section head. The section is sticky at
+  the top of the rail; the list is three rows tall and scrolls for the rest. Kept in localStorage (`xray.chats`, last 30); opening one selects its group.
+- **Data sync** (`GroupDetail.tsx`): a borderless refresh icon beside the favorite star, same size
+  and ink. It turns while the tables refetch, and only then. The meta line ends with when the data
+  was last updated (the tables' Last-Modified); the icon's tooltip says when this browser synced.
 - **Draft suggestion**: between two strong hairlines under the answer, with the only filled
   button on the tab, "Sign". Anything that moves money is a draft until a person signs it.
 - **Agent dot**: hollow at rest, blue and pulsing while working, ink once it reported, red when
   it failed. The only motion on the tab besides the streaming caret.
-- **Controls**: borderless icon buttons for the stepper, underline tabs, bordered selects and
+- **Controls**: borderless icon buttons, underline tabs, bordered selects and
   menu buttons, underlined text links for secondary actions (Clear all, Clear filters).
 
 ## Motion

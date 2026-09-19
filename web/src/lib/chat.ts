@@ -49,6 +49,7 @@ export type Phase = "planning" | "agents" | "writing" | "done" | "stopped" | "er
 export interface Turn {
   id: number;
   question: string;
+  groupId: string;
   groupName: string;
   month: string;
   phase: Phase;
@@ -59,6 +60,12 @@ export interface Turn {
   answer: string;
   ms?: number;
   error?: string;
+}
+
+// One conversation. Its title is its first question.
+export interface Conversation {
+  id: number;
+  turns: Turn[];
 }
 
 export type FleetState =
@@ -155,11 +162,30 @@ async function* readEvents(response: Response): AsyncGenerator<ChatEvent> {
   }
 }
 
+const CHATS_KEY = "xray.chats";
+const MAX_CHATS = 30;
+const WORKING: Phase[] = ["planning", "agents", "writing"];
+
+// A turn cut short by a reload never finished: it comes back as stopped.
+function readChats(): Conversation[] {
+  try {
+    const chats = JSON.parse(localStorage.getItem(CHATS_KEY) ?? "[]") as Conversation[];
+    return chats.map((chat) => ({
+      ...chat,
+      turns: chat.turns.map((t) => (WORKING.includes(t.phase) ? { ...t, phase: "stopped" } : t)),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export function useChat() {
   const [fleet, setFleet] = useState<FleetState>({ status: "waking" });
-  const [turns, setTurns] = useState<Turn[]>([]);
+  // Newest first. activeId null is a new conversation nobody has asked in yet.
+  const [chats, setChats] = useState(readChats);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const nextId = useRef(1);
+  const turns = chats.find((chat) => chat.id === activeId)?.turns ?? [];
 
   const load = useCallback(() => {
     fetch(`${API_URL}/api/v1/agents`)
@@ -176,11 +202,22 @@ export function useChat() {
   }, [load]);
 
   const last = turns[turns.length - 1];
-  const busy = !!last && ["planning", "agents", "writing"].includes(last.phase);
+  const busy = !!last && WORKING.includes(last.phase);
+  const streaming = chats.some((chat) => WORKING.includes(chat.turns[chat.turns.length - 1].phase));
+
+  useEffect(() => {
+    if (streaming) return;
+    try {
+      localStorage.setItem(CHATS_KEY, JSON.stringify(chats));
+    } catch {
+      // private window: the conversations still work for the session
+    }
+  }, [chats, streaming]);
 
   const ask = useCallback(
     async (question: string, groupId: string, groupName: string, month: string) => {
-      const id = nextId.current++;
+      const id = Date.now();
+      const chatId = activeId ?? id;
       const history = turns
         .filter((t) => t.answer)
         .flatMap((t) => [
@@ -188,22 +225,34 @@ export function useChat() {
           { role: "assistant", content: t.answer },
         ]);
       const patch = (fn: (turn: Turn) => Turn) =>
-        setTurns((all) => all.map((t) => (t.id === id ? fn(t) : t)));
-      setTurns((all) => [
-        ...all,
-        {
-          id,
-          question,
-          groupName,
-          month,
-          phase: "planning",
-          purpose: null,
-          company: null,
-          agents: [],
-          suggestion: null,
-          answer: "",
-        },
-      ]);
+        setChats((all) =>
+          all.map((chat) =>
+            chat.id === chatId
+              ? { ...chat, turns: chat.turns.map((t) => (t.id === id ? fn(t) : t)) }
+              : chat,
+          ),
+        );
+      const turn: Turn = {
+        id,
+        question,
+        groupId,
+        groupName,
+        month,
+        phase: "planning",
+        purpose: null,
+        company: null,
+        agents: [],
+        suggestion: null,
+        answer: "",
+      };
+      // The conversation just asked in moves to the top.
+      setChats((all) =>
+        [
+          { id: chatId, turns: [...(all.find((chat) => chat.id === chatId)?.turns ?? []), turn] },
+          ...all.filter((chat) => chat.id !== chatId),
+        ].slice(0, MAX_CHATS),
+      );
+      setActiveId(chatId);
       const controller = new AbortController();
       abort.current = controller;
       try {
@@ -231,10 +280,21 @@ export function useChat() {
           }));
       }
     },
-    [turns],
+    [turns, activeId],
   );
 
   const stop = useCallback(() => abort.current?.abort(), []);
 
-  return { fleet, turns, busy, ask, stop, wake };
+  const remove = useCallback(
+    (chatId: number) => {
+      if (chatId === activeId) {
+        abort.current?.abort();
+        setActiveId(null);
+      }
+      setChats((all) => all.filter((chat) => chat.id !== chatId));
+    },
+    [activeId],
+  );
+
+  return { fleet, chats, activeId, open: setActiveId, remove, turns, busy, ask, stop, wake };
 }

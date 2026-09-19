@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score score-baseline validate monitor alerts notify serve submit replay api api-up api-down slack-test email-test \
+        events score score-baseline validate monitor alerts notify serve submit replay demo demo-data \
+        lighthouse lighthouse-down api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
 
@@ -12,6 +13,8 @@ CASH := $(MARTS_DIR)/cash_monthly.parquet
 PANEL := $(MARTS_DIR)/panel_group.parquet
 BASELINE_SCORE := $(MARTS_DIR)/real_scores.parquet
 IMAGE ?= xray:latest
+API_PORT ?= 8000
+WEB_PORT ?= 5173
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -26,7 +29,9 @@ inspect: ## Print shape and dtypes of every CSV in data/raw
 	uv run python -m xray.pipeline.data
 
 $(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/pipeline/clean.py
-	uv run python -m xray.pipeline.clean
+	@test -n "$(wildcard $(RAW_DIR)/*.csv)" || { \
+		echo "No CSVs in $(RAW_DIR). Drop the nine challenge files there, or pass RAW_DIR=path/to/csvs"; exit 1; }
+	XRAY_DATA_DIR=$(RAW_DIR) uv run python -m xray.pipeline.clean
 	@touch $@
 
 $(CASH): $(CLEAN_STAMP) src/xray/pipeline/cash.py
@@ -48,7 +53,36 @@ fx: ## Refresh the yearly euro rates (ECB, pegs, the data) in src/xray/pipeline/
 	uv run python -m xray.pipeline.fx
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
-	uv run python -m xray.pipeline
+	XRAY_DATA_DIR=$(RAW_DIR) uv run python -m xray.pipeline
+
+# Everything, one command. Data first (clean, cash, panel, score, monitor, serving tables, the
+# JSON copy the web falls back to), then the API and the web side by side; Ctrl-C stops both.
+# A server already answering on its port is reused, not fought over: an API started with
+# `make api` in another terminal re-reads the freshly published tables on its own.
+lighthouse: install $(WEB_DEPS) serve web-data ## From the raw CSVs to a running demo: load, score, publish, then API on :8000 and web on :5173 (API_PORT, WEB_PORT to change). make lighthouse [RAW_DIR=path/to/csvs]
+	@api=$$(curl -s -o /dev/null -w '%{http_code}' http://localhost:$(API_PORT)/health || true); \
+	web=$$(curl -s -o /dev/null -w '%{http_code}' http://localhost:$(WEB_PORT)/ || true); \
+	if [ "$$api" != "200" ] && lsof -ti tcp:$(API_PORT) >/dev/null 2>&1; then \
+		echo "Port $(API_PORT) is taken by something that is not the API:"; lsof -i tcp:$(API_PORT) -P -n | tail -n +2; \
+		echo "Stop it, or run: make lighthouse API_PORT=8001"; exit 1; fi; \
+	if [ "$$web" != "200" ] && lsof -ti tcp:$(WEB_PORT) >/dev/null 2>&1; then \
+		echo "Port $(WEB_PORT) is taken by something that is not the web:"; lsof -i tcp:$(WEB_PORT) -P -n | tail -n +2; \
+		echo "Stop it, or run: make lighthouse WEB_PORT=5174"; exit 1; fi; \
+	echo; echo "  Lighthouse is coming up."; \
+	echo "  web  http://localhost:$(WEB_PORT)        api  http://localhost:$(API_PORT)/docs"; \
+	[ "$$api" = "200" ] && echo "  API already running on :$(API_PORT), reusing it (it re-reads the tables just published)."; \
+	[ "$$web" = "200" ] && echo "  Web already running on :$(WEB_PORT), reusing it."; \
+	echo "  In another terminal: make replay FROM=2025-01 PAUSE=8 to watch the real months land,"; \
+	echo "  or make demo FROM=2025-01 PAUSE=8 for the named synthetic portfolio. Ctrl-C stops what this started."; \
+	echo "  make lighthouse-down stops both wherever they were started."; echo; \
+	start=""; [ "$$api" = "200" ] || start="$$start api"; [ "$$web" = "200" ] || start="$$start web"; \
+	if [ -n "$$start" ]; then $(MAKE) -j2 $$start; else echo "  Both already up, nothing to start."; fi
+
+lighthouse-down: ## Stop whatever listens on the API and web ports
+	@for port in $(API_PORT) $(WEB_PORT); do \
+		pids=$$(lsof -ti tcp:$$port 2>/dev/null); \
+		if [ -n "$$pids" ]; then echo "stopping :$$port (pid $$pids)"; kill $$pids 2>/dev/null || true; else echo ":$$port free"; fi; \
+	done
 
 EVENTS := $(MARTS_DIR)/events.parquet
 SCORES := $(MARTS_DIR)/scores.parquet
@@ -94,6 +128,17 @@ replay: ## Land the dump month by month, publish and alert after each: make repl
 		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) $(if $(PAUSE),--pause $(PAUSE)) \
 		$(if $(CHANNEL),--channel $(CHANNEL)) $(if $(RESET),--reset) $(if $(CHECK),--check)
 
+DEMO_DIR := data/demo
+
+demo-data: ## Generate the synthetic Spanish scale-up dump (nine CSVs, invented figures) in data/demo/raw
+	uv run python -m xray.pipeline.synth --out $(DEMO_DIR)/raw
+
+# Companies connecting to the platform: the portfolio make lighthouse built stays as it is, the
+# named groups arrive on top of it in batches, each scored on the spot with its whole history.
+demo: demo-data ## Live demo: the named groups connect in BATCHES (2) arrivals GAP (20) s apart, on top of the current portfolio. make lighthouse first; make serve restores the tables after
+	uv run python -m xray.pipeline.onboard --new $(DEMO_DIR)/raw \
+		--batches $(or $(BATCHES),2) --gap $(or $(GAP),20) $(if $(CHANNEL),--channel $(CHANNEL))
+
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock
 
@@ -115,8 +160,8 @@ notebook: ## Register the project venv as a Jupyter kernel
 	uv run python -m ipykernel install --user --name xray --display-name "xray"
 
 # API
-api: ## Run the API locally with reload on http://localhost:8000
-	uv run uvicorn xray.api.main:app --reload
+api: ## Run the API locally with reload on http://localhost:8000 (API_PORT to change)
+	uv run uvicorn xray.api.main:app --reload --port $(API_PORT)
 
 api-up: ## Start the API container in the background
 	docker compose up -d --build
@@ -131,14 +176,18 @@ email-test: ## Send a test alert to the SMTP host in .env
 	uv run python -m xray.integrations.email
 
 # Web demo
-web-install: ## Install the demo front end dependencies
-	cd web && npm install
+WEB_DEPS := web/node_modules/.package-lock.json
+
+$(WEB_DEPS): web/package.json web/package-lock.json
+	cd web && npm install --no-audit --no-fund
+
+web-install: $(WEB_DEPS) ## Install the demo front end dependencies
 
 web-data: ## Export data/serving parquet to web/public/data as JSON for the front end
 	uv run python -m xray.pipeline.export_serving
 
-web: web-data ## Run the demo front end on http://localhost:5173
-	cd web && npm run dev
+web: web-data ## Run the demo front end on http://localhost:5173, talking to the API on :8000 (WEB_PORT, API_PORT to change)
+	cd web && VITE_API_URL=http://localhost:$(API_PORT) npm run dev -- --port $(WEB_PORT) --strictPort
 
 web-build: web-data ## Build the demo front end into web/dist
 	cd web && npm run build

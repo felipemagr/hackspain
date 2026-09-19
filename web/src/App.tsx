@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertList } from "./components/AlertList";
 import { Chat } from "./components/Chat";
 import { CurrencyToggle } from "./components/CurrencyToggle";
@@ -7,7 +7,6 @@ import { GroupDetail } from "./components/GroupDetail";
 import { GroupList } from "./components/GroupList";
 import { useChat } from "./lib/chat";
 import { useDisplayCurrency } from "./lib/currency";
-import { monthLong } from "./lib/format";
 import { DEFAULT_VIEW } from "./lib/listView";
 import { fetchVersion, loadStore, type Store } from "./lib/load";
 import { alertKey } from "./lib/meta";
@@ -38,8 +37,19 @@ export default function App() {
   const [tab, setTab] = useState<"groups" | "alerts" | "agents">(
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
+  const [syncing, setSyncing] = useState(false);
   const chat = useChat();
   useDisplayCurrency(month);
+
+  // Held for a moment so a sync that finds nothing new is still seen to have happened.
+  // A sync that fails keeps the data already on screen.
+  const sync = () => {
+    setSyncing(true);
+    Promise.all([loadStore(), new Promise((done) => setTimeout(done, 700))])
+      .then(([s]) => setStore(s))
+      .catch((e: Error) => console.warn("sync failed", e))
+      .finally(() => setSyncing(false));
+  };
 
   useEffect(() => {
     loadStore()
@@ -47,6 +57,20 @@ export default function App() {
         setStore(s);
         const asked = params.get("month");
         setMonth(asked && s.months.includes(asked) ? asked : s.months[s.months.length - 1]);
+        // Open on the group worth opening on: a deep link wins; then, when the portfolio holds
+        // named groups (the synthetic demo beside the challenge ids), the named one that is
+        // bending while still looking fine, the Velasco of that portfolio; then the default id.
+        setSelectedId((id) => {
+          if (params.get("group") && s.groupById.has(id)) return id;
+          const velasco = (pool: typeof s.groups) =>
+            [...pool]
+              .filter((g) => s.latestMonth(g.group_id)?.state === "bending")
+              .sort((a, b) => (s.latestMonth(b.group_id)?.level ?? 0) - (s.latestMonth(a.group_id)?.level ?? 0))[0] ??
+            pool[0];
+          const named = s.groups.filter((g) => g.name !== g.group_id);
+          if (named.length) return velasco(named).group_id;
+          return s.groupById.has(id) ? id : (velasco(s.groups)?.group_id ?? id);
+        });
       })
       .catch((e: Error) => setError(e.message));
   }, []);
@@ -79,30 +103,6 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [store]);
 
-  const stepMonth = useCallback(
-    (dir: -1 | 1) => {
-      if (!store) return;
-      const next = store.months[store.months.indexOf(month) + dir];
-      if (next) setMonth(next);
-    },
-    [store, month],
-  );
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (
-        e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLInputElement
-      )
-        return;
-      if (e.key === "ArrowLeft") stepMonth(-1);
-      if (e.key === "ArrowRight") stepMonth(1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [stepMonth]);
-
   if (error) {
     return (
       <p className="splash">
@@ -128,7 +128,6 @@ export default function App() {
     updateFavorites((next) => {
       if (!next.delete(groupId)) next.add(groupId);
     });
-  const i = store.months.indexOf(month);
   const alertCount = store.alerts.filter(
     (a) => a.month <= month && !cleared.has(alertKey(a)),
   ).length;
@@ -148,34 +147,8 @@ export default function App() {
               <path fill="currentColor" d="M14 3l6 9-6 9zM4 6.3 14 3 7.6 12zM4 17.7 7.6 12 14 21z" />
               <path fill="url(#brand-inside)" d="M9.4 12l3.7-5.2v10.4z" />
             </svg>
-            X Ray
-            {store.version && (
-              <span
-                className="live"
-                title={`Live from the API. Build ${store.version.build_id}, data to ${store.version.as_of ?? "?"}.`}
-              >
-                <span className="live__dot" />
-                live
-              </span>
-            )}
+            Lighthouse
           </span>
-          <div className="stepper">
-            <button onClick={() => stepMonth(-1)} disabled={i <= 0} aria-label="Previous month">
-              <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden>
-                <path d="M6 1 L1 6 L6 11" />
-              </svg>
-            </button>
-            <span aria-live="polite">{monthLong(month)}</span>
-            <button
-              onClick={() => stepMonth(1)}
-              disabled={i >= store.months.length - 1}
-              aria-label="Next month"
-            >
-              <svg width="7" height="12" viewBox="0 0 7 12" aria-hidden>
-                <path d="M1 1 L6 6 L1 11" />
-              </svg>
-            </button>
-          </div>
         </div>
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === "groups"} onClick={() => setTab("groups")}>
@@ -195,6 +168,14 @@ export default function App() {
               fleet={chat.fleet}
               turn={chat.turns[chat.turns.length - 1]}
               onRetry={chat.wake}
+              chats={chat.chats}
+              activeId={chat.activeId}
+              onOpen={(c) => {
+                chat.open(c.id);
+                select(c.turns[c.turns.length - 1].groupId);
+              }}
+              onNew={() => chat.open(null)}
+              onRemove={chat.remove}
             />
           ) : tab === "groups" ? (
             <GroupList
@@ -249,6 +230,8 @@ export default function App() {
             onClearCompare={() => setCompareSlots((slots) => slots.map(() => ""))}
             favorite={favorites.has(selectedId)}
             onFavorite={() => toggleFavorite(selectedId)}
+            syncing={syncing}
+            onSync={sync}
           />
         )}
       </main>

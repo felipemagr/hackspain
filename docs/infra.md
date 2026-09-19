@@ -121,7 +121,7 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 
 | Service | What | Sleeps |
 |---|---|---|
-| `xray` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
+| `lighthouse` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
 | `xray-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
 
 - The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables or the agent cache change, run `make publish` (re-exports the JSON and stages what Render serves), then commit and push.
@@ -154,10 +154,22 @@ screen leaves no trace. If the API is asleep the report is lost, which is accept
 The front end reads the API when one answers `/api/v1/version` and falls back to its baked JSON otherwise, so the deployed site works with no API and the same build goes live the moment an API is reachable. On stage, everything runs on the laptop:
 
 ```bash
-make api                                   # or make api-up; serves data/serving, views follow the files
-make web                                   # http://localhost:5173, shows a pulsing "live" badge
-make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # a month lands every 8 s, alerts go to Slack
+make lighthouse [RAW_DIR=path/to/csvs]           # load, score, publish, then API :8000 and web :5173 together
+make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # second terminal: a month lands every 8 s, alerts go to Slack
 ```
+
+`make lighthouse` is `install`, `npm install` when `web/node_modules` is missing or stale, the pipeline up to the serving tables (skipping what is already built), the JSON export, then `make -j2 api web`: both processes in one terminal, Ctrl-C stops both. A server already answering on its port is reused rather than fought over (an API started with `make api` elsewhere re-reads the published tables on its own); a port held by something else fails fast with the process named, and `API_PORT=` / `WEB_PORT=` move either. `make lighthouse-down` stops whatever listens on both ports. Separately: `make api` (or `make api-up` in Docker) and `make web`.
 
 Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `xray-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
 
+### With names the room knows: `make demo`
+
+```bash
+make lighthouse                # as above, in one terminal
+make demo GAP=20 CHANNEL=slack # in another: 24 named scale-ups connect, in two arrivals 20 s apart
+make serve                     # afterwards: put the plain challenge tables back in data/serving
+```
+
+`make demo` is the other story a bank aggregator lives every week: the portfolio is what it is today (whatever `make lighthouse` built, all 250 groups at August 2026) and new customers connect their accounts. `xray.pipeline.synth` writes a synthetic dump in the challenge's nine-CSV shape for 24 Spanish scale-ups (Glovo, Cabify, Jobandtalent, Idealista, Wallbox, Factorial...), each with an archetype written into its trail only; `xray.pipeline.onboard` first puts today's portfolio live, complete and at its latest month, whatever an earlier run left in `data/serving` (a replay stopped halfway, for one), then cleans, rolls and panels the dump in a scratch directory and appends it to the current panel in `BATCHES` (default 2, dealt round-robin so each arrival is a mix) `GAP` seconds apart (default 20), publishing after each. A batch is live about a second after it lands; the web picks it up within three; with `CHANNEL=slack` one message per batch names every newcomer with its level and state, worst first. Nobody already on screen moves or disappears: the score is never cross-sectional, so appending panels is exact and a group scores the same the day it joins as it would alone.
+
+Nothing downstream is scripted: the real pipeline scores the files, and the story has to come out of the transactions, invoices and balances. Glovo is the brief's Velasco (81 to 69, bending, alarm at month 15 while still in the coping tier), Cabify its Northbrook (56 to 80, improving). Every figure is invented and the names are labels; say so on stage. Every id the generator mints carries a `SYN_` prefix, so nothing collides with a real one. The dump lives under `data/demo/`, git-ignored, and `make demo` overwrites `data/serving`, hence `make serve` after. `make replay` remains the story along time, months landing one after another, on the challenge data.

@@ -1,194 +1,191 @@
 <div align="center">
 
-# 🩻 X Ray
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/lockup-embat-lighthouse-dark.svg">
+  <img src="docs/brand/lockup-embat-lighthouse.svg" alt="Embat Lighthouse" height="44">
+</picture>
 
-**Can money tell you how a company is doing?**
+<br/><br/>
+
+**See where a company is heading, not only where it stands.**
 
 A financial health score read from a company's money trail,
-and a product a CFO would actually pay for on top of it.
+and a product a CFO can act on built on top of it.
 
-`HackSpain 2026` · `Embat challenge` · `18–20 Sep · ETSIT UPM, Madrid`
+`HackSpain 2026` · `Embat challenge` · `Madrid`
 
 </div>
 
 ---
 
-## The problem in one chart
+## Why a lighthouse
+
+A lighthouse does not describe the ship. It shows the coast early enough to change course.
+
+Most credit and health signals are snapshots: annual accounts that arrive late, ratings refreshed
+once in a while. Two companies can sit at almost the same score today and be completely different
+risks, because one is climbing and the other is sliding.
 
 ```
 score
  100 ┤
-  82 ┤ ●╮                                   Velasco Industrial   82 → 68
+  82 ┤ ●╮                                   Company A   82 → 68
      │   ╰──╮
-  68 ┤       ╰────────────────────────●     three points apart at M24.
-  65 ┤       ╭────────────────────────●     One is a far better risk,
-     │   ╭──╯                               and today's snapshot can't tell which.
-  45 ┤ ●╯                                   Northbrook Foods     45 → 65
+  68 ┤       ╰────────────────────────●     three points apart today.
+  65 ┤       ╭────────────────────────●     One is a far better bet,
+     │   ╭──╯                               and a snapshot cannot tell which.
+  45 ┤ ●╯                                   Company B   45 → 65
    0 ┼────────────────────────────────
      M1      M6      M12     M18    M24
 ```
 
-Everyone looks at snapshots: late accounts, ratings refreshed once in a while.
-X Ray reads the **trajectory**, in **both directions**, **before** it is obvious, and says **why**.
+Lighthouse reads the **trajectory**, in **both directions**, **before** it is obvious, and says **why**.
 
-## What we are building
+## What it answers
 
-> Working thesis. Revisit once we have seen the data and the leaderboard metric.
+For every business group, every month:
 
-**Buyer:** the CFO already using Embat. Embat holds the data, so there is zero acquisition cost.
-**Pitch:** *"What will my bank think of me in three months, and what do I do about it this week?"*
-
-| Layer | What the CFO sees | Rubric it covers |
+| | Question | What you get |
 |---|---|---|
-| **Monitor** | An alert when the score *really* moves, and silence on a one-month dip | Monitor, stability |
-| **Explanation** | Score timeline, which drivers moved and when, which subsidiary drags the group | Explanation, trajectory |
-| **Offer** | A working-capital limit and price recalculated monthly from the score. Up when improving, tightening early when bending | Product, both directions |
-| **Actions** | Three ranked moves, each tied to a driver with its expected score impact | Product, buyer |
-| **Backtest** | "Detected N months before it showed in the level", replayed over the 24 months | Anticipation, measured |
+| 1 | **Who is healthy?** | A 0 to 100 level, not only a list of who is in trouble |
+| 2 | **Who is improving?** | Upward trajectories, often the best opportunities in a portfolio |
+| 3 | **Who is starting to bend?** | Early deterioration while the level still looks fine |
+| 4 | **Bump or fall?** | One bad cash month told apart from structural decline |
+| 5 | **Why did it change?** | The named drivers that moved, and when |
+| 6 | **When was it visible?** | How many months ahead the signal appeared, measured |
 
-Embat's upside: ARPU expansion on existing customers, plus an origination fee from partner lenders.
+## The product
 
-## The six questions
+The score is the engine, not the deliverable. The buyer is the CFO who already has their treasury
+data in Embat: the data is there, the question is what it means.
 
-Per group, per month, the system must answer:
+> *"What will my bank think of me in three months, and what do I do about it this week?"*
 
-1. **Who is healthy**, not only who is in trouble
-2. **Who is improving**: 45 → 65 can be next year's best bet
-3. **Who is starting to bend**: 82 → 68 still looks fine
-4. **Bump or fall**: a bad cash month vs structural decline
-5. **Why it changed**: which signal moved, and when
-6. **When it was visible**: how many months ahead
+| Layer | What the CFO sees |
+|---|---|
+| **Monitor** | An alert when the score really moves, and silence on a one-month dip |
+| **Explanation** | The score timeline, the drivers behind each move, which subsidiary weighs on the group |
+| **Offer** | A working-capital line whose limit and price follow the score every month, in both directions |
+| **Actions** | A short ranked list of moves, each tied to a driver and its expected effect |
+| **Agents** | Assistants that narrate the score in plain language and add public and sector context |
+| **Backtest** | The history replayed month by month, showing how early each signal was visible |
 
-## Architecture
+## How it works
 
 ```mermaid
 flowchart LR
-    A[9 CSVs<br/>data/raw] --> B[load<br/>xray.pipeline.data]
-    B --> C[monthly features<br/>per group, no look-ahead]
-    C --> D[score<br/>level + trend]
-    D --> E[drivers<br/>named, additive]
-    D --> F[monitor<br/>bump vs fall]
-    D --> G[offer engine<br/>limit + price]
-    E --> H[API]
-    F --> H
-    G --> H
-    H --> I[demo web app]
-    D --> J[hidden-test predictions<br/>leaderboard]
+    A[Bank movements<br/>invoices, debt] --> B[Monthly panel<br/>per group, no look-ahead]
+    B --> C[Score<br/>level and trend]
+    C --> D[Drivers<br/>named, additive]
+    C --> E[Monitor<br/>bump vs fall]
+    C --> F[Offer and actions]
+    D --> G[API]
+    E --> G
+    F --> G
+    G --> H[Web app]
+    E --> I[Slack / email]
+    G --> J[Agents]
 ```
+
+Every month of new data flows through the same path, so the product can be replayed live:
+
+```mermaid
+sequenceDiagram
+    participant D as New month of data
+    participant P as Pipeline
+    participant S as Score
+    participant M as Monitor
+    participant C as CFO
+    D->>P: movements, invoices, debt
+    P->>S: panel up to this month only
+    S->>M: level, trend, drivers
+    alt sustained move
+        M->>C: alert with the reason and the months of lead
+    else one-month dip
+        M-->>M: hold and wait for confirmation
+    end
+    S->>C: updated timeline, offer and actions
+```
+
+### Principles
+
+- **Trajectory over snapshot.** Every view shows where the group is heading.
+- **No unexplained number.** Anything on screen decomposes into named drivers. No black box.
+- **Both directions count.** Improvement is as valuable a signal as deterioration.
+- **No look-ahead.** A month is scored only with what was known that month.
+- **Portable.** A group scores the same alone as inside a portfolio, so it works on companies it has never seen.
+- **Measured, not claimed.** Discrimination, stability and anticipation are validated on groups held out entirely.
 
 ## Quickstart
 
-Requires [uv](https://docs.astral.sh/uv/) and Python 3.12+.
+Requires [uv](https://docs.astral.sh/uv/), Python 3.12+ and Node 20+ for the web app.
 
 ```bash
-make install     # uv sync + nbstripout git filter
-# drop the dataset CSVs into data/raw/  (or set XRAY_DATA_DIR)
-make inspect     # shape, columns and dtypes of every table found
-make test
-make quality     # ruff check + format check
-make format
-
-make panel       # raw CSVs -> parquet -> monthly panel per group, no look-ahead
-make validate    # score it and measure: discrimination, trajectory, stability, ablation
-make monitor     # detect the jumps and the sustained shifts, write the alert feed
-make alerts      # show what the monitor would send, send nothing
-make serve       # write the real serving tables to data/serving
-make submit RAW=path/to/hidden   # score a dump the system has never seen
-make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # live: a month lands every 8 s, web and Slack follow
-
-cp .env.example .env   # optional: Slack webhook, SMTP, CORS origins, port
-make api         # API with reload on http://localhost:8000 (docs at /docs)
-make api-up      # same API in Docker, reads data/serving/*.parquet
-make slack-test  # send a test alert to the Slack webhook
-make notify MONTH=2026-05   # replay one month of alerts into Slack
+# drop the nine dataset CSVs into data/raw/, then
+make lighthouse              # everything: install, load, score, publish, API on :8000, web on :5173
+make lighthouse RAW_DIR=output   # same, with the CSVs somewhere else
 ```
 
-To inspect the provisional baseline scores locally, run `make score-baseline`, then `make api`, and open
-[the internal viewer](http://localhost:8000/viewer). It reads `data/marts/real_scores.parquet`
-and `real_drivers.parquet`; the invented `DEMO_*` serving data is not shown there.
+One command, a few minutes the first time (npm install and 615 MB of CSV), about fifteen seconds
+after that. Ctrl-C stops the API and the web together; `make lighthouse-down` stops them from anywhere.
+An API or web already running on its port is reused, not fought over. With it running, a second terminal feeds
+the months in live: `make replay FROM=2025-01 PAUSE=8` on the challenge data, or
+`make demo` to watch 24 named Spanish scale-ups connect to the platform in two arrivals, scored on the spot beside them.
+
+Piece by piece:
+
+```bash
+make install                 # Python dependencies
+make web-install             # front end dependencies
+cp .env.example .env         # optional: Slack webhook, SMTP, CORS origins, port
+
+make api                     # API on http://localhost:8000 (OpenAPI at /docs)
+make web                     # web app on http://localhost:5173
+```
+
+The repo ships the serving tables the demo reads, so the two commands above are enough to open it.
+To rebuild from a raw dataset, drop the CSVs into `data/raw/` (or pass `RAW_DIR=`) and run:
+
+```bash
+make panel                   # raw CSVs -> monthly panel per group
+make validate                # score it and measure it, split by group
+make monitor                 # detect sustained moves, write the alert feed
+make serve                   # write the tables the API reads
+make submit RAW=path/to/csvs # score a dataset the system has never seen
+make replay FROM=2025-01     # live mode: a month lands every few seconds
+make demo GAP=20             # 24 named synthetic scale-ups connect in two arrivals, on top of the portfolio (make serve restores the tables)
+```
+
+`make help` lists every target. `make ci` runs what must pass before pushing.
 
 ## Repo layout
 
 ```
 src/xray/
-  config.py        paths and table names
-  settings.py      runtime settings from .env (XRAY_ prefix)
-  pipeline/        raw CSVs -> parquet -> monthly panel (data, clean, cash, panel, lake, replay); the only place pandas is imported
-  scoring/         score, trend, monitor, explain, offer, serve, submit: reads the panel, writes data/serving
-  agents/          research, macro and narrator agents around the score, tools under agents/tools
-  integrations/    outbound clients, one module per service (slack)
-  api/             FastAPI demo backend, one router per resource in api/routers
-web/               demo front end (Vite + React): `make web-install`, then `make web`
-tests/             mirrors src/xray: tests/pipeline, tests/api, tests/agents
-notebooks/         exploration only; `01_eda.ipynb` is published with its outputs on purpose
-data/raw/          the dataset (git-ignored)
-data/processed/    derived tables (git-ignored)
-data/serving/      parquet written by `make serve`, read by the API (tracked: the deployed API bakes it in)
-docs/              brief, architecture, scoring (as built), score research, serving contract, infra, agents, status
-.claude/rules/     coding, testing, API and commit conventions
+  pipeline/        raw data -> monthly panel per group
+  scoring/         score, trend, monitor, explanation, offer, serving tables
+  agents/          narrator, research and sector agents around the score
+  integrations/    outbound clients (Slack, email)
+  api/             FastAPI backend, one router per resource
+web/               front end (Vite + React + TypeScript)
+tests/             mirrors src/xray
+notebooks/         exploration only
+docs/              brief, architecture, infrastructure, brand
 ```
 
-Dependencies point one way: `config`/`settings` <- `pipeline` <- `scoring` <- `agents`, `api`.
-The API never imports `pipeline` (no pandas in the container, see `docs/infra.md`).
+The package keeps its working name, `xray`. Dependencies point one way:
+`pipeline` ← `scoring` ← `agents`, `api`. The API reads precomputed tables and never runs the pipeline.
 
-Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/infra.md). How the score is computed, exactly, is [`docs/scoring.md`](docs/scoring.md); the research behind it is [`docs/health-score-research.md`](docs/health-score-research.md).
+**Stack:** Python, DuckDB and Parquet, FastAPI, React, Docker, deployed on Render.
 
-## The score in one paragraph
+## Data
 
-Nine ratios read from the money trail, each over a trailing window: cash buffer in days of operating outflow, months overdrawn, six-month operating margin, run rate against the trailing year, amount-weighted days late and overdue months on payables and on receivables, debt service over inflow. Each maps to 0-100 through fixed published anchors, then into five pillars and one level with weights liquidity 0.40, payment discipline 0.20, cash generation 0.20, collections 0.10, debt burden 0.10. Nothing is fitted and nothing reads a population statistic, so a group scores the same alone as inside the portfolio. Direction and state come from a causal CUSUM on the smoothed level. Held out by group, the level separates forward negative cash at AUC 0.906 (51.0% in the bottom quintile, 0.6% in the top) and moves a median 2.7 points a month.
-
-## Dataset
-
-1,286 synthetic companies in **250 business groups**, 24 months each (Sep 2024 → Sep 2026). Fully synthetic.
-
-| File | Contents |
-|---|---|
-| `groups.csv` | One business group per row, 1–24 companies each (median 2) |
-| `companies.csv` | Group, country, currency, ERP, signup date. `company_id` joins everything |
-| `banking_products.csv` | Accounts: current, card, POS, savings, investment, expense platform |
-| `debt_products.csv` | Loans, leasing, credit lines, factoring, confirming… granted and outstanding |
-| `debt_schedule_config.csv` | Amortization terms: installments, frequency, rate, next payment |
-| `transactions.csv` | 24 months of bank movements with category, counterparty, concept |
-| `invoices.csv` | Issued and received: issue, due, paid date, pending amount, status |
-| `balances.csv` | Balance per account and product at 1 Sep 2026, the final snapshot |
-| `data_dictionary.md` | Every field explained. Read it first |
-
-## Modelling guardrails
-
-- Score the **group**. Split train/validation **by group**, never by row or month.
-- **No look-ahead**: a feature for month `t` uses data up to `t` only. `balances.csv` is month-24 information.
-- Every score decomposes into **named drivers**. No black box.
-- Separate **level** from **trend**, and a **dip** from a **sustained move**.
-
-## Roadmap
-
-**Engine**
-- [x] Project scaffold, loaders, tooling
-- [x] Data audit: traps in `docs/architecture.md` 6; target and metric still unknown (`docs/brief.md` Q1)
-- [x] Monthly feature table per group
-- [x] Anchored score + group-wise validation, AUC 0.906 held out
-- [ ] First leaderboard submission (`make submit` runs; format lands with the scoring script)
-- [x] Driver decomposition (why, and what moved since last month)
-
-**On time**
-- [x] Bump-vs-fall logic (jumps resolve to sustained or reverted)
-- [x] Monitor that fires on its own (Slack or email)
-- [x] Anticipation measured: median 6 months before first negative cash, 4 before the tier moves
-
-**Worth something**
-- [x] Offer engine: score → limit and price
-- [x] Ranked actions with expected score impact
-- [ ] API + navigable demo, deployed on the real tables
-- [ ] Pitch rehearsed: five minutes, `GROUP_0043` vs `GROUP_0220` as the opener
-
-## How we are judged
-
-Three equal blocks: **is it right** · **is it on time** · **is it worth something**.
-A simple model with a clear product beats a sophisticated one that stops at the number.
-The demo counts as much as the product.
+The challenge dataset is fully synthetic: around 1,300 companies in 250 business groups over 24 months
+of bank movements, invoices and financing products. No real company, account or person appears anywhere
+in this repository. The raw dataset is not distributed here.
 
 ---
 
 <div align="center">
-<sub>Built over one weekend. All data is synthetic: no real company, account or person.</sub>
+<sub>Built over one weekend at HackSpain 2026 for the Embat challenge.</sub>
 </div>
