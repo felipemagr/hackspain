@@ -61,11 +61,16 @@ class OpenAICompatibleLLM:
 
 
 def complete_json[T: BaseModel](llm: LLM, system: str, user: str, schema: type[T]) -> T:
-    """Ask for JSON and validate it. Models wrap JSON in a code fence even when told not to."""
-    text = llm.complete(system, user).strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-    return schema.model_validate_json(text.strip())
+    """Ask for JSON and validate it.
+
+    Models wrap the object in a code fence or prose even when told not to: only the text from
+    the first `{` to the last `}` is read.
+    """
+    text = llm.complete(system, user)
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end < start:
+        raise ValueError(f"No JSON object in the answer: {text.strip()[:120]!r}")
+    return schema.model_validate_json(text[start : end + 1])
 
 
 def build_llm(settings: Settings, reasoning_effort: str | None = None) -> LLM | None:
