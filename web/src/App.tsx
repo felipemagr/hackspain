@@ -212,8 +212,8 @@ export default function App() {
             fleet={chat.fleet}
             turns={chat.turns}
             busy={chat.busy}
-            onAsk={(question, groupId) =>
-              chat.ask(question, groupId, store.groupById.get(groupId)?.name ?? "", month)
+            onAsk={(question) =>
+              chat.ask(question, selectedId, store.groupById.get(selectedId)?.name ?? "", month)
             }
             onStop={chat.stop}
             onGroup={select}

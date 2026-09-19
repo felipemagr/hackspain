@@ -146,7 +146,10 @@ ROSTER: tuple[FleetMember, ...] = (
         ],
         tools=[
             Tool(name="standing", does="rank of the level and the trend among scored groups"),
-            Tool(name="compare", does="this group against one named with $, pillar by pillar"),
+            Tool(
+                name="compare",
+                does="this group against another one the question names, pillar by pillar",
+            ),
             Tool(name="screen", does="the search fund test, and how many groups pass it"),
             Tool(name="comparables", does="groups of similar size in the country, for a roll-up"),
         ],
@@ -197,7 +200,7 @@ Agents and their tools:
 
 The group has invoice data: {has_erp}. Without it the invoice tools of `ledger` read nothing.
 Groups are anonymous ids. Set `company` only when the user names a real-world company:
-`market` runs only then. A word that starts with $ names a group, never dollars. {compare}
+`market` runs only then. {compare}
 Set `what_if` when the user asks what a change would do: pillar to points moved, pillars are
 liquidity, cash_generation, payment_discipline, collections, debt_burden.
 Set `wants_action` when the user asks what to do, who to chase or what to change.
@@ -239,7 +242,8 @@ PILLAR_LABELS = {
     "debt_burden": "debt burden",
 }
 ACTION_WORDS = re.compile(r"\b(do|should|chase|hacer|hacemos|hago|cobr|reclam|priorit)", re.I)
-MENTION = re.compile(r"\$([A-Za-z0-9_]+)")
+# Group ids carry a digit: only those words are looked up.
+MENTION = re.compile(r"\b\w*\d\w*\b")
 # Digits inside an id (GROUP_0220) are a name, not a figure.
 FIGURE = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
 # The planner's fallback when there is no model: purpose, pattern, lens, agent to its tools.
@@ -448,7 +452,7 @@ def run_chat(
 
 
 def mentioned_group(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> str | None:
-    """The first other group the question names with a $, when it has a score that month."""
+    """The first other group the question names by its id, when it has a score that month."""
     for group_id in MENTION.findall(request.message):
         if group_id == request.group_id:
             continue

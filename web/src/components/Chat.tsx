@@ -32,8 +32,6 @@ const STARTERS = [
   "Would a lender renew our credit line?",
   "Is it us, or is the country moving too?",
 ];
-const MENTION = /(^|\s)\$(\w*)$/;
-const MENTIONS_SHOWN = 6;
 
 const host = (url: string) => {
   try {
@@ -241,13 +239,11 @@ export function Chat({
   fleet: FleetState;
   turns: Turn[];
   busy: boolean;
-  onAsk: (question: string, groupId: string) => void;
+  onAsk: (question: string) => void;
   onStop: () => void;
   onGroup: (groupId: string) => void;
 }) {
   const [draft, setDraft] = useState("");
-  const [pick, setPick] = useState(0);
-  const [dismissed, setDismissed] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const group = store.groupById.get(groupId);
   const score = store.scoreAt(groupId, month);
@@ -258,26 +254,13 @@ export function Chat({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [turns]);
 
-  // Typing $ brings in another group. One that opens the question becomes its subject.
-  const query = dismissed ? null : (draft.match(MENTION)?.[2].toLowerCase() ?? null);
-  const mentions =
-    query == null
-      ? []
-      : store.groups
-          .filter((g) => `${g.group_id} ${g.name}`.toLowerCase().includes(query))
-          .slice(0, MENTIONS_SHOWN);
-  const mention = (id: string) => setDraft(draft.replace(MENTION, `$1$${id} `));
-
   const opener = score && OPENERS[score.state];
   const starters = opener ? [opener, ...STARTERS] : STARTERS;
 
   const send = (question: string) => {
     const text = question.trim();
     if (!text || busy || !ready) return;
-    const lead = text.match(/^\$(\w+)\s/)?.[1];
-    const subject = lead && store.groupById.has(lead) ? lead : groupId;
-    if (subject !== groupId) onGroup(subject);
-    onAsk(text, subject);
+    onAsk(text);
     setDraft("");
   };
 
@@ -297,6 +280,16 @@ export function Chat({
             )}
           </p>
         </div>
+        <label className="compare">
+          <span className="hint">Ask about</span>
+          <select value={groupId} onChange={(e) => onGroup(e.target.value)}>
+            {store.groups.map((g) => (
+              <option key={g.group_id} value={g.group_id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </header>
 
       <div className="chat__scroll" ref={scroller}>
@@ -305,7 +298,7 @@ export function Chat({
             <div className="starters">
               <p className="starters__lead">
                 Ask anything about this group, as its CFO, a lender or an investor. The planner
-                works out who is asking and guides the agents. Type $ to bring in another group.
+                works out who is asking and guides the agents. Name another group to compare.
                 Open any agent to see its rules and every step it took.
               </p>
               {starters.map((question) => (
@@ -328,57 +321,13 @@ export function Chat({
         }}
       >
         <div className="composer__field">
-          {mentions.length > 0 && (
-            <ul className="mentions" role="listbox" aria-label="Groups">
-              {mentions.map((g, i) => (
-                <li key={g.group_id} role="option" aria-selected={i === pick}>
-                  <button
-                    type="button"
-                    className={i === pick ? "is-picked" : ""}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      mention(g.group_id);
-                    }}
-                  >
-                    {g.name}
-                    {g.name !== g.group_id && <span className="hint">{g.group_id}</span>}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
           <textarea
             rows={1}
             value={draft}
-            placeholder={
-              ready
-                ? `Ask about ${group?.name ?? "this group"}, $ for another`
-                : "Agents are offline"
-            }
+            placeholder={ready ? `Ask about ${group?.name ?? "this group"}` : "Agents are offline"}
             disabled={!ready}
-            onChange={(e) => {
-              setDraft(e.target.value);
-              setPick(0);
-              setDismissed(false);
-            }}
+            onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
-              if (mentions.length > 0) {
-                const step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
-                if (step) {
-                  e.preventDefault();
-                  setPick((pick + step + mentions.length) % mentions.length);
-                  return;
-                }
-                if (e.key === "Enter" || e.key === "Tab") {
-                  e.preventDefault();
-                  mention(mentions[pick].group_id);
-                  return;
-                }
-                if (e.key === "Escape") {
-                  setDismissed(true);
-                  return;
-                }
-              }
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 send(draft);

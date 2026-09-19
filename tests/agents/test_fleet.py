@@ -171,14 +171,14 @@ def test_investor_lens_screens_the_group_and_sizes_its_debt_capacity(db, tmp_pat
     assert not [e for e in events if e["type"] == "suggestion"]
 
 
-def test_a_group_named_with_a_dollar_is_compared_at_the_same_month(db, tmp_path):
+def test_a_group_named_in_the_question_is_compared_at_the_same_month(db, tmp_path):
     db.sql(
         f"""insert into scores values
         ('g2', '{MONTH}', 80, 1, 'healthy', 'healthy', 60, 0.1, 2, null, 1.6, 9)"""
     )
     db.sql(f"insert into drivers values ('g2', '{MONTH}', 'collections', 75, 0, 3)")
 
-    events = run(db, tmp_path, "how do we look next to $g2 and $nobody?")
+    events = run(db, tmp_path, "how do we look next to g2 in 2026, or g9?")
 
     assert events[1]["compare"] == "g2"
     peers = done(events)["peers"]
