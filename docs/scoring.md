@@ -23,6 +23,7 @@ panel_group.parquet ─┬─> indicators ─> sub-scores ─> pillars ─> leve
 | Rebuild the alert feed | `make monitor` |
 | Write every serving table | `make serve` |
 | Score a hidden-test dump | `make submit RAW=path/to/csvs` |
+| Feed the dump month by month, publishing after each | `make replay [FROM=2025-01] [PAUSE=8] [CHANNEL=slack] [CHECK=1]` |
 | Everything that must pass before a push | `make ci` |
 
 No `uv` on the machine: `docker run --rm -v "$PWD/data:/app/data" -v "$PWD/src:/app/src"
@@ -271,8 +272,15 @@ would recover by closing 40% of its gap to 70, in level points.
 ## 10. Serving and submission
 
 `serve.build()` scores the group panel, attaches `monthly_inflow_eur` and `dscr`
-(`(opin_12m - opout_12m) / debt_service_12m`), runs `monitor.detect`, then writes the seven
-tables of `serving-contract.md`. `groups.name` is the `group_id`; the dataset has no names.
+(`(opin_12m - opout_12m) / debt_service_12m`), runs `monitor.detect`, then `serve.publish()`
+swaps the seven tables of `serving-contract.md` into `data/serving` and stamps `_version.json`.
+`serve.assemble()` is the same from in-memory panels, which is what the replay uses.
+`groups.name` is the `group_id`; the dataset has no names.
+
+`pipeline/replay.py` feeds the dump through the whole chain one month at a time (lake, rebuild
+as-of, publish, notify) so the product can be watched moving. It relies on every step above
+being causal and unfitted: the score a month gets during the replay is the score it has in the
+full run, and `make replay CHECK=1` asserts that on the real data.
 `companies` is scored with `score(panel_company, key="company_id")` at the group's last month,
 with `inflow_share = company opin_3m / group opin_3m` and `is_weakest` on the lowest level when
 more than one company is scored.
@@ -296,15 +304,15 @@ and must never become a feature.
 `make validate` prints four blocks, split by **group** (30% held out, seed 2026):
 
 1. **Discrimination**: AUC of the level against each event, train and held out, plus the event
-   rate by level quintile. Today: `cash_negative` 0.903 held out (0.891 train), quintiles 49.7%
-   -> 0.6%. `missed_payroll` 0.586 and `inflow_collapse` 0.395 are not readable from the trail.
+   rate by level quintile. Today: `cash_negative` 0.906 held out (0.875 train), quintiles 51.0%
+   -> 0.6%. `missed_payroll` 0.581 and `inflow_collapse` 0.406 are not readable from the trail.
 2. **Trajectory**: event rate by 6-month Theil-Sen trend bucket. Today it shows the trend is not
    a second predictor (section 6).
-3. **Stability**: median and p90 of the month-on-month level change. Today 2.70 and 10.95,
+3. **Stability**: median and p90 of the month-on-month level change. Today 2.68 and 10.78,
    target under 3 on the median.
-4. **Ablation**: held-out AUC with each pillar dropped. Today only liquidity (-0.363) and debt
-   burden (-0.008) cost AUC when removed; payment discipline, collections and cash generation
-   each add +0.007 to +0.016 when dropped. They are kept for what they explain.
+4. **Ablation**: held-out AUC with each pillar dropped. Today only liquidity (-0.366) and debt
+   burden (-0.007) cost AUC when removed; payment discipline, collections and cash generation
+   each add +0.006 to +0.017 when dropped. They are kept for what they explain.
 
 ## 12. Changing things
 

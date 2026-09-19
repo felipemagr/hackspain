@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score score-baseline validate monitor alerts notify serve submit api api-up api-down slack-test email-test \
+        events score score-baseline validate monitor alerts notify serve submit replay api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
 
@@ -87,6 +87,11 @@ serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offer
 
 submit: ## Score a hidden-test dump end to end: make submit RAW=path/to/csvs [OUT=submission]
 	uv run python -m xray.scoring.submit --raw-dir $(RAW) --out $(or $(OUT),submission)
+
+replay: ## Land the dump month by month, publish and alert after each: make replay [FROM=2025-01] [TO=2026-08] [PAUSE=8] [CHANNEL=slack|email|none] [RESET=1] [CHECK=1]
+	uv run python -m xray.pipeline.replay --raw-dir $(RAW_DIR) \
+		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) $(if $(PAUSE),--pause $(PAUSE)) \
+		$(if $(CHANNEL),--channel $(CHANNEL)) $(if $(RESET),--reset) $(if $(CHECK),--check)
 
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock

@@ -9,7 +9,7 @@ import { useChat } from "./lib/chat";
 import { useDisplayCurrency } from "./lib/currency";
 import { monthLong } from "./lib/format";
 import { DEFAULT_VIEW } from "./lib/listView";
-import { loadStore, type Store } from "./lib/load";
+import { fetchVersion, loadStore, type Store } from "./lib/load";
 import { alertKey } from "./lib/meta";
 import { useStoredSet } from "./lib/useStoredSet";
 
@@ -20,6 +20,8 @@ const DEFAULT_GROUP = "GROUP_0220";
 // A comparison keeps its slot, and so its color, while others come and go. "" is a free slot.
 const COMPARE_SLOTS = 4;
 const askedCompare = (params.get("compare") ?? "").split(",").filter(Boolean);
+// How often to ask the API whether a new build of the tables was published.
+const POLL_MS = 3000;
 
 export default function App() {
   const [store, setStore] = useState<Store | null>(null);
@@ -48,6 +50,34 @@ export default function App() {
       })
       .catch((e: Error) => setError(e.message));
   }, []);
+
+  // Live mode: the pipeline publishes a new build, the API's version changes, the tables are
+  // fetched again. A viewer parked on the latest month follows the data forward; anyone
+  // looking at an earlier month is left where they are.
+  useEffect(() => {
+    if (!store?.version) return;
+    const current = store.version.build_id;
+    let busy = false;
+    const tick = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const v = await fetchVersion();
+        if (v && v.build_id !== current) {
+          const next = await loadStore(v);
+          setStore(next);
+          setMonth((m) => {
+            const last = store.months[store.months.length - 1];
+            return m === last || !next.months.includes(m) ? next.months[next.months.length - 1] : m;
+          });
+        }
+      } finally {
+        busy = false;
+      }
+    };
+    const id = window.setInterval(tick, POLL_MS);
+    return () => window.clearInterval(id);
+  }, [store]);
 
   const stepMonth = useCallback(
     (dir: -1 | 1) => {
@@ -119,6 +149,15 @@ export default function App() {
               <path fill="url(#brand-inside)" d="M9.4 12l3.7-5.2v10.4z" />
             </svg>
             X Ray
+            {store.version && (
+              <span
+                className="live"
+                title={`Live from the API. Build ${store.version.build_id}, data to ${store.version.as_of ?? "?"}.`}
+              >
+                <span className="live__dot" />
+                live
+              </span>
+            )}
           </span>
           <div className="stepper">
             <button onClick={() => stepMonth(-1)} disabled={i <= 0} aria-label="Previous month">

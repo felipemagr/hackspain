@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from xray.api.routers import alerts, chat, client_errors, health, real_groups
+from xray.api.db import refresh_views
+from xray.api.routers import alerts, chat, client_errors, health, real_groups, tables, version
 from xray.config import MARTS_DIR
 from xray.settings import get_settings
 
@@ -26,9 +27,7 @@ async def lifespan(app: FastAPI):
     # The API starts with zero tables so the container can run before the pipeline has.
     app.state.db = duckdb.connect()
     app.state.tables = []
-    for path in sorted(settings.serving_dir.glob("*.parquet")):
-        app.state.db.sql(f"create view {path.stem} as select * from '{path}'")
-        app.state.tables.append(path.stem)
+    refresh_views(app)
     app.state.real_tables = set(app.state.tables) & {"real_scores", "real_drivers"}
     for name in ("real_scores", "real_drivers"):
         path = MARTS_DIR / f"{name}.parquet"
@@ -62,6 +61,8 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
 
 app.include_router(health.router)
 app.include_router(real_groups.router)
+app.include_router(version.router)
+app.include_router(tables.router)
 app.include_router(alerts.router)
 app.include_router(chat.router)
 app.include_router(client_errors.router)
