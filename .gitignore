@@ -13,6 +13,7 @@ __pycache__/
 !.env.example
 
 # Data: the dataset stays out of git, only the folders are tracked
+data/*.zip
 data/raw/*
 data/processed/*
 data/serving/*
