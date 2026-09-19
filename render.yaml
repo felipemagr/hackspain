@@ -38,4 +38,4 @@ services:
       - key: TAVILY_API_KEY
         sync: false
       - key: XRAY_CORS_ORIGINS
-        value: '["https://lighthouse-1qeo.onrender.com", "https://xray-b5hv.onrender.com"]'
+        value: '["https://lighthouse-1qeo.onrender.com"]'
