@@ -67,7 +67,7 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="diagnosis",
         label="Diagnosis",
-        purpose="Why the score is where it is, and which pillar moved it.",
+        purpose="Why the score moved.",
         rules=[
             "Every figure is read from the score tables, never produced by the model.",
             "A pillar the group has no data for is declared, not imputed.",
@@ -82,7 +82,7 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="monitor",
         label="Monitor",
-        purpose="What the monitor flagged, and how many months early.",
+        purpose="What was flagged, and how early.",
         rules=[
             "One bad month is a bump: it never triggers a limit review on its own.",
             "Anticipation is measured against the month the tier actually changed.",
@@ -92,7 +92,7 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="working_capital",
         label="Working capital",
-        purpose="The credit line this score earns, and the moves that raise it.",
+        purpose="The credit line, and what raises it.",
         rules=[
             "The limit is priced on level plus four months of trend.",
             "Anything that moves money leaves as a draft for a person to sign.",
@@ -105,7 +105,7 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="customers",
         label="Customers",
-        purpose="Who pays late, who is getting worse, and how much of the billing rides on them.",
+        purpose="Who pays late, and how much rides on them.",
         rules=[
             f"A customer needs {MIN_PAID_INVOICES} paid invoices before its lateness counts.",
             "A customer is judged only on how it paid this group: ids do not link across groups.",
@@ -121,7 +121,7 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="investor",
         label="Investor",
-        purpose="How the group reads to a buyer: search fund target, roll-up piece, or neither.",
+        purpose="How a buyer would see the group.",
         rules=[
             "Free cash flow is taken before debt service: what an enterprise value discounts.",
             f"Search fund fit: one company, operating margin of {SEARCH_FUND_MARGIN:.0%} or "
@@ -140,7 +140,7 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="market",
         label="Market",
-        purpose="Whether the move is the company's own or shared with its market.",
+        purpose="Is it us, or the market.",
         rules=[
             "Only dated facts with a source.",
             "Competitors are read only for a real company the user names.",
