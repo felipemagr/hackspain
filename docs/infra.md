@@ -132,6 +132,18 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 - Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
 - Fallback on stage: `make api-up` plus `cloudflared tunnel --url http://localhost:8000`.
 
+## Observability
+
+| What | Where to look |
+|---|---|
+| API errors, agent warnings, each chat request | Render, `xray-api`, **Logs** |
+| A screen that broke in someone's browser | the same log: the page posts render errors, uncaught errors and rejected promises to `POST /api/v1/client-errors`, logged as `xray.client` with the URL and the component stack |
+| What an agent did on a question | the Agents tab itself: every tool call is a step with input, output and time |
+| Deploys | Render, each service, **Events**; CI in GitHub Actions |
+
+The static site has no server and so no log of its own: without the client-errors route a broken
+screen leaves no trace. If the API is asleep the report is lost, which is acceptable for a demo.
+
 ## Serving schema
 
 `docs/serving-contract.md`. Written by `make serve` from the real score; `make web-data` re-exports it as JSON for the static front end.
