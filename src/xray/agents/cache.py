@@ -30,7 +30,7 @@ class JsonCache:
         path = self.path(key)
         if not path.exists():
             return None
-        entry = json.loads(path.read_text())
+        entry = json.loads(path.read_text(encoding="utf-8"))
         stored_at = datetime.fromisoformat(entry["stored_at"])
         if datetime.now(UTC) - stored_at > self.ttl:
             logger.info("Cache entry for %s expired", key)
@@ -43,7 +43,7 @@ class JsonCache:
         entry = {"key": key, "stored_at": datetime.now(UTC).isoformat(), "payload": payload}
         try:
             self.directory.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(entry, indent=2, ensure_ascii=False))
+            path.write_text(json.dumps(entry, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError as e:
             logger.warning("Could not cache %s: %s", key, e)
         return path

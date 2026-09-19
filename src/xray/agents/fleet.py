@@ -1390,6 +1390,10 @@ def pending_request(history: list[ChatTurn]) -> str:
     return ""
 
 
+# One writer at a time on the rule book: the director dispatches a round in parallel threads.
+_RULE_BOOK = threading.Lock()
+
+
 def notifier(ctx: AgentContext) -> AgentReport:
     """Who is told when the monitor fires. Reads the rule book, and adds to it when asked.
 
@@ -1414,20 +1418,25 @@ def notifier(ctx: AgentContext) -> AgentReport:
             or "no delivery asked for"
         )
     saved = []
-    for parsed in asked:
-        if parsed.channel is None:
-            saved.append(f"Nothing saved yet: {parsed.wanted()}. Slack or email?")
-            continue
-        rule = parsed.rule(text)
-        # The director may ask twice for the same thing: the book keeps one copy.
-        if same := next((r for r in rules if r.describe() == rule.describe()), None):
-            saved.append(f"Already in force as rule {same.id}: {same.describe()}. Nothing added.")
-            continue
-        with ctx.tool("rules.add", channel=rule.channel) as step:
-            rule = add_rule(path, rule)
-            step.output = f"rule {rule.id} saved"
-        saved.append(f"Saved rule {rule.id}: {rule.describe()}.")
-        rules.append(rule)
+    # The director may ask twice for the same thing, and its calls run in parallel: one writer at
+    # a time, and the book is read again inside the lock so the second call sees the first.
+    with _RULE_BOOK:
+        rules = load_rules(path)
+        for parsed in asked:
+            if parsed.channel is None:
+                saved.append(f"Nothing saved yet: {parsed.wanted()}. Slack or email?")
+                continue
+            rule = parsed.rule(text)
+            if same := next((r for r in rules if r.describe() == rule.describe()), None):
+                saved.append(
+                    f"Already in force as rule {same.id}: {same.describe()}. Nothing added."
+                )
+                continue
+            with ctx.tool("rules.add", channel=rule.channel) as step:
+                rule = add_rule(path, rule)
+                step.output = f"rule {rule.id} saved"
+            saved.append(f"Saved rule {rule.id}: {rule.describe()}.")
+            rules.append(rule)
     standing = (
         f"{len(rules)} rule{'s' if len(rules) != 1 else ''} in force."
         if rules
