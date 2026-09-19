@@ -1,9 +1,10 @@
 """Who is told, and where, when the monitor fires: the rule book behind `notify --channel rules`.
 
-A rule names a channel, the least urgent alert it wants, an optional severity floor and the groups
-it watches. Urgency is read off the alert row, so the same alert means the same thing to every
-rule: `critical` when a group enters `falling`, `warning` for any other move down, `info` for a
-move up or a bump that reverted.
+A rule names a channel, what it waits for and the groups it watches. It waits for one of two
+things: the monitor's alerts from an urgency up, with an optional severity floor, or the level
+crossing a line (`level_above`, `level_below`). Urgency is read off the alert row, so the same
+alert means the same thing to every rule: `critical` when a group enters `falling`, `warning` for
+any other move down, `info` for a move up or a bump that reverted.
 
 The book is one JSON file next to the serving tables: the chat writes it from inside the API and
 `notify.dispatch` reads it from the pipeline, and both see the same directory.
@@ -35,29 +36,52 @@ def urgency_of(direction: str, state_to: str) -> Urgency:
     return "critical" if state_to == "falling" else "warning"
 
 
-class Rule(BaseModel):
-    """One standing request: this channel, for alerts at least this urgent, on these groups."""
+class Trigger(BaseModel):
+    """What a rule waits for: alerts from an urgency up, or the level crossing a line."""
+
+    min_urgency: Urgency = "info"
+    min_severity: float | None = None
+    level_above: float | None = None
+    level_below: float | None = None
+    groups: list[str] = Field(default_factory=list)
+
+    def lines(self) -> list[tuple[str, float]]:
+        """The level lines this rule watches, as (side, line). Empty for a monitor rule."""
+        drawn = [("above", self.level_above), ("below", self.level_below)]
+        return [(side, line) for side, line in drawn if line is not None]
+
+    def watches(self, group_id: str) -> bool:
+        return not self.groups or group_id in self.groups
+
+    def matches(self, urgency: str, severity: float, group_id: str) -> bool:
+        """Whether a monitor alert is wanted. A level rule wants none: it has its own messages."""
+        return (
+            not self.lines()
+            and URGENCIES.index(urgency) >= URGENCIES.index(self.min_urgency)
+            and (self.min_severity is None or severity >= self.min_severity)
+            and self.watches(group_id)
+        )
+
+    def wanted(self) -> str:
+        """What is waited for, in words: the object of "Slack gets ..."."""
+        who = ", ".join(self.groups) if self.groups else "any group"
+        if lines := self.lines():
+            return f"a message when {who} goes {' or '.join(f'{s} {v:g}' for s, v in lines)}"
+        floor = f", severity {self.min_severity:g} or more" if self.min_severity is not None else ""
+        return f"{WANTS[self.min_urgency]} on {who}{floor}"
+
+
+class Rule(Trigger):
+    """One standing request: this channel, waiting for this, on these groups."""
 
     text: str
     channel: Channel
     id: int | None = None
-    min_urgency: Urgency = "info"
-    min_severity: float | None = None
-    groups: list[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
-
-    def matches(self, urgency: str, severity: float, group_id: str) -> bool:
-        return (
-            URGENCIES.index(urgency) >= URGENCIES.index(self.min_urgency)
-            and (self.min_severity is None or severity >= self.min_severity)
-            and (not self.groups or group_id in self.groups)
-        )
 
     def describe(self) -> str:
         """The rule in one line, as the chat and the log show it."""
-        who = ", ".join(self.groups) if self.groups else "any group"
-        floor = f", severity {self.min_severity:g} or more" if self.min_severity is not None else ""
-        return f"{self.channel.capitalize()} gets {WANTS[self.min_urgency]} on {who}{floor}"
+        return f"{self.channel.capitalize()} gets {self.wanted()}"
 
 
 def load_rules(path: Path) -> list[Rule]:

@@ -96,9 +96,15 @@ def no_keys(tmp_path) -> Settings:
     )
 
 
-def run(db, tmp_path, message: str, currency: str = "EUR") -> list[dict]:
-    request = ChatRequest(message=message, month=MONTH, currency=currency)
+def run(
+    db, tmp_path, message: str, currency: str = "EUR", history: list[dict] | None = None
+) -> list[dict]:
+    request = ChatRequest(message=message, month=MONTH, currency=currency, history=history or [])
     return list(run_chat(request, db, no_keys(tmp_path)))
+
+
+def answer(events: list[dict]) -> str:
+    return "".join(e["text"] for e in events if e["type"] == "token")
 
 
 def done(events: list[dict]) -> dict[str, dict]:
@@ -234,6 +240,34 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
         "2 rules in force."
     )
     assert len(load_rules(tmp_path / RULES_FILE)) == 2
+
+
+def test_a_request_without_a_channel_waits_for_the_user_to_say_where(db, tmp_path):
+    db.sql("insert into groups values ('GROUP_0130', 'GROUP_0130', 'ES', null, false, 1, 0)")
+    db.sql(
+        f"""insert into scores values
+        ('GROUP_0130', '{MONTH}', 72, 1, 'improving', 'healthy', 60, 0.1, 2, null, 1.6, 9)"""
+    )
+    asked = "Create an alarm whenever the 0130 gets a score above 80"
+
+    events = run(db, tmp_path, asked)
+
+    assert done(events)["notifier"]["summary"] == (
+        "Nothing saved yet: a message when GROUP_0130 goes above 80. Slack or email? "
+        "No alert rules yet: nothing leaves the monitor until one is set."
+    )
+    assert load_rules(tmp_path / RULES_FILE) == []
+    assert "Slack or email?" in answer(events)
+
+    # The one-word answer completes the request from the turn before.
+    history = [{"role": "user", "content": asked}, {"role": "assistant", "content": answer(events)}]
+    events = run(db, tmp_path, "email", history=history)
+
+    (rule,) = load_rules(tmp_path / RULES_FILE)
+    assert (rule.channel, rule.level_above, rule.groups) == ("email", 80, ["GROUP_0130"])
+    assert done(events)["notifier"]["summary"].startswith(
+        "Saved rule 1: Email gets a message when GROUP_0130 goes above 80."
+    )
 
 
 class TestQuery:

@@ -187,9 +187,15 @@ def run(
         land_month(raw, month, lake_dir)
         tables = rebuild(month_end(month), lake_dir)
         serve.publish(tables, serving_dir, as_of=month_end(month).isoformat())
-        if channel and len(tables["alerts"]):
+        if channel:
             stamp = month.strftime("%Y-%m")
-            notify.dispatch(tables["alerts"], channel=channel, since=stamp, until=stamp)
+            notify.dispatch(
+                tables["alerts"],
+                channel=channel,
+                since=stamp,
+                until=stamp,
+                scores=tables["scores"],
+            )
         if reference is not None:
             _check(tables["scores"], reference, month, _garbage_groups(raw, month))
         logger.info("%s live in %.1fs", month.strftime("%Y-%m"), time.time() - started)

@@ -192,9 +192,11 @@ arrivals, scored the second they land, with a Slack message naming each newcomer
 every eight seconds a month of data lands, the score is recomputed from what was known by then,
 the web refreshes on its own and the month's alerts arrive in the Slack channel on the projector.
 Nobody clicks anything to make the portfolio move. With `CHANNEL=rules` only what was asked for
-in the chat leaves ("Slack me when a group starts falling, email me everything on Velasco"): each
-alert is `info`, `warning` or `critical`; a rule names a channel, the least urgency it wants, an
-optional severity floor and the groups it watches.
+in the chat leaves ("Slack me when a group starts falling, email me everything on Velasco",
+"an alarm when the 0130 gets a score above 80"): each alert is `info`, `warning` or `critical`; a
+rule names a channel, the groups it watches and what it waits for: alerts from an urgency up
+with an optional severity floor, or the score crossing a line. A request that names no channel
+saves nothing; the chat asks "Slack or email?" and the answer completes it.
 
 1. Open Northbrook (45 -> 65), then Velasco (82 -> 68) at month 24. Similar levels, opposite bets.
 2. Read their trajectories in turn: Northbrook rises while Velasco bends.
@@ -237,7 +239,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Company pressure on the group score | `src/xray/scoring/company_impact.py` |
 | Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
 | Alert delivery to Slack or email | `src/xray/scoring/notify.py`, `src/xray/integrations/` |
-| Who is told, where, from which urgency: the rule book, written in plain words through the chat | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py`, `make replay CHANNEL=rules` |
+| Who is told, where, from which urgency or score line: the rule book, written in plain words through the chat | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py`, `make replay CHANNEL=rules` |
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Natural-language view controls and local evidence | `src/xray/agents/view.py`, `api/routers/view_chat.py`, `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts` |

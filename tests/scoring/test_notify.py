@@ -47,6 +47,17 @@ def alerts() -> pd.DataFrame:
     return pd.DataFrame([ALERT, JUMP])
 
 
+@pytest.fixture
+def scores() -> pd.DataFrame:
+    """g1 climbs over 80 in June and back under it in August; g2 sits at 90 throughout."""
+    months = pd.to_datetime(["2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01"])
+    rows = [("g1", m, level) for m, level in zip(months, [78.0, 81.5, 84.0, 79.0], strict=True)]
+    rows += [("g2", m, 90.0) for m in months]
+    return pd.DataFrame(rows, columns=["group_id", "month", "level"]).assign(
+        state="healthy", tier="healthy", trend=1.0
+    )
+
+
 class TestRender:
     def test_shift_leads_with_the_trend_and_names_the_drivers(self):
         subject, body = render(pd.Series(ALERT), name="Example Corp")
@@ -125,6 +136,43 @@ class TestRules:
         # A rule added later still gets them.
         later = [Rule(text="", channel="slack")]
         assert len(dispatch(alerts, channel="rules", rules=later, ledger_path=ledger)) == 3
+
+    def test_a_level_rule_sends_the_month_the_line_is_crossed(
+        self, alerts, scores, tmp_path, outbox
+    ):
+        rules = [
+            Rule(text="", channel="slack", level_above=80, groups=["g1"]),
+            Rule(text="", channel="email", level_above=80),
+            Rule(text="", channel="email", level_below=80, groups=["g1"]),
+        ]
+
+        out = dispatch(
+            alerts, channel="rules", rules=rules, scores=scores, ledger_path=tmp_path / "sent.json"
+        )
+
+        # Monitor alerts are not the level rules' business, and g2 never crosses.
+        assert out["key"].tolist() == ["g1|2026-06|level|above 80", "g1|2026-08|level|below 80"]
+        # Two rules drew the same line over g1: one message, both channels.
+        assert out["channels"].tolist() == [["slack", "email"], ["email"]]
+        assert outbox["slack"] == [
+            "g1 went above 80: 81.5, from 78.0 last month\n"
+            "State healthy, healthy tier, trending +1.0 a month."
+        ]
+
+    def test_the_replay_window_and_the_ledger_apply_to_level_messages(
+        self, alerts, scores, tmp_path, outbox
+    ):
+        rules = [Rule(text="", channel="slack", level_above=80)]
+        ledger = tmp_path / "sent.json"
+
+        june = dispatch(
+            alerts, channel="rules", rules=rules, scores=scores, ledger_path=ledger,
+            since="2026-06", until="2026-06",
+        )  # fmt: skip
+        again = dispatch(alerts, channel="rules", rules=rules, scores=scores, ledger_path=ledger)
+
+        assert june["key"].tolist() == ["g1|2026-06|level|above 80"]
+        assert again.empty
 
 
 class TestDispatch:

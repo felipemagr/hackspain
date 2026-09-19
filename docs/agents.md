@@ -68,7 +68,7 @@ planning -> plan ...                     the next round, when the director wants
 | Peers | standing, a named comparison, the search fund screen | `standing`, `compare`, `screen`, `comparables` | `scores`, `drivers`, `groups` |
 | Macro | the country around the group | `exa.search`, `model.read`, `cache.read` | the web, cached a week |
 | Market | a real company the user names | `exa.search`, `tavily.search`, `model.read` | the web, cached a week |
-| Notifier | who is told, and where, when the monitor fires | `rules.parse`, `rules.list`, `rules.add` | `data/serving/alert_rules.json` |
+| Notifier | who is told, and where, when the monitor fires or the score crosses a line | `rules.parse`, `rules.list`, `rules.add` | `data/serving/alert_rules.json` |
 
 **What the query can read.** The serving tables always. Locally, `api/main.py` also registers
 the cleaned raw trail from `data/processed/` (`transactions`, `invoices`, `balances`,
@@ -94,7 +94,11 @@ compared, and a question that names no group reads the portfolio by state. The a
 the raw results.
 
 The notifier keeps one copy of a rule: a request identical to one in force is reported as such
-and nothing is added.
+and nothing is added. A request that names no channel saves nothing: the report asks "Slack or
+email?", the writer ends its answer with those words, and the next message that names a channel
+is read together with the request before it. A bare group number (`the 0130`) is respelled as
+`GROUP_0130` against the tables. Text that asks to be told nothing (a question about the rules,
+a request to email this answer, pasted text) makes no rule.
 
 What the data does not allow is stated as a rule instead of guessed: counterparty ids do not link
 to other groups, so a customer is judged only on how it paid this group; there is no sector and

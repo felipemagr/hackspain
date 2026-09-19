@@ -31,11 +31,24 @@ def test_a_plain_request_is_saved_listed_and_dropped(client):
     assert client.get("/api/v1/alert-rules").json() == []
 
 
-def test_a_request_without_a_channel_is_rejected(client):
+def test_a_request_without_a_channel_is_rejected_naming_what_it_would_watch(client):
     response = client.post("/api/v1/alert-rules", json={"text": "tell me when it falls"})
 
     assert response.status_code == 422
-    assert "slack or email" in response.json()["detail"]
+    assert response.json()["detail"] == (
+        "Where should it go, slack or email? Not saved: critical alerts on any group"
+    )
+    assert client.get("/api/v1/alert-rules").json() == []
+
+
+def test_a_score_line_becomes_a_level_rule(client):
+    created = client.post(
+        "/api/v1/alert-rules", json={"text": "email me when GROUP_0130 goes above 80"}
+    )
+
+    (rule,) = created.json()
+    assert (rule["channel"], rule["level_above"], rule["groups"]) == ("email", 80, ["GROUP_0130"])
+    assert rule["min_severity"] is None
 
 
 def test_the_test_button_sends_the_rule_down_its_channel(client, monkeypatch):

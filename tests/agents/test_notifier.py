@@ -1,6 +1,6 @@
 import pytest
 
-from xray.agents.notifier import parse_by_patterns, parse_rules
+from xray.agents.notifier import parse_by_patterns, parse_request
 
 
 class TestPatterns:
@@ -24,6 +24,23 @@ class TestPatterns:
 
         assert parsed.min_severity == 20
         assert parsed.groups == ["GROUP_0220", "g7"]
+        assert parsed.level_above is None
+
+    @pytest.mark.parametrize(
+        ("text", "above", "below", "groups"),
+        [
+            ("Create an alarm whenever the 0130 gets a score above 80", 80, None, ["0130"]),
+            ("alert me when GROUP_0220 drops under 50", None, 50, ["GROUP_0220"]),
+            ("avísame si el grupo 130 baja de 40 o supera 75", 75, 40, ["130"]),
+        ],
+    )
+    def test_a_score_figure_is_a_level_line_and_names_no_channel(self, text, above, below, groups):
+        (parsed,) = parse_by_patterns(text)
+
+        assert parsed.channel is None
+        assert (parsed.level_above, parsed.level_below) == (above, below)
+        assert parsed.groups == groups
+        assert (parsed.min_urgency, parsed.min_severity) == ("info", None)
 
     def test_two_channels_in_one_sentence_each_read_their_own_words(self):
         first, second = parse_by_patterns(
@@ -37,16 +54,26 @@ class TestPatterns:
             ["GROUP_0220"],
         )
 
-    def test_a_question_about_the_rules_asks_for_no_delivery(self):
-        assert parse_by_patterns("which alert rules exist?") == []
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "which alert rules exist?",
+            "Could you email this to me?",
+            "XRAY_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T0C2SLR64P5/B0C2U353FS9",
+        ],
+    )
+    def test_text_that_asks_to_be_told_nothing_makes_no_rule(self, text):
+        assert parse_by_patterns(text) == []
 
 
-class TestParseRules:
+class TestParseRequest:
     class FakeLLM:
         def __init__(self, answer):
             self.answer = answer
+            self.asked = []
 
         def complete(self, system, user):
+            self.asked.append(user)
             if isinstance(self.answer, Exception):
                 raise self.answer
             return self.answer
@@ -57,16 +84,28 @@ class TestParseRules:
             ' "min_severity": 15, "groups": ["g2"], "this_group": true}]}\n```'
         )
 
-        (rule,) = parse_rules("whatever was typed", "g1", llm)
+        (parsed,) = parse_request("whatever was typed", "g1", llm)
+        rule = parsed.rule("whatever was typed")
 
         assert (rule.channel, rule.min_urgency, rule.min_severity) == ("email", "critical", 15)
         assert rule.groups == ["g2", "g1"]
         assert rule.text == "whatever was typed"
 
+    def test_the_earlier_request_is_shown_to_the_model_and_read_by_the_patterns(self):
+        earlier = "Create an alarm whenever the 0130 gets a score above 80"
+        llm = self.FakeLLM(RuntimeError("down"))
+
+        (parsed,) = parse_request("email", None, llm, earlier)
+
+        assert earlier in llm.asked[0] and "email" in llm.asked[0]
+        assert (parsed.channel, parsed.level_above, parsed.groups) == ("email", 80, ["0130"])
+
     def test_falls_back_to_patterns_when_the_model_fails(self):
-        (rule,) = parse_rules("slack me when it falls", "g1", self.FakeLLM(RuntimeError("down")))
+        (parsed,) = parse_request(
+            "slack me when it falls", "g1", self.FakeLLM(RuntimeError("down"))
+        )
 
-        assert (rule.channel, rule.min_urgency, rule.groups) == ("slack", "critical", [])
+        assert (parsed.channel, parsed.min_urgency, parsed.groups) == ("slack", "critical", [])
 
-    def test_no_channel_means_no_rule(self):
-        assert parse_rules("what rules are set?", "g1", None) == []
+    def test_a_question_means_no_rule(self):
+        assert parse_request("what rules are set?", "g1", None) == []

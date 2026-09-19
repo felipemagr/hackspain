@@ -31,6 +31,12 @@ class TestMatches:
         assert not rule.matches("critical", 19.9, "g1")
         assert not rule.matches("critical", 50.0, "g2")
 
+    def test_a_level_rule_wants_no_monitor_alert(self):
+        rule = Rule(text="x", channel="slack", level_above=80)
+
+        assert not rule.matches("critical", 50.0, "g1")
+        assert rule.lines() == [("above", 80.0)]
+
     def test_describe_says_what_the_rule_does_in_one_line(self):
         assert (
             Rule(text="x", channel="email", min_urgency="critical", min_severity=20).describe()
@@ -39,6 +45,12 @@ class TestMatches:
         assert (
             Rule(text="x", channel="slack", groups=["g1", "g2"]).describe()
             == "Slack gets every alert on g1, g2"
+        )
+        assert (
+            Rule(
+                text="x", channel="email", level_above=80, level_below=50, groups=["g1"]
+            ).describe()
+            == "Email gets a message when g1 goes above 80 or below 50"
         )
 
 

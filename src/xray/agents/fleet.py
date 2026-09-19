@@ -37,7 +37,7 @@ from xray.agents.base import AgentReport, ScoreSnapshot
 from xray.agents.cache import JsonCache
 from xray.agents.context_retrieval import ContextRetrievalAgent
 from xray.agents.llm import LLM, build_llm, complete_json
-from xray.agents.notifier import parse_rules
+from xray.agents.notifier import parse_request
 from xray.agents.peers import PeersAgent, SectorAgent
 from xray.scoring.anchors import CAP_LEVEL, CAP_PILLAR_SCORE, CAP_PILLARS, PILLAR_WEIGHTS
 from xray.scoring.rules import RULES_FILE, add_rule, load_rules
@@ -206,17 +206,21 @@ ROSTER: tuple[FleetMember, ...] = (
     FleetMember(
         id="notifier",
         label="Notifier",
-        purpose="Who is told, and where, when the monitor fires.",
+        purpose="Who is told, and where, when the monitor fires or the score crosses a line.",
         rules=[
-            "A request becomes a rule: channel, least urgency, groups. The rule is what runs, "
+            "A request becomes a rule: channel, what to wait for, groups. The rule is what runs, "
             "never the sentence.",
+            "It waits for the monitor's alerts from an urgency up, or for the score to go above "
+            "or below a figure.",
             "Urgency is read off the alert: critical is a group entering falling, warning any "
             "other move down, info a move up or a bump that reverted.",
+            "No channel named, nothing saved: the user is asked Slack or email. A message that "
+            "only names the channel answers that question and completes the rule.",
             "Nothing is sent from here. The notifier delivers when a month lands.",
         ],
         tools=[
             Tool(name="rules.list", does="the rules in force"),
-            Tool(name="rules.parse", does="the request as a rule: channel, urgency, groups"),
+            Tool(name="rules.parse", does="the request as a rule: channel, trigger, groups"),
             Tool(name="rules.add", does="saves the rule to the book"),
         ],
     ),
@@ -252,8 +256,8 @@ How to direct:
 - Not every group is scored every month. A call that fails with "No score for group ..." names
   the last month the group was scored: re-point the same call at that month, in the next round.
 - Never repeat a call that already came back, with the same or a different wording of `why`:
-  the results are kept across rounds. `notifier` saves rules: call it once per request, and
-  never a second time in the same conversation.
+  the results are kept across rounds. `notifier` saves rules: call it once per request. A
+  message that only names slack or email, after the notifier asked where, is such a request.
 - One round is the norm. Put every call the answer needs in the first round and set `final` to
   true. A second round is only for a call that needs a figure from the first, or to correct one
   that failed. You have {rounds} rounds in all; after the last one the writer answers with what
@@ -277,7 +281,7 @@ anonymous ids and `market` runs only with one."""
 
 TABLE_NOTES = """Notes on the data:
 - Group ids are upper case, GROUP_0130: write them so in SQL and in calls, whatever the user
-  typed.
+  typed (group_0130, the 0130, group 130).
 - `month` is a timestamp on the first day of the month: month = '2026-08-01'.
 - `scores`: one row per group and month, from the group's first scored month to its last. A
   group may have no row for the month on screen. `level` is the 0-100 health score, `trend` its
@@ -327,8 +331,9 @@ to the portfolio. States: a bump is one bad month that recovers; bending is a su
 decline while the level still looks fine; falling is structural decline; improving is a
 sustained rise. Alert urgency: critical is a group entering falling, warning any other move down,
 info a move up or a bump that reverted: a rule for critical alerts is a rule for groups starting
-to fall. A draft suggestion, when present, is shown to the user under your answer: refer to it,
-do not repeat it.
+to fall. When the notifier reports nothing saved yet and asks where, say what it would watch and
+end with the question "Slack or email?" in those words. A draft suggestion, when present, is
+shown to the user under your answer: refer to it, do not repeat it.
 
 Plain text, short paragraphs, no markdown, no headings, no em dashes. A list goes one item per
 line. At most 180 words. Answer in the language of the question."""
@@ -353,7 +358,8 @@ DATE = re.compile(r"\b\d{4}-\d{2}(?:-\d{2})?\b")
 PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
     (
         "setting up alerts",
-        r"slack|e-?mail|correo|notify|av[ií]s|alert me|tell me|let me know|ping me|alert rules",
+        r"slack|e-?mail|correo|notify|av[ií]s|alert me|tell me|let me know|ping me|alert rules"
+        r"|alarm|alerta|an alert|alert (?:when|if)",
         "cfo",
         {"notifier": []},
     ),
@@ -381,6 +387,10 @@ PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
 # What the fallback reads when the question names no group.
 PORTFOLIO_QUERY = """select state, count(*) as groups, round(avg(level)) as average_level
 from scores where month = cast('{month}' as timestamp) group by state order by groups desc"""
+# A group as the user typed it (group_0130) or by its digits alone (0130). Bind the word twice.
+SAME_GROUP = "(lower(group_id) = lower(?) or group_id = 'GROUP_' || ?)"
+# The writer's answer when the notifier had no channel to save a rule under.
+ASKED_WHERE = re.compile(r"slack or e-?mail", re.I)
 
 
 class ChatTurn(BaseModel):
@@ -616,9 +626,9 @@ def mentioned_groups(
     found = []
     for word in dict.fromkeys(MENTION.findall(request.message)):
         row = cursor.execute(
-            """select group_id, max(month) from scores
-            where lower(group_id) = lower(?) and month <= cast(? as timestamp) group by 1""",
-            [word, request.month],
+            f"""select group_id, max(month) from scores
+            where {SAME_GROUP} and month <= cast(? as timestamp) group by 1""",
+            [word, word, request.month],
         ).fetchone()
         if row:
             found.append((row[0], f"{row[1]:%Y-%m-%d}"))
@@ -707,12 +717,12 @@ def _checked(call: Call, request: ChatRequest, cursor: duckdb.DuckDBPyConnection
 
 
 def _spelled(cursor: duckdb.DuckDBPyConnection, group_id: str | None) -> str | None:
-    """The id as the tables spell it (GROUP_0130 for group_0130), or as given when unknown."""
+    """The id as the tables spell it (GROUP_0130 for group_0130 or 0130), or as given when
+    unknown."""
     if not group_id:
         return group_id
-    row = cursor.execute(
-        "select group_id from groups where lower(group_id) = lower(?)", [group_id.strip()]
-    ).fetchone()
+    word = group_id.strip()
+    row = cursor.execute(f"select group_id from groups where {SAME_GROUP}", [word, word]).fetchone()
     return row[0] if row else group_id
 
 
@@ -1373,17 +1383,42 @@ def market(ctx: AgentContext) -> AgentReport:
     )
 
 
+def pending_request(history: list[ChatTurn]) -> str:
+    """The request the assistant just asked where to send, or nothing."""
+    if len(history) >= 2 and ASKED_WHERE.search(history[-1].content):
+        return history[-2].content
+    return ""
+
+
 def notifier(ctx: AgentContext) -> AgentReport:
-    """Who is told when the monitor fires. Reads the rule book, and adds to it when asked."""
+    """Who is told when the monitor fires. Reads the rule book, and adds to it when asked.
+
+    A request that names no channel is not saved: the report asks Slack or email, and the next
+    message that answers completes it from the turn before.
+    """
     path = ctx.settings.serving_dir / RULES_FILE
     with ctx.tool("rules.list") as step:
         rules = load_rules(path)
         step.output = f"{len(rules)} rules in force"
+    earlier = pending_request(ctx.request.history)
+    text = f"{earlier} {ctx.request.message}" if earlier else ctx.request.message
     with ctx.tool("rules.parse", by="model" if ctx.llm else "patterns") as step, SerialLLM._lock:
-        asked = parse_rules(ctx.request.message, ctx.call.group_id, ctx.llm)
-        step.output = "; ".join(r.describe() for r in asked) or "no delivery asked for"
+        asked = [
+            p.model_copy(
+                update={"groups": list(dict.fromkeys(_spelled(ctx.db, g) for g in p.groups))}
+            )
+            for p in parse_request(ctx.request.message, ctx.call.group_id, ctx.llm, earlier)
+        ]
+        step.output = (
+            "; ".join(f"{p.wanted()} to {p.channel or 'a channel not said'}" for p in asked)
+            or "no delivery asked for"
+        )
     saved = []
-    for rule in asked:
+    for parsed in asked:
+        if parsed.channel is None:
+            saved.append(f"Nothing saved yet: {parsed.wanted()}. Slack or email?")
+            continue
+        rule = parsed.rule(text)
         # The director may ask twice for the same thing: the book keeps one copy.
         if same := next((r for r in rules if r.describe() == rule.describe()), None):
             saved.append(f"Already in force as rule {same.id}: {same.describe()}. Nothing added.")

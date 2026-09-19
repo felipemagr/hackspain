@@ -12,7 +12,8 @@ Only what was knowable at the time goes into a message. `anticipation_months` an
 
 Who gets what is either one channel for everything (`--channel slack`) or the rule book
 (`--channel rules`): the rules the chat wrote to `data/serving/alert_rules.json`, each naming a
-channel, the least urgent alert it wants and the groups it watches. See `xray.scoring.rules`.
+channel, what it waits for and the groups it watches. See `xray.scoring.rules`. A rule waiting
+for the level to cross a line gets its own message, built from the scores, the month it crosses.
 
 Replay for the demo: the detector is causal, so the alerts dated a month are exactly what the
 system would have raised then. Walking the months forward fills a Slack channel live:
@@ -37,6 +38,7 @@ from xray.settings import get_settings
 logger = logging.getLogger(__name__)
 
 LEDGER_NAME = "_alerts_sent.json"
+MESSAGE_COLUMNS = ["key", "group_id", "month", "urgency", "severity", "subject", "body"]
 
 STATE_COPY = {
     "bending": "is bending",
@@ -152,7 +154,65 @@ def messages(alerts: pd.DataFrame, names: dict[str, str] | None = None) -> pd.Da
                 "body": body,
             }
         )
-    return pd.DataFrame(rows).sort_values(["month", "severity"], ascending=[True, False])
+    return _chronological(pd.DataFrame(rows, columns=MESSAGE_COLUMNS))
+
+
+def _chronological(pending: pd.DataFrame) -> pd.DataFrame:
+    return pending.sort_values(["month", "severity"], ascending=[True, False])
+
+
+def render_crossing(
+    score: pd.Series, side: str, line: float, before: float, name: str | None = None
+) -> tuple[str, str]:
+    """The level crossing a line a rule drew, from the score row of the month it did."""
+    who = f"{name} ({score['group_id']})" if name else score["group_id"]
+    return (
+        f"{who} went {side} {line:g}: {score['level']:.1f}, from {before:.1f} last month",
+        f"State {score['state'].replace('_', ' ')}, {score['tier']} tier, trending "
+        f"{score['trend']:+.1f} a month.",
+    )
+
+
+def level_messages(
+    scores: pd.DataFrame, rules: list[Rule], names: dict[str, str] | None = None
+) -> pd.DataFrame:
+    """One message per line a group's level crossed, dated the month it did, with the channels
+    of every rule that drew that line over the group.
+
+    Only a crossing between two consecutive scored months counts, so a group's first month never
+    sends one.
+    """
+    names = names or {}
+    ordered = scores.sort_values(["group_id", "month"]).reset_index(drop=True)
+    level, before = ordered["level"], ordered.groupby("group_id")["level"].shift(1)
+    rows: dict[str, dict] = {}
+    for rule in rules:
+        for side, line in rule.lines():
+            crossed = (
+                (before <= line) & (level > line)
+                if side == "above"
+                else (before >= line) & (level < line)
+            )
+            hit = ordered[crossed & ordered["group_id"].map(rule.watches)]
+            for i, score in hit.iterrows():
+                key = f"{score['group_id']}|{score['month']:%Y-%m}|level|{side} {line:g}"
+                if key not in rows:
+                    subject, body = render_crossing(
+                        score, side, line, before[i], names.get(score["group_id"])
+                    )
+                    rows[key] = {
+                        "key": key,
+                        "group_id": score["group_id"],
+                        "month": score["month"],
+                        "urgency": "info" if side == "above" else "warning",
+                        "severity": 0.0,
+                        "subject": subject,
+                        "body": body,
+                        "channels": [],
+                    }
+                if rule.channel not in rows[key]["channels"]:
+                    rows[key]["channels"].append(rule.channel)
+    return pd.DataFrame(list(rows.values()), columns=[*MESSAGE_COLUMNS, "channels"])
 
 
 def _route(message: pd.Series, rules: list[Rule]) -> list[str]:
@@ -176,6 +236,7 @@ def dispatch(
     dry_run: bool = False,
     ledger_path: Path = MARTS_DIR / LEDGER_NAME,
     rules: list[Rule] | None = None,
+    scores: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Send every message in the window that the ledger has not seen.
 
@@ -193,24 +254,29 @@ def dispatch(
         ledger_path: Where the keys already sent are stored.
         rules: The rule book, for ``channel="rules"``. Read from the serving directory when
             omitted.
+        scores: The ``scores`` table, for the rules that watch the level crossing a line. Those
+            rules send nothing when omitted.
 
     Returns:
         The messages that went out, in the order they were sent, with the ``channels`` each took.
     """
     sent = set(json.loads(ledger_path.read_text())) if ledger_path.exists() else set()
     pending = messages(alerts, names)
+    if channel == "rules":
+        if rules is None:
+            rules = load_rules(get_settings().serving_dir / RULES_FILE)
+        pending = pending.assign(channels=[_route(m, rules) for _, m in pending.iterrows()])
+        if scores is not None:
+            crossings = level_messages(scores, rules, names)
+            pending = _chronological(pd.concat([pending, crossings], ignore_index=True))
+        pending = pending[pending["channels"].str.len() > 0]
+    else:
+        pending = pending.assign(channels=[[channel]] * len(pending))
     if since:
         pending = pending[pending["month"] >= pd.Timestamp(since)]
     if until:
         pending = pending[pending["month"] <= pd.Timestamp(until)]
     pending = pending[~pending["key"].isin(sent)]
-    if channel == "rules":
-        if rules is None:
-            rules = load_rules(get_settings().serving_dir / RULES_FILE)
-        pending = pending.assign(channels=[_route(m, rules) for _, m in pending.iterrows()])
-        pending = pending[pending["channels"].str.len() > 0]
-    else:
-        pending = pending.assign(channels=[[channel]] * len(pending))
     if limit:
         pending = pending.nlargest(limit, "severity")
 
@@ -255,6 +321,8 @@ def main() -> None:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+    # The level rules read the served scores: state and trend are only there, next to the book.
+    served = get_settings().serving_dir / "scores.parquet"
     dispatch(
         pd.read_parquet(args.marts_dir / "alerts.parquet"),
         channel=args.channel,
@@ -263,6 +331,7 @@ def main() -> None:
         limit=args.limit,
         dry_run=args.dry_run,
         ledger_path=args.marts_dir / LEDGER_NAME,
+        scores=pd.read_parquet(served) if args.channel == "rules" and served.exists() else None,
     )
 
 

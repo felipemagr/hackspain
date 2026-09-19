@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel
 
 from xray.agents.llm import build_llm
-from xray.agents.notifier import parse_rules
+from xray.agents.notifier import parse_request
 from xray.integrations.email import send_email
 from xray.integrations.slack import send_slack
 from xray.scoring.rules import RULES_FILE, Rule, add_rule, load_rules, remove_rule
@@ -32,13 +32,18 @@ def create_alert_rules(body: RuleRequest) -> list[Rule]:
     """Read a request such as "email me when GROUP_0220 starts falling" into rules, one per
     channel asked for, and save them."""
     settings = get_settings()
-    rules = parse_rules(body.text, body.group_id, build_llm(settings, reasoning_effort="low"))
-    if not rules:
+    asked = parse_request(body.text, body.group_id, build_llm(settings, reasoning_effort="low"))
+    if not asked:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="No channel in the request: say slack or email",
+            detail="No alert asked for: say what to watch and where, slack or email",
         )
-    return [add_rule(settings.serving_dir / RULES_FILE, rule) for rule in rules]
+    if unplaced := [p for p in asked if p.channel is None]:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Where should it go, slack or email? Not saved: {unplaced[0].wanted()}",
+        )
+    return [add_rule(settings.serving_dir / RULES_FILE, p.rule(body.text)) for p in asked]
 
 
 @router.delete("/alert-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
