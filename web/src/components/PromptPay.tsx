@@ -60,6 +60,8 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
   }, [groupId, month, lineDefault]);
 
   const row = store.promptPayAt(groupId, month, days);
+  // Every reason a group can be silent here is worth naming: a jury that sees a blank panel
+  // learns nothing, and most of the portfolio is silent for a reason that is itself a finding.
   if (!row) {
     const hasErp = store.groupById.get(groupId)?.has_erp ?? true;
     return (
@@ -69,8 +71,25 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
         </div>
         <p className="empty">
           {hasErp
-            ? "No invoices falling due for this group this month, so there is nothing to bring forward."
-            : "This group has no ERP invoices, so there is no receivables book to bring forward."}
+            ? "Nothing to work with this month: this group has no customer invoice open, neither falling due nor already past due."
+            : "This group runs no ERP, so it files no invoices at all. Without a receivables book there is nothing to bring forward, and the customer panels are blank for the same reason."}
+        </p>
+      </section>
+    );
+  }
+
+  if (row.due_eur === 0) {
+    return (
+      <section className="promptpay">
+        <div className="section-head">
+          <h2>Pay early with the money you can count on</h2>
+        </div>
+        <p className="empty">
+          {fmtEur(row.overdue_eur)} is owed to this group across {row.overdue_n}{" "}
+          {row.overdue_n === 1 ? "invoice" : "invoices"} that fell due over the past year, and
+          every one of them is still unpaid. This panel only commits money that has not fallen due yet: an invoice three months
+          late has not been paid despite a good payment history, so that history no longer prices
+          it. Chasing it is the collections job, not this one.
         </p>
       </section>
     );
@@ -169,11 +188,23 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
           </li>
         ))}
       </ul>
+      {row.overdue_eur > 0 && (
+        <p className="promptpay__aside">
+          Another {fmtEur(row.overdue_eur)} across {row.overdue_n}{" "}
+          {row.overdue_n === 1 ? "invoice" : "invoices"} fell due over the past year and is still
+          unpaid. None of it is counted here: once an invoice is late, the customer's history
+          stops pricing it.
+        </p>
+      )}
 
       {shown.length === 0 ? (
         <p className="empty">
-          None of the {row.n_customers} customers owing here has paid this group enough times to
-          judge. All {fmtEur(row.due_eur)} sits in the thin file, so none of it can be committed.
+          {row.n_customers === 1
+            ? "The one customer owing here has not paid this group six times yet"
+            : `None of the ${row.n_customers} customers owing here has paid this group six times yet`}
+          , so there is no payment history to read. All {fmtEur(row.due_eur)} sits in the thin file: the
+          money may well arrive, but nothing in the record says it will, so none of it can be
+          committed to a supplier.
         </p>
       ) : (
         <>

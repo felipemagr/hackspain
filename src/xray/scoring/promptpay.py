@@ -10,6 +10,9 @@ the share of that customer's earlier paid invoices whose delay was at most `W - 
 with fewer than MIN_PAID_INVOICES paid invoices has no usable distribution, and its amount is
 reported apart as a thin file rather than counted as cash.
 
+A group whose whole book is already overdue still gets a row, carrying `overdue_eur` alone, so
+the page can say where the money went instead of falling silent.
+
 Amounts arrive in euros from `xray.pipeline.clean`.
 """
 
@@ -29,6 +32,9 @@ MIN_PAID_INVOICES = 6
 SOLID_PAID_INVOICES = 12
 # Customers shown one by one in the panel; the rest arrive as the group total minus these.
 TOP_CUSTOMERS = 10
+# How far back an overdue invoice still counts as money someone is chasing. Older than this it is
+# a write-off, not a collection, and the dataset's never-paid tail would swamp the figure.
+OVERDUE_LOOKBACK_DAYS = 365
 
 # Cumulative windows: what is due within 30 days is also due within 60. `late` is the delay of a
 # paid invoice, `days_to_due` how far ahead an open invoice falls due.
@@ -133,20 +139,39 @@ GROUP_QUERY = (
     from payable p cross join windows w
     group by all
 )
-select r.group_id, r.month::timestamp as month, r.window_days,
-    round(r.due_eur) as due_eur,
-    round(r.expected_eur) as expected_eur,
-    round(r.variance) as variance,
-    round(r.thin_eur) as thin_eur,
-    r.n_customers, r.n_thin,
+, overdue as (
+    select m.month, v.group_id, sum(v.amt) as overdue_eur, count(*) as overdue_n
+    from months m join rec v
+        on v.issued <= m.month_end
+       and (v.paid is null or v.paid > m.month_end)
+       and v.due <= m.month_end
+       and v.due > m.month_end - interval {overdue_lookback} day
+    group by all
+)
+, keys as (
+    select group_id, month, window_days from receivable where due_eur > 0
+    union
+    select o.group_id, o.month, w.window_days from overdue o cross join windows w
+)
+select k.group_id, k.month::timestamp as month, k.window_days,
+    round(coalesce(r.due_eur, 0)) as due_eur,
+    round(coalesce(r.expected_eur, 0)) as expected_eur,
+    round(coalesce(r.variance, 0)) as variance,
+    round(coalesce(r.thin_eur, 0)) as thin_eur,
+    coalesce(r.n_customers, 0) as n_customers,
+    coalesce(r.n_thin, 0) as n_thin,
+    round(coalesce(o.overdue_eur, 0)) as overdue_eur,
+    coalesce(o.overdue_n, 0) as overdue_n,
     coalesce(s.payable_n, 0) as payable_n,
     round(coalesce(s.payable_eur, 0)) as payable_eur,
     round(s.payable_days, 1) as payable_days
-from receivable r
+from keys k
+left join receivable r
+    on r.group_id = k.group_id and r.month = k.month and r.window_days = k.window_days
 left join supplier s
-    on s.group_id = r.group_id and s.month = r.month and s.window_days = r.window_days
-where r.due_eur > 0
-order by r.group_id, r.month, r.window_days
+    on s.group_id = k.group_id and s.month = k.month and s.window_days = k.window_days
+left join overdue o on o.group_id = k.group_id and o.month = k.month
+order by k.group_id, k.month, k.window_days
 """
 )
 
@@ -189,6 +214,7 @@ def _format(query: str, serving, **extra) -> str:
         min_paid=MIN_PAID_INVOICES,
         solid_paid=SOLID_PAID_INVOICES,
         top=TOP_CUSTOMERS,
+        overdue_lookback=OVERDUE_LOOKBACK_DAYS,
         due_case=_case("due"),
         exp_case=_case("exp"),
         var_case=_case("var"),

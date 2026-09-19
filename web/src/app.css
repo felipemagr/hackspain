@@ -1965,6 +1965,12 @@ select:hover {
   border-radius: 50%;
 }
 
+.promptpay__aside {
+  max-width: 68ch;
+  margin: 14px 0 0;
+  color: var(--ink-3);
+}
+
 .promptpay__table {
   margin-top: 24px;
 }

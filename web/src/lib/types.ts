@@ -109,6 +109,9 @@ export interface PromptPayRow {
   thin_eur: number;
   n_customers: number;
   n_thin: number;
+  /** Open but already past due: reported so the page can say so, never counted as cash. */
+  overdue_eur: number;
+  overdue_n: number;
   payable_n: number;
   payable_eur: number;
   payable_days: number | null;

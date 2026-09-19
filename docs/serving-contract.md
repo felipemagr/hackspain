@@ -133,7 +133,8 @@ One row per group, month and collection window (30, 60, 90 days), written by
 falling due inside the window, how much will really land and how much of it can cover a
 supplier's early-payment discount. An invoice counts only while it is open and not yet due at
 the month; overdue invoices are excluded on purpose, because their `p` would be conditional on
-not having been paid yet.
+not having been paid yet. A group whose whole book is overdue still gets a row, carrying
+`overdue_eur` alone, so the panel explains itself instead of falling silent.
 
 `p`, the collection probability, is empirical: for an invoice due in `d` days inside a window
 `W`, it is the share of that customer's earlier paid invoices (`payment_date <= month end`, no
@@ -147,6 +148,7 @@ a thin file: its amount is reported apart as `thin_eur`, never counted as cash.
 | `variance` | `sum(amt^2 * p * (1-p))`, in euros squared; the page takes the root for the 5th percentile |
 | `thin_eur` | due amount belonging to thin files, excluded from `expected_eur` |
 | `n_customers`, `n_thin` | customers with due amount in the window, and how many of them are thin |
+| `overdue_eur`, `overdue_n` | open receivables that fell due over the past year: never counted as cash, reported so the page can say where the money went. Older than a year is a write-off, and the dataset's never-paid tail would swamp the figure |
 | `payable_n`, `payable_eur` | supplier bills due inside the same window |
 | `payable_days` | their mean days ahead of due, amount-weighted; null when `payable_n` is 0 |
 

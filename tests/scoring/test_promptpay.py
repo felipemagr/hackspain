@@ -100,6 +100,21 @@ def test_window_sums_and_thin_file(dirs):
     assert oct_row.payable_n == 0
 
 
+def test_overdue_is_reported_not_counted(dirs):
+    """A book that is entirely past due still gets a row, so the panel can explain itself."""
+    invoices = [
+        _invoice("late-1", "C1", "receivable", 400, "2024-05-01", "2024-08-01"),
+        _invoice("late-2", "C1", "receivable", 600, "2024-05-01", "2024-08-15"),
+    ]
+    out = _build(dirs, invoices)
+    sep = out[out.month == pd.Timestamp(M1)].set_index("window_days")
+
+    assert sep.loc[60, "due_eur"] == 0
+    assert sep.loc[60, "overdue_eur"] == 1000
+    assert sep.loc[60, "overdue_n"] == 2
+    assert sep.loc[60, "expected_eur"] == 0
+
+
 def test_customers_table(dirs):
     invoices = [
         *[
