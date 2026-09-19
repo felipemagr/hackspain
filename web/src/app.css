@@ -1050,6 +1050,152 @@ select:hover {
   font-size: 12.5px;
 }
 
+/* ---------- own history ---------- */
+
+.own {
+  margin-top: 48px;
+}
+
+.own__lede {
+  margin-top: 10px;
+  max-width: 64ch;
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
+.own__top {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  align-items: center;
+  gap: 40px;
+  margin: 20px 0 32px;
+}
+
+.own__gauge {
+  margin: 0;
+}
+
+.own__gauge svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.own__figure {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  fill: var(--ink);
+}
+
+.own__zone {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.own__end {
+  font-size: 10px;
+  fill: var(--ink-3);
+}
+
+.own__read {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 62ch;
+  color: var(--ink-2);
+}
+
+.own__rank {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.own__rank span {
+  margin-left: 4px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+.own__read strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.own__stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.own__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) 34px;
+  align-items: center;
+  gap: 24px;
+  padding: 9px 0;
+}
+
+.own__label {
+  font-weight: 500;
+}
+
+.own__range {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.own__track {
+  position: relative;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--hover);
+}
+
+.own__dot {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transform: translate(-50%, -50%);
+  transition:
+    left 0.5s var(--ease),
+    width 0.18s linear,
+    height 0.18s linear;
+}
+
+.own__dot.is-today {
+  width: 11px;
+  height: 11px;
+  background: var(--ink);
+}
+
+.own__place {
+  font-weight: 600;
+  text-align: right;
+}
+
+.own__note {
+  margin-top: 14px;
+  max-width: 76ch;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  text-wrap: pretty;
+}
+
 /* ---------- splash ---------- */
 
 .splash {

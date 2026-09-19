@@ -5,6 +5,7 @@ import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
 import { Check, Menu } from "./Menu";
+import { OwnHistory } from "./OwnHistory";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
@@ -280,6 +281,8 @@ export function GroupDetail({
           </section>
         </div>
       )}
+
+      {score && <OwnHistory history={history} month={month} />}
     </article>
   );
 }
