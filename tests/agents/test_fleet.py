@@ -18,7 +18,7 @@ from xray.agents.fleet import (
     untraced_figures,
 )
 from xray.scoring import offer
-from xray.scoring.rules import RULES_FILE, load_rules
+from xray.scoring.rules import RULES_FILE, load_rules, update_rule
 from xray.settings import Settings
 
 MONTH = "2026-03-01 00:00:00"
@@ -243,6 +243,14 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
         "2 rules in force."
     )
     assert len(load_rules(tmp_path / RULES_FILE)) == 2
+
+    # Asking for a rule that was switched off in the alarms panel switches it back on.
+    update_rule(tmp_path / RULES_FILE, 2, {"enabled": False})
+    events = run(db, tmp_path, "slack me every move")
+    assert done(events)["notifier"]["summary"].startswith(
+        "Rule 2 was off and is back on: Slack gets every alert on any group."
+    )
+    assert [r.enabled for r in load_rules(tmp_path / RULES_FILE)] == [True, True]
 
 
 def test_the_pending_request_stops_at_the_last_answer_that_was_not_a_question():

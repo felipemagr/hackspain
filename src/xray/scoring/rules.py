@@ -78,6 +78,7 @@ class Rule(Trigger):
     channel: Channel
     id: int | None = None
     email_to: str | None = None
+    enabled: bool = True
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
     @property
@@ -114,6 +115,17 @@ def remove_rule(path: Path, rule_id: int) -> bool:
         return False
     _write(path, kept)
     return True
+
+
+def update_rule(path: Path, rule_id: int, changes: dict) -> Rule | None:
+    """Change the fields given on one rule and return it. None when no rule has that id."""
+    rules = load_rules(path)
+    at = next((i for i, r in enumerate(rules) if r.id == rule_id), None)
+    if at is None:
+        return None
+    rules[at] = Rule.model_validate({**rules[at].model_dump(), **changes})
+    _write(path, rules)
+    return rules[at]
 
 
 def _write(path: Path, rules: list[Rule]) -> None:

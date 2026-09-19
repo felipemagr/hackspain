@@ -1,14 +1,24 @@
 """The alert rule book: who is told, and where, when the monitor fires."""
 
 import httpx
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
+from xray.agents.fleet import spelled
 from xray.agents.llm import build_llm
 from xray.agents.notifier import parse_request
 from xray.integrations.email import send_email
 from xray.integrations.slack import send_slack
-from xray.scoring.rules import RULES_FILE, Rule, add_rule, load_rules, remove_rule
+from xray.scoring.rules import (
+    RULES_FILE,
+    Channel,
+    Rule,
+    Urgency,
+    add_rule,
+    load_rules,
+    remove_rule,
+    update_rule,
+)
 from xray.settings import get_settings
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
@@ -21,6 +31,19 @@ class RuleRequest(BaseModel):
     group_id: str | None = None
 
 
+class RuleChanges(BaseModel):
+    """The fields the alarms panel can change. Only the ones sent are touched."""
+
+    enabled: bool | None = None
+    channel: Channel | None = None
+    email_to: str | None = None
+    min_urgency: Urgency | None = None
+    min_severity: float | None = None
+    level_above: float | None = None
+    level_below: float | None = None
+    groups: list[str] | None = None
+
+
 @router.get("/alert-rules", response_model=list[Rule])
 async def list_alert_rules() -> list[Rule]:
     """The rules in force, oldest first."""
@@ -28,7 +51,7 @@ async def list_alert_rules() -> list[Rule]:
 
 
 @router.post("/alert-rules", response_model=list[Rule], status_code=status.HTTP_201_CREATED)
-def create_alert_rules(body: RuleRequest) -> list[Rule]:
+def create_alert_rules(body: RuleRequest, request: Request) -> list[Rule]:
     """Read a request such as "email me when GROUP_0220 starts falling" into rules, one per
     channel asked for, and save them."""
     settings = get_settings()
@@ -43,7 +66,28 @@ def create_alert_rules(body: RuleRequest) -> list[Rule]:
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Not saved: {open_question.wanted()}. {open_question.question()}",
         )
+    # Group ids as the tables spell them (0130 becomes GROUP_0130), when the tables are loaded.
+    if "groups" in getattr(request.app.state, "tables", ()):
+        cursor = request.app.state.db.cursor()
+        asked = [
+            p.model_copy(
+                update={"groups": list(dict.fromkeys(spelled(cursor, g) for g in p.groups))}
+            )
+            for p in asked
+        ]
     return [add_rule(settings.serving_dir / RULES_FILE, p.rule(body.text)) for p in asked]
+
+
+@router.patch("/alert-rules/{rule_id}", response_model=Rule)
+async def change_alert_rule(rule_id: int, body: RuleChanges) -> Rule:
+    """Switch a rule on or off, or change what it watches and where it goes."""
+    changes = body.model_dump(exclude_unset=True)
+    if changes.get("channel") == "slack":
+        changes["email_to"] = None
+    rule = update_rule(get_settings().serving_dir / RULES_FILE, rule_id, changes)
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    return rule
 
 
 @router.delete("/alert-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)

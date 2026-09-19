@@ -126,6 +126,14 @@ class TestRules:
         assert [to for to, _ in outbox["email"]] == [None, None, None]
         assert "reverted" in outbox["email"][-1][1]
 
+    def test_a_rule_switched_off_sends_nothing(self, alerts, tmp_path, outbox):
+        rules = [Rule(text="", channel="slack", enabled=False)]
+
+        out = dispatch(alerts, channel="rules", rules=rules, ledger_path=tmp_path / "sent.json")
+
+        assert out.empty
+        assert outbox["slack"] == []
+
     def test_an_email_rule_with_an_address_is_its_own_target(self, alerts, tmp_path, outbox):
         rules = [
             Rule(text="", channel="email", min_urgency="warning", email_to="cfo@example.com"),

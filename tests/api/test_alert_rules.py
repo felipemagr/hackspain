@@ -67,6 +67,31 @@ def test_a_score_line_and_an_address_become_a_level_rule_to_that_address(client)
     assert rule["min_severity"] is None
 
 
+def test_a_rule_is_switched_off_reconfigured_and_left_alone_where_not_asked(client):
+    client.post("/api/v1/alert-rules", json={"text": "slack me when GROUP_0220 falls"})
+
+    off = client.patch("/api/v1/alert-rules/1", json={"enabled": False})
+    assert off.status_code == 200
+    assert (off.json()["enabled"], off.json()["min_urgency"]) == (False, "critical")
+
+    moved = client.patch(
+        "/api/v1/alert-rules/1",
+        json={"channel": "email", "email_to": "cfo@example.com", "level_below": 40, "groups": []},
+    )
+    rule = moved.json()
+    assert (rule["channel"], rule["email_to"], rule["level_below"]) == (
+        "email",
+        "cfo@example.com",
+        40,
+    )
+    assert (rule["groups"], rule["enabled"]) == ([], False)
+
+    # Back to Slack drops the address with it.
+    back = client.patch("/api/v1/alert-rules/1", json={"channel": "slack"}).json()
+    assert (back["channel"], back["email_to"]) == ("slack", None)
+    assert client.patch("/api/v1/alert-rules/9", json={"enabled": True}).status_code == 404
+
+
 def test_the_test_button_sends_the_rule_down_its_channel(client, monkeypatch):
     sent = []
     monkeypatch.setattr(alert_rules, "send_slack", lambda text: sent.append(text) or True)

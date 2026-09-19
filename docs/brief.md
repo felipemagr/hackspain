@@ -240,7 +240,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Company pressure on the group score | `src/xray/scoring/company_impact.py` |
 | Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
 | Alert delivery to Slack or email | `src/xray/scoring/notify.py`, `src/xray/integrations/` |
-| Who is told, where, from which urgency or score line: the rule book, written in plain words through the chat | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py`, `make replay CHANNEL=rules` |
+| Who is told, where, from which urgency or score line: the rule book, written in plain words through the chat, switched, edited and deleted in the Alerts rail | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py` (list, create, patch, delete, test), `web/src/components/Alarms.tsx`, `make replay CHANNEL=rules` |
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Natural-language view controls and local evidence | `src/xray/agents/view.py`, `api/routers/view_chat.py`, `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts` |

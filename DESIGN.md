@@ -87,9 +87,20 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   fastest rise first; Steady, highest score first. Any other sort flattens the list.
 - **Favorite star**: ink outline, filled when on, never a state color. On a row it appears on
   hover and stays once on; it also sits beside the group name. Kept in localStorage.
-- **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all and a clear button on row hover.
-  Clearing empties the rail and its count; the rings on
-  the chart stay, because they are history.
+- **Alarms** (`Alarms.tsx`, top of the Alerts rail): the rule book the agents write, editable in
+  place. A section head "Alarms N", then one search-style field that takes a new alarm in plain
+  words (the API's open question, "Slack or email?", appears under it until the sentence is
+  complete), then one row per alarm: what it waits for as the name ("GROUP_0130 goes above 80",
+  "Any group starts falling"), where it goes as the second line ("Email to x@y.com"), a switch on
+  the right and the clear cross on hover to delete. The switch is ink when on and hairline grey
+  when off: it says whether the alarm runs, never a state color; an alarm that is off greys its
+  text and says "off". Clicking a row opens it as one `--selected` shape holding a four-field
+  form (When, Severity, Groups, Send to) with the usual bordered select and inputs, a bordered
+  Save and a Cancel link. The rail re-reads the book every five seconds, so an alarm set in the
+  chat appears on its own.
+- **Alerts inbox** (`AlertList.tsx`, under the alarms): "Raised N" with Clear all and a clear
+  button on row hover. Clearing empties the rail and its count; the rings on the chart stay,
+  because they are history.
 - **Pillar table** (`Pillars.tsx`): the five pillars as rows, headers in sentence case. Pillar and
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
   it), its score, the raw indicator, and how many points it moved the level this month, signed and

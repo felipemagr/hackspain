@@ -266,6 +266,7 @@ def dispatch(
     if channel == "rules":
         if rules is None:
             rules = load_rules(get_settings().serving_dir / RULES_FILE)
+        rules = [r for r in rules if r.enabled]
         pending = pending.assign(channels=[_route(m, rules) for _, m in pending.iterrows()])
         if scores is not None:
             crossings = level_messages(scores, rules, names)

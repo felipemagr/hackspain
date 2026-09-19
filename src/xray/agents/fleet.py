@@ -40,7 +40,7 @@ from xray.agents.llm import LLM, build_llm, complete_json
 from xray.agents.notifier import parse_request
 from xray.agents.peers import PeersAgent, SectorAgent
 from xray.scoring.anchors import CAP_LEVEL, CAP_PILLAR_SCORE, CAP_PILLARS, PILLAR_WEIGHTS
-from xray.scoring.rules import RULES_FILE, add_rule, load_rules
+from xray.scoring.rules import RULES_FILE, add_rule, load_rules, update_rule
 from xray.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -223,6 +223,7 @@ ROSTER: tuple[FleetMember, ...] = (
             Tool(name="rules.list", does="the rules in force"),
             Tool(name="rules.parse", does="the request as a rule: channel, trigger, groups"),
             Tool(name="rules.add", does="saves the rule to the book"),
+            Tool(name="rules.enable", does="switches a rule that was off back on"),
         ],
     ),
 )
@@ -720,8 +721,8 @@ def _checked(call: Call, request: ChatRequest, cursor: duckdb.DuckDBPyConnection
     what_if = {p: points for p, points in call.what_if.items() if p in PILLAR_LABELS}
     return call.model_copy(
         update={
-            "group_id": _spelled(cursor, call.group_id),
-            "compare": _spelled(cursor, call.compare),
+            "group_id": spelled(cursor, call.group_id),
+            "compare": spelled(cursor, call.compare),
             "month": min(month, on_screen),
             "tools": tools,
             "what_if": what_if,
@@ -729,7 +730,7 @@ def _checked(call: Call, request: ChatRequest, cursor: duckdb.DuckDBPyConnection
     )
 
 
-def _spelled(cursor: duckdb.DuckDBPyConnection, group_id: str | None) -> str | None:
+def spelled(cursor: duckdb.DuckDBPyConnection, group_id: str | None) -> str | None:
     """The id as the tables spell it (GROUP_0130 for group_0130 or 0130), or as given when
     unknown."""
     if not group_id:
@@ -1426,7 +1427,7 @@ def notifier(ctx: AgentContext) -> AgentReport:
     with ctx.tool("rules.parse", by="model" if ctx.llm else "patterns") as step, SerialLLM._lock:
         asked = [
             p.model_copy(
-                update={"groups": list(dict.fromkeys(_spelled(ctx.db, g) for g in p.groups))}
+                update={"groups": list(dict.fromkeys(spelled(ctx.db, g) for g in p.groups))}
             )
             for p in parse_request(ctx.request.message, ctx.call.group_id, ctx.llm, earlier)
         ]
@@ -1447,6 +1448,12 @@ def notifier(ctx: AgentContext) -> AgentReport:
                 continue
             rule = parsed.rule(text)
             if same := next((r for r in rules if r.describe() == rule.describe()), None):
+                if not same.enabled:
+                    with ctx.tool("rules.enable", rule=same.id) as step:
+                        update_rule(path, same.id, {"enabled": True})
+                        step.output = f"rule {same.id} back on"
+                    saved.append(f"Rule {same.id} was off and is back on: {same.describe()}.")
+                    continue
                 saved.append(
                     f"Already in force as rule {same.id}: {same.describe()}. Nothing added."
                 )
