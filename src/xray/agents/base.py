@@ -16,6 +16,7 @@ class ScoreSnapshot(BaseModel):
     level: float
     name: str | None = None
     country: str | None = None
+    sector: str | None = None
     pillars: dict[str, float] = Field(default_factory=dict)
     deltas: dict[str, float] = Field(default_factory=dict)
 

@@ -8,6 +8,10 @@ services:
     rootDir: web
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    envVars:
+      # Vite bakes it in at build time: the Agents tab calls the API, nothing else does.
+      - key: VITE_API_URL
+        value: https://xray-api-w2uy.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -26,5 +30,12 @@ services:
     envVars:
       - key: XRAY_ENV
         value: prod
+      # Only the Agents chat needs these. Set the values in the Render dashboard.
+      - key: HELMCODE_API_KEY
+        sync: false
+      - key: EXA_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
       - key: XRAY_CORS_ORIGINS
         value: '["https://xray-b5hv.onrender.com"]'

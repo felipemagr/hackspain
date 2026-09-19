@@ -1,6 +1,9 @@
-"""Agent: is the company moving alone or with its sector? Finds peers on the web and reads them.
+"""Agents: is the company moving alone or with its sector?
 
-QA it on a real company with: make peers NAME="Cabify"
+`PeersAgent` needs a real company: it finds its competitors and reads their news.
+`SectorAgent` needs only a sector and a country, so it works on any group.
+
+QA on a real company with: make peers NAME="Cabify"
 """
 
 import argparse
@@ -26,6 +29,8 @@ PEER_CANDIDATES = 8
 NEWS_PER_PEER = 3
 NEWS_WINDOW_DAYS = 540
 SNIPPET_CHARS = 600
+SECTOR_NEWS = 8
+COUNTRY_NAMES = {"ES": "Spain", "PT": "Portugal", "FR": "France", "IT": "Italy"}
 
 PEERS_PROMPT = """You are given web pages about the competitive landscape of a target company.
 Pick its direct competitors as the pages name them: same business, overlapping markets, the
@@ -166,9 +171,62 @@ class PeersAgent:
         return report
 
 
+class SectorAgent:
+    """Recent news on the group's sector in its country, read for pressure on financial health."""
+
+    name = "sector"
+
+    def __init__(self, exa_api_key: str | None, llm: LLM | None, cache: JsonCache | None = None):
+        self.exa_api_key = exa_api_key
+        self.llm = llm
+        self.cache = cache
+
+    def run(self, snapshot: ScoreSnapshot, refresh: bool = False) -> AgentReport:
+        if not self.exa_api_key or not self.llm or not snapshot.sector:
+            return AgentReport(agent=self.name, summary="No sector read available.")
+        country = COUNTRY_NAMES.get(snapshot.country or "", snapshot.country or "Europe")
+        key = f"sector {snapshot.sector} {country}"
+        if self.cache and not refresh and (cached := self.cache.get(key)):
+            return AgentReport.model_validate(cached["report"])
+        hits = exa.search(
+            f"{snapshot.sector} sector in {country}: demand, costs, margins, financing, defaults",
+            self.exa_api_key,
+            num_results=SECTOR_NEWS,
+            category="news",
+            published_after=date.today() - timedelta(days=NEWS_WINDOW_DAYS),
+            text_chars=SNIPPET_CHARS,
+        )
+        hits = [hit for hit in hits if not is_social(hit.url)]
+        if not hits:
+            return AgentReport(agent=self.name, summary=f"No recent news on {snapshot.sector}.")
+        moves = ", ".join(f"{pillar} {delta:+.0f}" for pillar, delta in snapshot.deltas.items())
+        user = (
+            f"Target: {snapshot.name}, sector: {snapshot.sector} in {country}\n"
+            f"Score {snapshot.level:.0f}/100 in {snapshot.month}, "
+            f"moves since last month: {moves or 'none reported'}\n"
+            "The sources are about the sector, not about named peers: use 'sector' as the peer.\n\n"
+            + _blocks(hits)
+        )
+        read = complete_json(self.llm, SECTOR_PROMPT, user, SectorRead)
+        report = AgentReport(
+            agent=self.name,
+            summary=f"{snapshot.sector} in {country}, {read.sector_direction}. {read.summary}",
+            findings=[_line(f) for f in read.findings],
+            sources=sorted({f.source for f in read.findings if f.source}),
+        )
+        if self.cache:
+            self.cache.put(key, {"report": report.model_dump()})
+        return report
+
+
 def build_agent(settings: Settings) -> PeersAgent:
     cache = JsonCache(settings.serving_dir / "context", timedelta(days=settings.context_ttl_days))
     return PeersAgent(settings.exa_api_key, build_llm(settings), cache)
+
+
+def build_sector_agent(settings: Settings) -> SectorAgent:
+    cache = JsonCache(settings.serving_dir / "context", timedelta(days=settings.context_ttl_days))
+    return SectorAgent(settings.exa_api_key, build_llm(settings), cache)
 
 
 def _blocks(hits: list[ExaResult]) -> str:
@@ -184,7 +242,8 @@ def _blocks(hits: list[ExaResult]) -> str:
 
 def _line(finding: PeerFinding) -> str:
     seen = finding.published.isoformat() if finding.published else "undated"
-    return f"{finding.peer}: {finding.fact} [seen {seen}, {finding.direction}]"
+    who = "" if finding.peer.lower() == "sector" else f"{finding.peer}: "
+    return f"{who}{finding.fact} [seen {seen}, {finding.direction}]"
 
 
 def main() -> None:

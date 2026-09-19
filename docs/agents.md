@@ -19,6 +19,31 @@ is one summary, a list of findings and a list of sources, ready for the API and 
 `Orchestrator` (`orchestrator.py`) runs the agents in order and returns one report each.
 `build_orchestrator(settings)` gives the default line-up.
 
+## The chat: a fleet on one question
+
+`fleet.py` turns the agents into a conversation. `run_chat(request, db, settings)` yields events
+that `POST /api/v1/chats` streams as server-sent events, and the Agents tab draws them as they land.
+
+```
+planning -> plan {agents, company} -> agent {id, running} -> agent {id, done, summary, findings,
+sources, ms, cached} ... -> writing -> token ... -> done {ms}
+```
+
+| Step | What runs | Cost |
+|---|---|---|
+| Planner | one model call picks the agents the question needs; rules if the model fails | about 3 s |
+| Data agents | `score`, `monitor`, `credit`: SQL over the serving tables, no model | milliseconds |
+| Web agents | `sector` (any group), `context` and `peers` (real companies only), cached | 0 s cached, 10 to 60 s live |
+| Writer | one streamed model call over the reports, in the language of the question | first token about 3 s |
+
+Two constraints shaped it. Helmcode stalls concurrent requests on one key, so searches run in
+parallel but model calls go through `SerialLLM`, one at a time. And `glm5.3` thinks for 25 s by
+default, so the chat asks for `reasoning_effort="low"`: first token in 3 s. The batch agents keep
+the default effort.
+
+`GET /api/v1/agents` lists the roster for the side rail. Without `HELMCODE_API_KEY` the chat still
+answers, with the data agents' summaries and no prose.
+
 ## Tools
 
 One module per external service under `tools/`. `tavily.py` wraps the Tavily search

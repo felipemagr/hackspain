@@ -58,6 +58,14 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   "seen N months early", crosshair tooltip, click to move the month. Comparison adds one blue
   series, a legend and end labels; the wash is dropped.
 - **Pillar row**: label with its evidence in plain words, 4px ink bar, score, signed delta.
+- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the fleet (planner, agents that read
+  the score, agents that read the outside, writer) and the detail pane holds the conversation.
+  A turn is the question at 22px, a trace of the agents dispatched (dot, name, one-line report,
+  time or "from cache"; a row opens to its findings and sources), then the answer as prose at
+  15px, 68ch. No bubbles, no avatars. The composer is the one bordered field, with an ink send
+  button that becomes stop while a turn runs.
+- **Agent dot**: hollow at rest, slate and pulsing while working, ink once it reported, red when
+  it failed. The only motion on the tab besides the streaming caret.
 - **Controls**: borderless icon buttons for the stepper, underline tabs, one bordered select.
 
 ## Motion
@@ -68,4 +76,4 @@ counts between groups and months. CSS transitions are 180ms on backgrounds and 5
 
 ## Deep links
 
-`?group=DEMO_002&compare=DEMO_001&month=2026-08-01&tab=alerts` opens the demo on a given scene.
+`?group=DEMO_002&compare=DEMO_001&month=2026-08-01&tab=alerts` (or `tab=agents`) opens the demo on a given scene.

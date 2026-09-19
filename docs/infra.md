@@ -123,7 +123,10 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 
 - The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables or the agent cache change, run `make publish` (re-exports the JSON and stages what Render serves), then commit and push.
 - `data/serving/context/*.json` (agent context cache) is in git for the same reason: a git build has no other way to get it.
-- The API needs no secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
+- Only the Agents chat needs secrets: set `HELMCODE_API_KEY`, `EXA_API_KEY` and `TAVILY_API_KEY` on
+  `xray-api` in the Render dashboard (`sync: false` in `render.yaml`). The static site gets the
+  API address at build time through `VITE_API_URL`; locally it defaults to `http://localhost:8000`.
+- Nothing else on the API needs secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
 - Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
 - Fallback on stage: `make api-up` plus `cloudflared tunnel --url http://localhost:8000`.
 

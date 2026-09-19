@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { AlertList } from "./components/AlertList";
+import { Chat } from "./components/Chat";
+import { FleetRail } from "./components/FleetRail";
 import { GroupDetail } from "./components/GroupDetail";
 import { GroupList } from "./components/GroupList";
+import { useChat } from "./lib/chat";
 import { monthLong } from "./lib/format";
 import { loadStore, type Store } from "./lib/load";
 
-// Deep links for the demo: ?group=DEMO_002&compare=DEMO_001&month=2026-08-01&tab=alerts
+// Deep links for the demo: ?group=DEMO_002&compare=DEMO_001&month=2026-08-01&tab=alerts|agents
 const params = new URLSearchParams(window.location.search);
 
 export default function App() {
@@ -14,9 +17,11 @@ export default function App() {
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("group") ?? "DEMO_001");
   const [compareId, setCompareId] = useState(params.get("compare") ?? "");
-  const [tab, setTab] = useState<"groups" | "alerts">(
-    params.get("tab") === "alerts" ? "alerts" : "groups",
+  const askedTab = params.get("tab");
+  const [tab, setTab] = useState<"groups" | "alerts" | "agents">(
+    askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
+  const chat = useChat();
 
   useEffect(() => {
     loadStore()
@@ -39,7 +44,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLSelectElement) return;
+      if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
       if (e.key === "ArrowLeft") stepMonth(-1);
       if (e.key === "ArrowRight") stepMonth(1);
     };
@@ -93,9 +98,18 @@ export default function App() {
           <button role="tab" aria-selected={tab === "alerts"} onClick={() => setTab("alerts")}>
             Alerts <span>{alertCount}</span>
           </button>
+          <button role="tab" aria-selected={tab === "agents"} onClick={() => setTab("agents")}>
+            Agents
+          </button>
         </div>
         <div className="side__scroll">
-          {tab === "groups" ? (
+          {tab === "agents" ? (
+            <FleetRail
+              fleet={chat.fleet}
+              turn={chat.turns[chat.turns.length - 1]}
+              onRetry={chat.wake}
+            />
+          ) : tab === "groups" ? (
             <GroupList store={store} month={month} selectedId={selectedId} onSelect={select} />
           ) : (
             <AlertList
@@ -111,14 +125,30 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        <GroupDetail
-          store={store}
-          groupId={selectedId}
-          compareId={compareId}
-          month={month}
-          onMonth={setMonth}
-          onCompare={setCompareId}
-        />
+        {tab === "agents" ? (
+          <Chat
+            store={store}
+            groupId={selectedId}
+            month={month}
+            fleet={chat.fleet}
+            turns={chat.turns}
+            busy={chat.busy}
+            onAsk={(question) =>
+              chat.ask(question, selectedId, store.groupById.get(selectedId)?.name ?? "", month)
+            }
+            onStop={chat.stop}
+            onGroup={select}
+          />
+        ) : (
+          <GroupDetail
+            store={store}
+            groupId={selectedId}
+            compareId={compareId}
+            month={month}
+            onMonth={setMonth}
+            onCompare={setCompareId}
+          />
+        )}
       </main>
     </div>
   );

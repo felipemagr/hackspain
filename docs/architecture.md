@@ -38,6 +38,9 @@ Two rules hold the shape together:
 - **Everything the demo shows is precomputed into `data/serving`.** The API never calls the
   pipeline, the model or the web during a request. It imports no pandas, so its image stays small
   and it cannot fail on stage because a third party is slow.
+  The one exception is the Agents chat (`POST /api/v1/chats`): it plans, searches and writes
+  during the request. It is a separate tab, so when the model or the network is slow the rest
+  of the demo is untouched.
 
 Runtime configuration is `xray.settings` (environment, `XRAY_` prefix, see `docs/infra.md`).
 Paths and dataset constants are `xray.config`.
