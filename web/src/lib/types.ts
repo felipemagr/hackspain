@@ -95,6 +95,8 @@ export interface CompanyRow {
   // Null for a company with no activity in the window.
   level: number | null;
   is_weakest: boolean;
+  /** The company's own covered months. Absent in tables built before it was served. */
+  months_observed?: number;
 }
 
 /** One row per group, month and window: what falls due, and what can be paid early with it. */

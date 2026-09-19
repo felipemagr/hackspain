@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { fmtEur, fmtScore, fmtSigned, monthLong } from "../lib/format";
-import { PILLAR_LABEL, SERIES_COLORS } from "../lib/meta";
+import { fmtEur, fmtMonthsOfData, fmtScore, fmtSigned, monthLong } from "../lib/format";
+import { PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
+import { LowDataNote } from "./LowData";
 import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
@@ -68,6 +69,7 @@ export function GroupDetail({
   const since = score && prevLevel != null ? score.level - prevLevel : null;
   const way = since == null || Math.abs(since) < 0.05 ? "" : since > 0 ? "is-up" : "is-down";
   const line = score ? heading(score) : "";
+  const thin = thinHistory(score?.months_observed);
   const [level] = useTween([score?.level ?? NaN]);
   if (!group) return null;
 
@@ -129,7 +131,10 @@ export function GroupDetail({
         </div>
         {score && (
           <div className="score">
-            <span className={`score__level ${way}`} key={`${groupId}-${month}`}>
+            <span
+              className={`score__level ${way} ${thin ? "is-thin" : ""}`}
+              key={`${groupId}-${month}`}
+            >
               {Number.isFinite(level) ? level.toFixed(0) : "-"}
             </span>
             <div>
@@ -143,6 +148,7 @@ export function GroupDetail({
                   </>
                 )}
               </p>
+              {thin && <LowDataNote months={score.months_observed} />}
             </div>
           </div>
         )}
@@ -248,16 +254,21 @@ export function GroupDetail({
                   <h2>Companies in the group</h2>
                   <span className="hint">share of inflow</span>
                 </div>
-                {companies.map((c) => (
-                  <div className="company" key={c.company_id}>
-                    <span className="company__name">
-                      {c.name}
-                      {c.is_weakest && <span className="company__flag">drags the group</span>}
-                    </span>
-                    <span className="company__share">{((c.inflow_share ?? 0) * 100).toFixed(0)}%</span>
-                    <span className="company__level">{fmtScore(c.level)}</span>
-                  </div>
-                ))}
+                {companies.map((c) => {
+                  const months = c.months_observed;
+                  const short = thinHistory(months);
+                  return (
+                    <div className="company" key={c.company_id}>
+                      <span className="company__name">
+                        {c.name}
+                        {c.is_weakest && <span className="company__flag">drags the group</span>}
+                        {short && <span className="company__note">{fmtMonthsOfData(months)}</span>}
+                      </span>
+                      <span className="company__share">{((c.inflow_share ?? 0) * 100).toFixed(0)}%</span>
+                      <span className={`company__level ${short ? "is-thin" : ""}`}>{fmtScore(c.level)}</span>
+                    </div>
+                  );
+                })}
               </>
             )}
           </section>

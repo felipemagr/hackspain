@@ -24,6 +24,13 @@ export const STATE_ORDER = (Object.keys(STATE_META) as State[]).sort(
   (a, b) => STATE_META[a].order - STATE_META[b].order,
 );
 
+/** Covered months the engine wants before it trusts a trend (`trend.MIN_HISTORY_MONTHS`). */
+export const MIN_HISTORY_MONTHS = 6;
+
+/** A level that rests on fewer months than the engine needs: shown, but flagged. */
+export const thinHistory = (months: number | null | undefined): months is number =>
+  months != null && months < MIN_HISTORY_MONTHS;
+
 // Comparison series by slot. Validated for color-blind separation against each other; none is a state color.
 export const SERIES_COLORS = ["var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
 

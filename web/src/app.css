@@ -742,6 +742,63 @@ h1 {
   }
 }
 
+/* A level that rests on too few months recedes to secondary ink; the caveat under it says why. */
+.score__level.is-thin,
+.row__level.is-thin,
+.company__level.is-thin {
+  color: var(--ink-3);
+}
+
+.score__caveat {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 8px;
+  max-width: 36ch;
+  color: var(--ink-2);
+}
+
+.score__caveat strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The second clause moves whole to the next line rather than leaving "needs 6." on its own. */
+.score__caveat-clause {
+  white-space: nowrap;
+}
+
+.caveat {
+  flex: none;
+}
+
+.score__caveat .caveat {
+  position: relative;
+  top: 1px;
+}
+
+.caveat path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.row__caveat {
+  color: var(--ink-2);
+}
+
+.company__note {
+  margin-left: 8px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.company__flag + .company__note::before {
+  content: "· ";
+}
+
 .score__since {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
