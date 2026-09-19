@@ -9,8 +9,10 @@ records what the built UI does so later screens follow it instead of inventing a
 2. The less the better. No cards, no boxes, no shadows on content. Whitespace and one hairline
    rule separate things. If a number does not answer one of the six questions, it is not shown.
    The one filled shape is the person's own question in the chat.
-3. Color means state and nothing else. The interface is Embat navy on white; green, amber, orange,
-   red and blue appear only as state dots, trend arrows, alert rings and signed deltas. The palette
+3. Color means state and nothing else. The interface is Embat navy on white; three hues and a
+   grey carry every state: red is trouble (falling, weak), amber is a warning (bending), green is
+   good news (improving, healthy), grey is quiet (stable, bump, not enough data). They appear only
+   as state dots, alert rings and signed deltas; trend arrows are grey, the shape says the direction. The palette
    is Embat's (embat.io design tokens); the brand gradient lives only in the logo mark.
 4. Plain words. "Heading to 68", "paying 20 days late", "drags the group". No codes, no jargon,
    no uppercase tracked labels.
@@ -58,7 +60,8 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: the lit
   lantern of the lighthouse. The favicon is the same mark with no tile: ink facets, white in a dark browser. Sources and rejected
   options in `docs/brand/`.
-- **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
+- **List row**: name, then state dot, state and sector on the second line, sparkline (own range,
+  shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
 - **State tag**: 7-8px dot plus label.
 - **Low-data caveat** (`LowData.tsx`): under six covered months (the engine's own cut-off) the
@@ -67,17 +70,22 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   row the glyph takes the trend cell, which has nothing to draw yet, and the sentence is its
   tooltip; a company row says "4 months of data" after its name. Never a state color: it says how
   sure the score is, not how healthy.
-- **Trajectory chart** (`TrajectoryChart.tsx`): fixed 0-100 axis, dotted thresholds at 70 and 40
+- **Trajectory chart** (`TrajectoryChart.tsx`): 0-100 axis, dotted thresholds at 70 and 40
   labelled on the axis, 2px ink line up to the selected month and a receding grey line after it,
   a faint ink wash under a single series, alert rings in the state color, crosshair tooltip, click to move the month. Comparison adds up to four
   series, a legend and end labels; the wash is dropped. A compared group keeps its slot, and so
-  its color, while others come and go. The legend entries are the remove buttons.
+  its color, while others come and go. The legend entries are the remove buttons. Dragging across
+  months zooms into them and the score axis closes on what is drawn (rounded to tens, thresholds
+  only when inside); a line under the chart names the range, with Reset and bordered minus and
+  plus buttons that zoom around the selected month. Double click resets. A click still moves the month.
 - **Menu** (`Menu.tsx`): a bordered button that opens a panel of checkboxes, the multi-select
-  used for Compare (with a search field, capped at four) and for the rail's Filter (state and
-  trend). Checked boxes are ink. The one place a shadow is allowed besides the tooltip.
-- **Rail tools** (`GroupList.tsx`): Filter menu, a sort select (by state keeps the buckets; any
-  other sort flattens the list and moves the state onto the row's second line) and a Favorites
-  toggle. Any active filter shows "N of M groups" and a Clear filters link.
+  used for Compare (with a search field, capped at four). Checked boxes are ink. The one place a shadow is allowed besides the tooltip.
+- **Rail tools** (`GroupList.tsx`): one search field (words match name, sector, country or state;
+  `>70` and `<40` match the score) with the favorites-only star beside it, then four quiet chips
+  with counts: All, Attention, Improving, Steady. Under them a status line: "N of M groups", Clear,
+  and a borderless Sort select. The default sort, Priority, keeps three sections (`BUCKETS` in
+  `meta.ts`) and each heading says its own order: Needs attention, steepest fall first; Improving,
+  fastest rise first; Steady, highest score first. Any other sort flattens the list.
 - **Favorite star**: ink outline, filled when on, never a state color. On a row it appears on
   hover and stays once on; it also sits beside the group name. Kept in localStorage.
 - **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all and a clear button on row hover.

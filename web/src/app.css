@@ -337,23 +337,49 @@ ol {
   position: sticky;
   top: -4px;
   z-index: 2;
+  padding: 12px 12px 4px;
+  background: var(--side);
+}
+
+.list__search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 12px 8px;
-  background: var(--side);
+  gap: 4px;
+}
+
+.list__search input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  transition: border-color 0.18s var(--ease);
+}
+
+.list__search input::placeholder {
+  color: var(--ink-3);
+}
+
+.list__search input:hover,
+.list__search input:focus {
+  border-color: var(--ink-3);
+  outline: none;
+}
+
+.list__search input:focus-visible {
+  border-color: var(--ink);
 }
 
 .list__favs {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  padding: 5px 8px;
+  padding: 7px;
   border: 0;
   border-radius: 7px;
   background: none;
-  font-size: 13px;
   color: var(--ink-2);
   cursor: pointer;
   transition: background 0.18s var(--ease);
@@ -368,7 +394,66 @@ ol {
   color: var(--ink);
 }
 
-.list__favs span {
+.list__chips {
+  display: flex;
+  gap: 2px;
+  margin: 8px -4px 0;
+}
+
+.chip {
+  display: inline-flex;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background 0.18s var(--ease);
+}
+
+.chip span {
+  color: var(--ink-3);
+}
+
+.chip:hover {
+  background: var(--hover);
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--selected);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.list__tools .list__status {
+  padding: 8px 0 0;
+}
+
+.list__tools .list__status .link {
+  margin-left: 0;
+}
+
+.list__sort {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.list__sort select {
+  padding: 0 14px 0 2px;
+  border: 0;
+  background-color: transparent;
+  background-position: right 0 center;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.list__hint {
+  margin-left: auto;
+  font-weight: 400;
   color: var(--ink-3);
 }
 
@@ -458,13 +543,6 @@ ol {
 
 .menu__panel--right {
   right: 0;
-}
-
-.menu__title {
-  padding: 8px 8px 4px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--ink-2);
 }
 
 .menu__search {
@@ -574,11 +652,6 @@ ol {
   text-overflow: ellipsis;
 }
 
-.check__count {
-  margin-left: auto;
-  color: var(--ink-3);
-}
-
 .row__text {
   min-width: 0;
 }
@@ -639,14 +712,6 @@ ol {
 
 .trend svg {
   fill: currentColor;
-}
-
-.trend--up svg {
-  color: var(--good);
-}
-
-.trend--down svg {
-  color: var(--bad);
 }
 
 /* ---------- detail ---------- */
@@ -939,6 +1004,7 @@ select:hover {
   display: block;
   cursor: crosshair;
   touch-action: none;
+  user-select: none;
 }
 
 .chart__grid {
@@ -990,6 +1056,62 @@ select:hover {
 .chart__end {
   font-size: 13px;
   font-weight: 600;
+}
+
+.chart__brush {
+  fill: var(--ink);
+  opacity: 0.06;
+}
+
+.chart__zoom {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+  padding-right: 36px;
+}
+
+.chart__range {
+  margin-right: 8px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.chart__zoom .link {
+  margin-right: 8px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.icon-button:disabled {
+  color: var(--line-strong);
+  cursor: default;
+}
+
+.icon-button path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 .tooltip {

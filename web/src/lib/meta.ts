@@ -2,27 +2,32 @@ import type { Pillar, ScoreRow, State } from "./types";
 
 export type Tone = "good" | "warn" | "serious" | "bad" | "info" | "neutral";
 
+export type Bucket = "attention" | "improving" | "steady";
+
 export interface StateMeta {
   label: string;
   tone: Tone;
-  order: number;
+  bucket: Bucket;
 }
 
-// List order: the groups that need attention first, the quiet ones last.
+// Three hues and a grey: red is trouble, amber is a warning, green is good news.
 export const STATE_META: Record<State, StateMeta> = {
-  falling: { label: "Falling", tone: "bad", order: 0 },
-  bending: { label: "Bending", tone: "warn", order: 1 },
-  weak: { label: "Weak", tone: "serious", order: 2 },
-  bump: { label: "Bump", tone: "info", order: 3 },
-  improving: { label: "Improving", tone: "good", order: 4 },
-  healthy: { label: "Healthy", tone: "good", order: 5 },
-  stable: { label: "Stable", tone: "neutral", order: 6 },
-  not_enough_data: { label: "Not enough data", tone: "neutral", order: 7 },
+  falling: { label: "Falling", tone: "bad", bucket: "attention" },
+  bending: { label: "Bending", tone: "warn", bucket: "attention" },
+  weak: { label: "Weak", tone: "bad", bucket: "attention" },
+  bump: { label: "Bump", tone: "neutral", bucket: "steady" },
+  improving: { label: "Improving", tone: "good", bucket: "improving" },
+  healthy: { label: "Healthy", tone: "good", bucket: "steady" },
+  stable: { label: "Stable", tone: "neutral", bucket: "steady" },
+  not_enough_data: { label: "Not enough data", tone: "neutral", bucket: "steady" },
 };
 
-export const STATE_ORDER = (Object.keys(STATE_META) as State[]).sort(
-  (a, b) => STATE_META[a].order - STATE_META[b].order,
-);
+// Rail sections in reading order. Each one says how it is sorted, so the order explains itself.
+export const BUCKETS: { key: Bucket; label: string; hint: string }[] = [
+  { key: "attention", label: "Needs attention", hint: "steepest fall first" },
+  { key: "improving", label: "Improving", hint: "fastest rise first" },
+  { key: "steady", label: "Steady", hint: "highest score first" },
+];
 
 /** Covered months the engine wants before it trusts a trend (`trend.MIN_HISTORY_MONTHS`). */
 export const MIN_HISTORY_MONTHS = 6;
