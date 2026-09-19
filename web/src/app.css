@@ -1359,85 +1359,243 @@ select:hover {
   grid-template-rows: minmax(0, 1fr) auto;
 }
 
+.chat__new {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: -8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition:
+    background 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.chat__new:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+.chat__new path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The conversation grows up from the composer: the newest turn sits above it, not at the top. */
 .chat__scroll {
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
 }
 
 .chat__column {
+  width: 100%;
   max-width: 1080px;
-  margin: 0 auto;
-  padding: 40px 48px 32px;
+  margin: auto auto 0;
+  padding: 32px 48px 28px;
 }
 
 .chat__column > * {
   max-width: 760px;
 }
 
+/* An empty conversation sits in the middle of the pane; a running one hugs the composer. */
+.chat__column.is-empty {
+  margin: auto;
+  padding-bottom: 48px;
+}
+
+/* Centred over the same 760px the composer spans, so the two share an axis. */
+.guide {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.guide__title {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
 .guide__lead {
-  max-width: 62ch;
-  margin-bottom: 28px;
+  max-width: 46ch;
+  margin: 10px 0 28px;
+  font-size: 15px;
+  line-height: 1.5;
   color: var(--ink-2);
+  text-wrap: pretty;
 }
 
-.guide dl {
-  display: grid;
-  gap: 14px;
+/* A grouped list: one soft slab, rows parted by inset hairlines, each led by an icon on a white tile. */
+.guide__list {
+  width: 100%;
+  max-width: 560px;
   margin: 0;
+  padding: 0 16px;
+  list-style: none;
+  border-radius: 14px;
+  background: var(--side);
+  text-align: left;
 }
 
-.guide dl > div {
+.guide__list li {
   display: grid;
-  grid-template-columns: 200px minmax(0, 52ch);
-  gap: 24px;
-  align-items: baseline;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
 }
 
-.guide dt {
+.guide__icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.guide__icon path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.guide__text {
+  display: grid;
+  gap: 1px;
+  padding: 12px 0;
+}
+
+.guide__list li + li .guide__text {
+  border-top: 1px solid var(--line-strong);
+}
+
+.guide__topic {
   font-weight: 500;
 }
 
-.guide dd {
-  margin: 0;
+.guide__what {
+  font-size: 13px;
   color: var(--ink-2);
 }
 
 .turn + .turn {
-  margin-top: 56px;
+  margin-top: 32px;
 }
 
+/* The question is the person's: a filled bubble on the right. The answer is the page's: prose on the left. */
 .turn__question {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  text-wrap: balance;
+  width: fit-content;
+  max-width: 75%;
+  margin-left: auto;
+  padding: 10px 14px;
+  border-radius: 18px;
+  background: var(--hover);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
-.turn__question + .hint {
-  margin-top: 4px;
-}
-
-.trace__head {
-  margin-top: 24px;
-  margin-bottom: 0;
-}
-
+/* Under the bubble, the fleet at work as one slab: a summary line, and the rows under it while open. */
 .trace {
+  margin-top: 14px;
+  border-radius: 12px;
+  background: var(--side);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.trace__summary {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr) auto auto 12px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 14px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s var(--ease);
+}
+
+.trace__summary:hover {
+  background: var(--hover);
+}
+
+.trace__summary .agent__dot {
+  width: 6px;
+  height: 6px;
+}
+
+.trace__purpose {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trace__purpose.is-pending {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.trace__names {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.trace__chevron {
+  color: var(--ink-3);
+  transition: transform 0.18s var(--ease);
+}
+
+.trace.is-open .trace__chevron {
+  transform: rotate(180deg);
+}
+
+.trace__chevron path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trace__rows {
   margin: 0;
   padding: 0;
   list-style: none;
+  border-top: 1px solid var(--line-strong);
+}
+
+.trace__item + .trace__item {
+  border-top: 1px solid var(--line-strong);
 }
 
 .trace__row {
-  width: calc(100% + 24px);
-  margin-left: -12px;
+  width: 100%;
   display: grid;
-  grid-template-columns: 7px 116px minmax(0, 1fr) auto;
+  grid-template-columns: 6px 84px minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: 12px;
-  padding: 9px 12px;
+  gap: 10px;
+  padding: 8px 12px 8px 14px;
   border: 0;
-  border-radius: 8px;
   background: none;
   text-align: left;
   cursor: pointer;
@@ -1445,16 +1603,14 @@ select:hover {
 }
 
 .trace__row .agent__dot {
+  width: 6px;
+  height: 6px;
   align-self: start;
-  margin-top: 7px;
+  margin-top: 6px;
 }
 
-.trace__row:hover:not(:disabled) {
+.trace__row:hover {
   background: var(--hover);
-}
-
-.trace__row:disabled {
-  cursor: default;
 }
 
 .trace__label {
@@ -1476,8 +1632,12 @@ select:hover {
   color: var(--ink-3);
 }
 
+.trace .row__when {
+  font-size: 12px;
+}
+
 .trace__detail {
-  padding: 4px 0 16px 147px;
+  padding: 2px 14px 14px 124px;
   font-size: 13px;
   color: var(--ink-2);
 }
@@ -1504,7 +1664,7 @@ select:hover {
 
 .steps li {
   display: grid;
-  grid-template-columns: 7px minmax(0, auto) minmax(0, 1fr) auto;
+  grid-template-columns: 7px minmax(0, 1fr) fit-content(40%) auto;
   align-items: baseline;
   gap: 10px;
 }
@@ -1545,7 +1705,7 @@ select:hover {
 
 .answer {
   max-width: 68ch;
-  margin-top: 20px;
+  margin-top: 18px;
   font-size: 15px;
   line-height: 1.6;
 }
@@ -1618,7 +1778,18 @@ select:hover {
   width: 100%;
   max-width: 1080px;
   margin: 0 auto;
-  padding: 0 48px 28px;
+  padding: 0 48px 16px;
+}
+
+/* Under the field: leave the conversation on the left, the month the data runs to on the right. */
+.composer__foot {
+  max-width: 760px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 6px;
 }
 
 .composer__field {
@@ -1628,7 +1799,7 @@ select:hover {
   gap: 8px;
   padding: 8px 8px 8px 14px;
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--surface);
   transition: border-color 0.18s var(--ease);
 }
@@ -1657,7 +1828,7 @@ select:hover {
   color: var(--ink-3);
 }
 
-.composer button {
+.composer__field button {
   flex: none;
   width: 28px;
   height: 28px;
@@ -1670,12 +1841,12 @@ select:hover {
   transition: opacity 0.18s var(--ease);
 }
 
-.composer button:disabled {
+.composer__field button:disabled {
   opacity: 0.25;
   cursor: default;
 }
 
-.composer path {
+.composer__field path {
   fill: none;
   stroke: var(--surface);
   stroke-width: 1.6;
@@ -1683,7 +1854,7 @@ select:hover {
   stroke-linejoin: round;
 }
 
-.composer rect {
+.composer__field rect {
   fill: var(--surface);
 }
 
