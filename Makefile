@@ -2,7 +2,7 @@
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
         events score score-baseline validate monitor alerts notify serve submit replay demo demo-data \
         lighthouse lighthouse-down api api-up api-down slack-test email-test \
-        context peers test test-quick lint format quality ci clean web-install web-data web \
+        context peers test test-quick lint format quality ci clean macro web-install web-data web \
         web-build publish
 
 RAW_DIR ?= data/raw
@@ -182,6 +182,9 @@ $(WEB_DEPS): web/package.json web/package-lock.json
 	cd web && npm install --no-audit --no-fund
 
 web-install: $(WEB_DEPS) ## Install the demo front end dependencies
+
+macro: ## Refresh web/src/lib/macro.json from the ECB, Eurostat, the ONS and Yahoo Finance
+	uv run python -m xray.pipeline.fetch_macro
 
 web-data: ## Export data/serving parquet to web/public/data as JSON for the front end
 	uv run python -m xray.pipeline.export_serving
