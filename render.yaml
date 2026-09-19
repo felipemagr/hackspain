@@ -21,6 +21,8 @@ services:
     region: frankfurt
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    # One deploy per push, and only once GitHub Actions is green.
+    autoDeployTrigger: checksPass
     envVars:
       - key: XRAY_ENV
         value: prod

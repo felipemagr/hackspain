@@ -110,7 +110,7 @@ flowchart LR
     B --> OK
 ```
 
-Both jobs run in parallel and use no secrets. There is no CD job: Render redeploys both services on every push to `main`.
+Both jobs run in parallel and use no secrets. There is no CD job: the API has `autoDeployTrigger: checksPass` in `render.yaml`, so Render deploys a push to `main` once these checks are green. The static site deploys on every push.
 
 ## Deploy: Render, free, no card
 
