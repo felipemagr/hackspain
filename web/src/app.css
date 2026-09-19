@@ -1690,3 +1690,130 @@ select:hover {
     animation: none !important;
   }
 }
+
+/* ---------- what if ---------- */
+
+.whatif {
+  margin-top: 48px;
+}
+
+.whatif__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: start;
+  gap: 40px;
+  margin-top: 20px;
+}
+
+.whatif__lever {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: baseline;
+  column-gap: 14px;
+  padding: 10px 0;
+}
+
+.whatif__label {
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.whatif__weight {
+  margin-left: 6px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.whatif__value {
+  font-weight: 600;
+  text-align: right;
+}
+
+.whatif__slider {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: 8px 0 4px;
+  appearance: none;
+  background: none;
+  cursor: pointer;
+}
+
+.whatif__slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.whatif__slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.whatif__slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.whatif__slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.whatif__today {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.whatif__out {
+  padding: 20px;
+  border-radius: 8px;
+  background: var(--side);
+}
+
+.whatif__level {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.whatif__delta {
+  margin-top: 6px;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+
+/* Both appended after .is-up / .is-down, so the direction needs the extra class to win. */
+.whatif__level.is-up,
+.whatif__delta.is-up {
+  color: var(--good-ink);
+}
+
+.whatif__level.is-down,
+.whatif__delta.is-down {
+  color: var(--bad-ink);
+}
+
+.whatif__note {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+@media (max-width: 900px) {
+  .whatif__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

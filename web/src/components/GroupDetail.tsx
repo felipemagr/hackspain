@@ -9,6 +9,7 @@ import { OwnHistory } from "./OwnHistory";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
+import { WhatIf } from "./WhatIf";
 
 interface GroupDetailProps {
   store: Store;
@@ -283,6 +284,7 @@ export function GroupDetail({
       )}
 
       {score && <OwnHistory history={history} month={month} />}
+      {score && <WhatIf score={score} />}
     </article>
   );
 }
