@@ -88,10 +88,14 @@ make test
 make quality     # ruff check + format check
 make format
 
-cp .env.example .env   # optional: Slack webhook, CORS origins, port
+make monitor     # detect the jumps and the sustained shifts, write the alert feed
+make alerts      # show what the monitor would send, send nothing
+
+cp .env.example .env   # optional: Slack webhook, SMTP, CORS origins, port
 make api         # API with reload on http://localhost:8000 (docs at /docs)
 make api-up      # same API in Docker, reads data/serving/*.parquet
 make slack-test  # send a test alert to the Slack webhook
+make notify MONTH=2026-05   # replay one month of alerts into Slack
 ```
 
 ## Repo layout

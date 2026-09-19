@@ -19,8 +19,10 @@ it matches the public context cached in `data/serving/context/cabify.json`. Its 
 ```
 level     weighted mean of the available pillars, 0-100, capped at 50 if liquidity or
           payment discipline is under 25. Answers "who is healthy today".
-trend     Theil-Sen slope of the level over the trailing 6 months, points per month.
-compound  clip(level + 4 * trend, 0, 100): the level projected four months along its trend.
+smooth    causal EWMA of the level, alpha 0.4. The raw level swings a median of 4 points a
+          month, so everything about trajectory is measured on this instead.
+trend     Theil-Sen slope of the smoothed level over the trailing 6 months, points per month.
+compound  clip(smooth + 4 * trend, 0, 100): the level projected four months along its trend.
 ```
 
 `compound` is the single number the product prices and ranks on, because it rewards improving
@@ -44,8 +46,8 @@ renormalise and `coverage` says how much of the full weight was available.
 | `group_id`, `month` | Keys. `month` is the first day of the month, 2024-09 to 2026-08 |
 | `liquidity`, `cash_generation`, `payment_discipline`, `collections`, `debt_burden` | Pillar scores 0-100, null when the pillar is unavailable |
 | `level`, `level_uncapped`, `is_capped`, `coverage` | The score and its cap rule |
-| `trend`, `compound` | See above. `trend` is null under 6 months of history |
-| `state` | `healthy`, `stable`, `weak`, `improving`, `bending`, `falling`, `bump`, `not_enough_data` |
+| `level_smooth`, `trend`, `compound` | See above. `trend` is null under 6 months of history |
+| `state` | `healthy`, `stable`, `weak`, `improving`, `bending`, `falling`, `not_enough_data`. A bump is no longer a state: it is how a jump alert resolves |
 | `tier` | `healthy` >= 70, `coping` 40-70, `vulnerable` < 40 |
 | `months_observed` | Months of history so far |
 | `buffer_days`, `operating_margin`, `ap_days_beyond_terms`, `ar_days_beyond_terms`, `dscr` | Headline indicator behind each pillar, for the explanation copy |
@@ -55,10 +57,41 @@ renormalise and `coverage` says how much of the full weight was available.
 and the month-on-month change of the level is `sum(delta_contribution)`.
 `group_id`, `month`, `pillar`, `score`, `contribution`, `delta_score`, `delta_contribution`.
 
-`alerts`: one row each time a group enters `bending`, `falling` or `improving`. This is the monitor's feed.
-`group_id`, `month`, `state_from`, `state_to`, `onset_month`, `level_at_onset`, `level_at_alert`,
-`driver_1`, `driver_2` (pillars that moved most since onset), `tier_change_month`,
-`anticipation_months` (months between the alert and the tier actually changing; null if it has not).
+`alerts`: the monitor's feed, one row per moment worth a message. Written by
+`xray.scoring.monitor` over the scores; `xray.scoring.notify` turns a row into the text that
+goes to Slack or email.
+
+Two kinds, because a spike and a slide are different questions:
+
+| `kind` | Raised when | Latency |
+|---|---|---|
+| `jump` | one month of the **raw** level moves more than `max(10 points, 3 sigma)` of that group's own monthly swing | none, and provisional |
+| `shift` | the CUSUM on the **smoothed** level enters a down or an up alarm | slower, only fires on a move that held |
+
+A jump reports the raw level, a shift the smoothed one, so the three level columns of a row
+always agree with each other. An alarm already raised is not raised again: `bending` to
+`falling` is the same decline crossing a line. The other half of a spike is suppressed too, and
+covered by the first jump's revert message instead.
+
+| Column | |
+|---|---|
+| `group_id`, `month` | Keys. One group can have several alerts in a month only if they are different kinds |
+| `kind` | `jump` or `shift` |
+| `direction` | `down` or `up`. Improvement is a first-class alert, not an afterthought |
+| `state_from`, `state_to` | The state either side of the alert month |
+| `onset_month` | Where the move started: the month the CUSUM last sat at zero, or the month before a jump |
+| `level_at_onset`, `level_at_alert`, `delta_level` | The move, on the series its detector measured |
+| `trend`, `compound` | Slope in points per month at the alert, and the four-month projection |
+| `tier` | Tier at the alert month |
+| `driver_1`, `driver_2` | Pillars whose contribution moved most since onset, worst first |
+| `sigmas` | Size of a jump in that group's own monthly swings. Null for a shift |
+| `resolution`, `resolution_month` | `sustained`, `reverted` (a bump) or `open`, and the month it became knowable, two months after the jump. Empty for a shift |
+| `monthly_inflow_eur` | Operating inflow at the alert month |
+| `severity` | Ranking key only: `abs(delta_level)` weighted by the group's inflow percentile in the portfolio. Not money: inflow is summed across currencies without conversion |
+| `tier_change_month`, `anticipation_months`, `late` | **Hindsight.** Months from the alert to the next tier change, and whether the tier had already moved before the alert. For the validation view; never put them in a message |
+
+Everything except those last three is causal: the row dated `t` is what the system would have
+raised at the end of `t`. That is what lets the demo replay the feed month by month.
 
 `offers`: working-capital line, repriced every month from `compound`.
 `group_id`, `month`, `eligible` (compound >= 40 and enough history), `limit_eur` (0.2x to 1.5x

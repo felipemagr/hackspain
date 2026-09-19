@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score validate api api-up api-down slack-test context peers test test-quick lint \
-        format quality ci clean web-install web-data web web-build publish
+        events score validate monitor alerts notify api api-up api-down slack-test email-test \
+        context peers test test-quick lint format quality ci clean web-install web-data web \
+        web-build publish
 
 RAW_DIR ?= data/raw
 PROCESSED_DIR := data/processed
@@ -58,6 +59,19 @@ score: $(SCORES) ## Score every group-month from the panel
 validate: $(SCORES) $(EVENTS) ## Discrimination, trajectory, stability and ablation, split by group
 	uv run python -m xray.scoring.validate
 
+ALERTS := $(MARTS_DIR)/alerts.parquet
+
+$(ALERTS): $(SCORES) src/xray/scoring/monitor.py src/xray/scoring/trend.py
+	uv run python -m xray.scoring.monitor
+
+monitor: $(ALERTS) ## Detect jumps and sustained shifts in the score, write the alert feed
+
+alerts: $(ALERTS) ## Show the alerts not yet sent, send nothing: make alerts [MONTH=2026-05]
+	uv run python -m xray.scoring.notify --dry-run $(if $(MONTH),--month $(MONTH))
+
+notify: $(ALERTS) ## Send the pending alerts: make notify [MONTH=2026-05] [CHANNEL=slack|email]
+	uv run python -m xray.scoring.notify --channel $(or $(CHANNEL),slack) $(if $(MONTH),--month $(MONTH))
+
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock
 
@@ -90,6 +104,9 @@ api-down: ## Stop the API container
 
 slack-test: ## Send a test alert to the Slack webhook in .env
 	uv run python -m xray.integrations.slack
+
+email-test: ## Send a test alert to the SMTP host in .env
+	uv run python -m xray.integrations.email
 
 # Web demo
 web-install: ## Install the demo front end dependencies

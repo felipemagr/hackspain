@@ -35,18 +35,20 @@ data, `stub` exists but returns a placeholder, `todo` is not written.
 | Level score | `src/xray/scoring/score.py` | built | `data/marts/scores.parquet`, 4,114 group-months, 38 cols, additive contributions, cap rule | `make score` |
 | Validation | `src/xray/scoring/validate.py` | built | stdout report | `make validate` |
 | Explanation | `src/xray/scoring/explain.py` | todo | | |
-| Monitor | `src/xray/scoring/monitor.py` | todo | | |
+| Trajectory maths | `src/xray/scoring/trend.py` | built | smoothing, Theil-Sen, CUSUM state machine, shared by the monitor and `mock.py` | |
+| Monitor | `src/xray/scoring/monitor.py` | built | `data/marts/alerts.parquet` 343 rows, `trajectory.parquet` 4,114 rows | `make monitor` |
+| Notifier | `src/xray/scoring/notify.py` | built | Slack or SMTP, ledger at `data/marts/_alerts_sent.json` | `make alerts`, `make notify` |
 | Offer | `src/xray/scoring/offer.py` | todo | | |
 | Submission | `src/xray/scoring/submit.py` | todo | blocked by `Q1` | |
 | Serving tables | `src/xray/scoring/mock.py` | mock | `data/serving/*.parquet`, 45 invented groups `DEMO_001`..`DEMO_045` | `make mock` |
 | Serving export | `src/xray/pipeline/export_serving.py` | built | `web/public/data/*.json` | `make web-data` |
-| API | `src/xray/api/` | built, health route only | DuckDB views over `data/serving/` | `make api` |
+| API | `src/xray/api/` | built, health and alerts routes | DuckDB views over `data/serving/` | `make api` |
 | Front end | `web/` | mock | reads static `/data/*.json`, not the API | `make web` |
 | Agent: context retrieval | `src/xray/agents/context_retrieval.py` | built, cached | `data/serving/context/` | `make context NAME="Cabify"` |
 | Agent: peers | `src/xray/agents/peers.py` | built | `data/serving/context/` | `make peers NAME="Cabify"` |
 | Agent: macro | `src/xray/agents/macro.py` | stub | | |
 | Agent: narrator | `src/xray/agents/narrator.py` | partial: ranks weak pillars, prose pass not wired | | |
-| CI | `Makefile` | built | lint, format, 67 tests, green | `make ci` |
+| CI | `Makefile` | built | lint, format, 90 tests, green | `make ci` |
 
 The gap that matters: everything from `scores.parquet` down to the screen is disconnected. The
 real score stops at `data/marts/`; the API and the front end show `mock.py` output. Closing it is `N5`.
@@ -60,8 +62,11 @@ flowchart LR
     pg --> events["events.py"] --> val["validate.py<br/>AUC 0.876"]
     pg --> score["score.py + anchors.py"] --> sc["marts/scores.parquet"]
     sc --> val
-    sc -.-> explain["explain.py"] & monitor["monitor.py"] & offer["offer.py"] & submit["submit.py"]
-    explain & monitor & offer -.-> serving["data/serving"]
+    sc --> monitor["monitor.py + trend.py"] --> al["marts/alerts.parquet"]
+    al --> notify["notify.py"] --> out["Slack, email"]
+    sc -.-> explain["explain.py"] & offer["offer.py"] & submit["submit.py"]
+    explain & offer -.-> serving["data/serving"]
+    al -.-> serving
     mock["mock.py"] --> serving
     serving --> api["api/"]
     serving --> exp["export_serving.py"] --> web["web/"]
@@ -69,9 +74,9 @@ flowchart LR
     classDef built fill:#1a4d2e,stroke:#2d7a4a,color:#fff
     classDef mock fill:#6b4e00,stroke:#a67c00,color:#fff
     classDef todo fill:#3d3d3d,stroke:#666,color:#aaa,stroke-dasharray: 4 3
-    class raw,clean,proc,cash,panel,pg,events,score,sc,val,exp,api built
+    class raw,clean,proc,cash,panel,pg,events,score,sc,val,exp,api,monitor,al,notify,out built
     class mock,serving,web mock
-    class explain,monitor,offer,submit todo
+    class explain,offer,submit todo
 ```
 
 Green is built on real data, amber runs on invented data, dashed grey is not written.
@@ -108,17 +113,41 @@ Ablation, held-out AUC vs `cash_negative` when one pillar is dropped:
 
 Weights were set from measured discrimination, not from the opening guess.
 
+## Monitor
+
+From `make monitor` on the same marts. 343 alerts over 4,114 group-months, 8.3%, on 191 of the
+250 groups: around 18 a month across the portfolio, ranked by the size of the move weighted by
+the group's inflow percentile. Two detectors, because a spike and a slide are different
+questions.
+
+| Metric | Value | Target | Verdict |
+|---|---|---|---|
+| Alert rate | 8.3% of group-months | a few percent, not 30 | acceptable: 18 a month on 250 groups |
+| Jumps | 90: one month of the raw level past `max(10 points, 3 sigma)` of the group's own swing | | fires with no delay, published provisional |
+| Shifts | 253: CUSUM on the smoothed level entering an alarm | | only on moves that held |
+| Direction | 168 down, 175 up | both | improvement is a first-class alert |
+| Bump vs structural | of the jumps, 74 sustained, 4 reverted within two months, 12 open | | question 4 of the six, answered in the feed |
+| Anticipation | 50% of alerts land before the tier next moves, median 3 months ahead | | judging block two |
+| Late alerts | 51%: the tier had already moved between onset and confirmation | | fails, see `P9` |
+| Fast lane | 19% of down shifts had a down jump first, median 3 months earlier | | the jump buys 3 months on a fifth of the slides |
+| Stability of the smoothed level | median monthly change 2.1 points, from 4.08 raw | under 3 | good, at the cost of about 1.5 months of lag |
+
+The monitor smooths the level itself (causal EWMA, alpha 0.4) inside `trend.py`, because `P1` is
+not fixed yet. When `N1` lands, raise the alpha and the alarms arrive earlier.
+
 ## Problems
 
 | ID | Problem | Evidence | Blocks | Closed by |
 |---|---|---|---|---|
-| P1 | Level is too noisy | median monthly change 4.08, target under 3, p90 14.14 | the monitor: a CUSUM on this level fires on noise | `N1` |
+| P1 | Level is too noisy | median monthly change 4.08, target under 3, p90 14.14 | nothing now: the monitor smooths the level itself, which costs it about 1.5 months of lag | `N1` |
 | P2 | Trend works one way only | falling 14.4% vs flat 15.0 to 17.5%: deterioration is not separable. Rising is (4.4%) | question 3 of the six, "who is starting to bend" | `N1`, then re-measure |
 | P3 | Invoice pillars cost accuracy | dropping payment_discipline +0.024 AUC, collections +0.012 | nothing; they pay in explanation, not prediction | `N2` |
 | P4 | Only one event is predictable | `missed_payroll` 0.600, `inflow_collapse` 0.413 | nothing; both are reported beside the score, not inside it | accepted |
 | P5 | Label risk | `distress` was narrowed to `cash_negative` because that is what the data supports. Close to marking our own homework | the leaderboard may use another target | `Q1` |
 | P6 | Short history | 57 of 250 groups have under 9 months | those groups score on level but cannot carry a CUSUM state | state `not_enough_data` in `N4` |
 | P7 | Product shows invented data | `data/serving/` is `mock.py` output, 45 fake groups; the front end reads its JSON export | the demo | `N5` |
+| P8 | An alert adds no forward-risk discrimination over the level | inside a level band, a down alert does not raise the odds of forward negative cash: 10.7% against a 16.4% base in the 40-55 band, 0 of 39 against 3.0% in 55-70 | nothing, but it sets the pitch: the monitor is attention and explanation, not a second predictor. Same finding as `P2` from the other side | accepted |
+| P9 | Half the alerts are late | 51% fire after the tier had already moved once during the slide. The CUSUM plus the smoothing costs months the tier boundary does not wait for | the anticipation claim, which holds for the other half | `N1`, then retune the alarm |
 
 ## Data traps
 
@@ -150,8 +179,8 @@ In order. Each step is done when its check passes.
 | N1 | Smooth the level | `scoring/score.py` | `make validate` stability median under 3, AUC not below 0.86; then re-read the trajectory block for `P2` | |
 | N2 | Decide the invoice-pillar weights | `scoring/score.py`, `brief.md` section 10 | ablation delta is no longer positive, or the cost is accepted in writing with the pitch line | |
 | N3 | Explanation | `scoring/explain.py` | per group-month, pillar deltas sum to the level change | `N1` |
-| N4 | Monitor | `scoring/monitor.py` | CUSUM on the smoothed level, alerts only on state transitions, anticipation measured in months against `events.parquet` | `N1` |
-| N5 | Real serving tables | writer for `data/serving/`, schema in `serving-contract.md` | `make web-data` passes its column checks on real groups; `mock.py` retires | `N3`, `N4` for `drivers` and `alerts`; `groups` and `scores` can land now |
+| N4 | Retune the monitor after `N1` | `scoring/trend.py` | with a smoother level, alpha raised and the late share under 51% at the same alert rate | `N1` |
+| N5 | Real serving tables | writer for `data/serving/`, schema in `serving-contract.md` | `make web-data` passes its column checks on real groups; `mock.py` retires | `N3` for `drivers`; `alerts`, `groups` and `scores` can land now |
 | N6 | Submission | `scoring/submit.py` | predictions file in the organisers' format | `Q1` |
 
 ## Open questions
