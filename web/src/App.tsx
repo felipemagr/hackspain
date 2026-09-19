@@ -285,12 +285,12 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
           />
         )}
       </main>
-      {localScoring && store.localScoring && tab !== "agents" && <ViewAgent
+      {tab !== "agents" && (localScoring ? Boolean(store.localScoring) : !selectedCompanyId) && <ViewAgent
         key={`${selectedId}-${month}`}
         entityId={selectedId}
         month={month}
         evaluating={evaluating}
-        weights={store.localWeights?.get(selectedId) ?? store.localScoring.config.weights}
+        weights={store.localWeights?.get(selectedId) ?? store.localScoring?.config.weights}
         chart={charts[selectedId] ?? DEFAULT_CHART}
         customized={Boolean(viewWeights[selectedId] || charts[selectedId])}
         onReset={() => {

@@ -208,7 +208,8 @@ optional severity floor and the groups it watches.
 
 No user accounts, no multi-tenant, no real lender integration, no live data ingestion, no mobile.
 The demo is read-only over precomputed results.
-The optional local scorecard provides company/group views and an AI button for temporary pillar weights and chart settings.
+The main group view has a floating AI chat backed by the Helmcode fleet, scoped to the selected group, month and display currency.
+The optional local scorecard provides company/group views and uses the AI button for temporary pillar weights and chart settings.
 The view assistant reads evidence through the selected month and changes browser settings without writing data or recomputing component scores.
 
 ---
@@ -240,6 +241,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Natural-language view controls and local evidence | `src/xray/agents/view.py`, `api/routers/view_chat.py`, `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts` |
+| Floating AI chat in the main group view | `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts`, `api/routers/chat.py`, `src/xray/agents/fleet.py` |
 | Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |
 | Live demo: months land one at a time, the web and Slack follow | `src/xray/pipeline/replay.py` (`make replay`), `serve.publish`, `api/routers/version.py`, `api/routers/tables.py`, polling in `web/src/App.tsx` |
 | Live demo: named companies connect to the platform in batches and are scored on the spot | `src/xray/pipeline/synth.py` (the synthetic dump), `src/xray/pipeline/onboard.py` (`make demo`) |

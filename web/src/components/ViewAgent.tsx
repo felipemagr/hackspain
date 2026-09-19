@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { askViewAgent, type ChartConfig, type ViewAction, type ViewMessage } from "../lib/viewAgent";
+import { askGroupAgent, askViewAgent, type ChartConfig, type ViewAction, type ViewMessage } from "../lib/viewAgent";
 import type { Weights } from "../lib/scoring";
 import "./view-agent.css";
 
 interface Props {
   entityId: string;
   month: string;
-  weights: Weights;
+  weights?: Weights;
   chart: ChartConfig;
   onApply: (actions: ViewAction[]) => void;
   onReset: () => void;
@@ -59,8 +59,10 @@ export function ViewAgent({ entityId, month, weights, chart, onApply, onReset, c
     setError("");
     setBusy(true);
     try {
-      const result = await askViewAgent({ message, entity_id: entityId, month: month.slice(0, 7), current_weights: weights.level, current_profile: weights,
-        chart, history: messages.slice(-12), allow_weights: true }, controller.signal);
+      const result = weights
+        ? await askViewAgent({ message, entity_id: entityId, month: month.slice(0, 7), current_weights: weights.level, current_profile: weights,
+          chart, history: messages.slice(-12), allow_weights: true }, controller.signal)
+        : { reply: await askGroupAgent({ message, groupId: entityId, month, history: messages.slice(-12) }, controller.signal), actions: [] };
       if (controller.signal.aborted) return;
       onApply(result.actions);
       setMessages(current => [...current, { role: "assistant", content: result.reply }]);

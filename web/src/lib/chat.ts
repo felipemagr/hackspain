@@ -177,7 +177,7 @@ function apply(turn: Turn, event: ChatEvent): Turn {
   }
 }
 
-async function* readEvents(response: Response): AsyncGenerator<ChatEvent> {
+export async function* readEvents(response: Response): AsyncGenerator<ChatEvent> {
   const reader = response.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";

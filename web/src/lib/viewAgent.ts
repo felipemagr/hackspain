@@ -1,5 +1,6 @@
 import type { Store } from "./load";
-import { API_HEADERS } from "./chat";
+import { API_HEADERS, API_URL, readEvents } from "./chat";
+import { displayCurrency } from "./currency";
 import { SCORING_API, type ScoreNode, type Weights } from "./scoring";
 
 export type ChartMetric = "level" | "financial" | "liquidity" | "receivables" | "payables";
@@ -16,6 +17,33 @@ export const CHART_COLORS = { navy: "#050b2c", blue: "#3878f6", green: "#008c70"
 export type ViewAction = { type: "set_weights"; weights: Record<string, number> } | { type: "set_chart"; chart: ChartConfig };
 export interface ViewReply { reply: string; actions: ViewAction[]; queries: { tool: string; rows: number }[]; model_available: boolean }
 export interface ViewMessage { role: "user" | "assistant"; content: string }
+
+export async function askGroupAgent(request: {
+  message: string; groupId: string; month: string; history: ViewMessage[];
+}, signal: AbortSignal): Promise<string> {
+  const response = await fetch(`${API_URL}/api/v1/chats`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...API_HEADERS },
+    body: JSON.stringify({
+      message: `Selected business group: ${request.groupId}.\nQuestion: ${request.message}`,
+      group_id: request.groupId,
+      month: request.month,
+      history: request.history,
+      currency: displayCurrency(),
+    }),
+    signal,
+  });
+  if (!response.ok) throw new Error(`The agent service answered ${response.status}. Please retry.`);
+  let answer = "";
+  let completed = false;
+  for await (const event of readEvents(response)) {
+    if (event.type === "token") answer += event.text;
+    if (event.type === "error") throw new Error(event.message);
+    if (event.type === "done") completed = true;
+  }
+  if (!completed || !answer.trim()) throw new Error("The answer was interrupted. Please retry.");
+  return answer;
+}
 
 export async function askViewAgent(request: {
   message: string; entity_id: string; month: string; current_weights: Record<string, number>;
