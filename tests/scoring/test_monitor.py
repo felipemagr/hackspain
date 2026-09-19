@@ -68,6 +68,22 @@ class TestJumps:
 
 
 class TestShifts:
+    @pytest.mark.parametrize("reverse", [False, True])
+    def test_sustained_reversal_replaces_the_previous_alarm(self, reverse):
+        levels = [70.0] * 6 + [75.0, 80.0, 90.0, 95.0, 95.0, 90.0, 53.0, 33.0, 17.0, 10.0]
+        if reverse:
+            levels = [100 - level for level in levels]
+        trajectory, alerts = detect(_scores(levels))
+
+        assert trajectory["state"].iloc[10] == ("falling" if reverse else "improving")
+        assert trajectory["state"].iat[-1] == ("improving" if reverse else "falling")
+        shifts = alerts[alerts["kind"] == "shift"]
+        assert shifts["direction"].iat[-1] == ("up" if reverse else "down")
+
+        for end in range(6, len(levels)):
+            prefix, _ = detect(_scores(levels[:end]))
+            pd.testing.assert_frame_equal(prefix, trajectory.iloc[:end], check_dtype=False)
+
     def test_sustained_decline_raises_one_alert_with_its_onset(self):
         _, alerts = detect(_scores(_flat(6) + list(np.arange(79, 55, -2.0))))
         shifts = alerts[alerts["kind"] == "shift"]

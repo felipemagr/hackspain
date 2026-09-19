@@ -281,7 +281,8 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
 - **Every score decomposes into named drivers.** No black box: the explanation layer is a graded
   deliverable, not a nice-to-have.
 - **Separate level from trend**, and a one-month dip from a sustained move. The monitor depends on
-  this distinction and so does a whole scoring sub-block.
+  this distinction and so does a whole scoring sub-block. A six-month smoothed slope of at least
+  1.5 points per month in either direction raises that alarm and clears the opposite CUSUM.
 - **`status` and `pending_amount` on invoices are as-of-extraction, not as-of-month-`t`.** An
   invoice reading `paid` today was `pending` in month 10. Derive state from dates instead. The
   panel already does; anything reading the raw invoices must too.

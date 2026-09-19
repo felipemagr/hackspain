@@ -197,13 +197,15 @@ for t:
     deviation  = clip((reference - smoothed[t]) / sigma, -2, 2)
     S_down     = max(0, S_down + deviation - 0.75)           one-sided CUSUM, downward
     S_up       = max(0, S_up   - deviation - 0.75)           mirror, upward
+    trend      = Theil-Sen slope of smoothed[t-5 : t+1]      median pairwise slope, points/month
+    if trend <= -1.5: S_up = 0                             clear an opposing alarm on reversal
+    if trend >=  1.5: S_down = 0
     zero_down  = t if S_down == 0 else zero_down             last month the CUSUM was at zero
     zero_up    = t if S_up   == 0 else zero_up
-    trend      = Theil-Sen slope of smoothed[t-5 : t+1]      median pairwise slope, points/month
     down       = S_down > 4 or (down and S_down > 0)         latched until back at zero
     up         = S_up   > 4 or (up   and S_up   > 0)
 
-    if down:                       state = falling if smoothed[t] < 60 else bending;  onset = zero_down + 1
+    if down or trend <= -1.5:      state = falling if smoothed[t] < 60 else bending;  onset = zero_down + 1 if down else t - 5
     elif up or trend >= 1.5:       state = improving;  onset = zero_up + 1 if up else t - 5
     elif smoothed[t] >= 70:        state = healthy
     elif smoothed[t] >= 40:        state = stable
@@ -215,7 +217,7 @@ compound = clip(smoothed + 4 * trend, 0, 100)                 monitor.detect
 its driver attribution are measured from. Constants: `MIN_HISTORY_MONTHS = 6`,
 `SMOOTHING_ALPHA = 0.4`, `MIN_SIGMA_POINTS = 1.0`, `CUSUM_REF_MONTHS = 12`,
 `CUSUM_SLACK_SIGMAS = 0.75`, `CUSUM_ALARM_SIGMAS = 4.0`, `DEVIATION_CLIP_SIGMAS = 2.0`,
-`IMPROVING_SLOPE_POINTS = 1.5`, `BENDING_LEVEL = 60`, `HEALTHY_LEVEL = 70`, `WEAK_LEVEL = 40`,
+`TREND_ALARM_SLOPE_POINTS = 1.5`, `BENDING_LEVEL = 60`, `HEALTHY_LEVEL = 70`, `WEAK_LEVEL = 40`,
 `COMPOUND_HORIZON_MONTHS = 4`.
 
 What the trend is and is not, measured (`brief.md` 9, `status.md` P2): a description of where

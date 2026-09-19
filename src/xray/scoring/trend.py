@@ -31,7 +31,7 @@ CUSUM_SLACK_SIGMAS = 0.75
 CUSUM_ALARM_SIGMAS = 4.0
 # One outlier month is worth at most this much of the alarm, so a spike alone cannot raise it.
 DEVIATION_CLIP_SIGMAS = 2.0
-IMPROVING_SLOPE_POINTS = 1.5
+TREND_ALARM_SLOPE_POINTS = 1.5
 BENDING_LEVEL = 60.0
 HEALTHY_LEVEL = 70.0
 WEAK_LEVEL = 40.0
@@ -93,15 +93,20 @@ def states(level: np.ndarray) -> pd.DataFrame:
         )
         s_down = max(0.0, s_down + deviation - CUSUM_SLACK_SIGMAS)
         s_up = max(0.0, s_up - deviation - CUSUM_SLACK_SIGMAS)
-        zero_down, zero_up = (t if s_down == 0 else zero_down), (t if s_up == 0 else zero_up)
         slope = theil_sen(smoothed[t - MIN_HISTORY_MONTHS + 1 : t + 1])
-        # Latched: once raised, an alarm holds until its CUSUM is back at zero.
+        # A sustained reversal clears the opposite alarm's accumulated evidence.
+        if slope <= -TREND_ALARM_SLOPE_POINTS:
+            s_up = 0.0
+        elif slope >= TREND_ALARM_SLOPE_POINTS:
+            s_down = 0.0
+        zero_down, zero_up = (t if s_down == 0 else zero_down), (t if s_up == 0 else zero_up)
+        # Latched until the CUSUM returns to zero, including a reset on reversal.
         down = s_down > CUSUM_ALARM_SIGMAS or (down and s_down > 0)
         up = s_up > CUSUM_ALARM_SIGMAS or (up and s_up > 0)
-        if down:
+        if down or slope <= -TREND_ALARM_SLOPE_POINTS:
             state = "falling" if smoothed[t] < BENDING_LEVEL else "bending"
-            onset = zero_down + 1
-        elif up or slope >= IMPROVING_SLOPE_POINTS:
+            onset = zero_down + 1 if down else t - MIN_HISTORY_MONTHS + 1
+        elif up or slope >= TREND_ALARM_SLOPE_POINTS:
             state = "improving"
             onset = zero_up + 1 if up else t - MIN_HISTORY_MONTHS + 1
         elif smoothed[t] >= HEALTHY_LEVEL:
