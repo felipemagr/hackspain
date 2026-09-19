@@ -2,6 +2,7 @@
 
 Full brief, product decision, demo script and open questions: [`docs/brief.md`](docs/brief.md). Read it first.
 System shape, pipeline, the panel contract, the data traps it works around, agents and API: [`docs/architecture.md`](docs/architecture.md).
+How the score is computed, every formula and constant as built, and how to change it safely: [`docs/scoring.md`](docs/scoring.md).
 
 Hackathon project, 18-20 September 2026. Build a **financial health score** from the financial trail of companies, and a **sellable product on top of it**. The score is the engine; the score alone is not the deliverable.
 
@@ -56,7 +57,8 @@ Bonus:
 - No leakage from the future: a feature for month `t` uses only data up to `t`. `balances.csv` is a final snapshot, so treat it as month-24 information only.
 - Every score must be decomposable into named drivers so it can be explained.
 - Distinguish level from trend, and a one-month dip from a sustained move.
-- Before working on features, scoring, explanation or the monitor, read `docs/health-score-research.md`: data constraints (no labels, snapshot fields, invoice coverage), the pillar design, anchors, state rules and the validation plan.
+- Before working on features, scoring, explanation or the monitor, read `docs/scoring.md` (what is built: indicators, anchors, weights, state machine, invariants, recipes for changing each) and `docs/health-score-research.md` (why: data constraints, sources, the design space).
+- The score is never fitted and never reads a population statistic. A group must score the same alone as inside the portfolio; `tests/scoring/test_submit.py` holds that.
 
 ## Working rules
 

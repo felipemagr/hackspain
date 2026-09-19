@@ -87,7 +87,7 @@ under it.
 src/xray/
   config.py, settings.py   paths, constants, runtime settings
   pipeline/                raw CSVs -> parquet -> monthly panel (pandas lives only here)
-  scoring/                 score, explain, monitor, offer, submit
+  scoring/                 score, trend, monitor, explain, offer, serve, submit (formulas: docs/scoring.md)
   agents/                  research, macro and narrator agents, tools under agents/tools
   integrations/            outbound clients, one module per service
   api/                     FastAPI backend, one router per resource in api/routers

@@ -1,6 +1,8 @@
 # Health score: research and design basis
 
-Read this before touching `features`, `score`, `explain` or `monitor`. It records what the challenge really asks, what the data allows, how practitioners score SME health from a money trail, and the score design we derive from that. Written 2026-09-18. Facts marked (unverified) came from memory, not from a source opened during the research.
+The *why* behind the score: what the challenge asks, what the data allows, how practitioners score SME health from a money trail, and the design space we derived from that. Written 2026-09-18. Facts marked (unverified) came from memory, not from a source opened during the research.
+
+The *what*, as built, is `scoring.md`: exact indicators, anchors, weights, state machine, validation numbers and recipes for changing them. Where this file and `scoring.md` disagree, `scoring.md` describes the code. The main departures from the design below, all measured against forward negative cash on held-out groups: weights moved to liquidity 0.40 / payment 0.20 / cash generation 0.20 / collections 0.10 / debt 0.10; the open-book overdue ratio was replaced by overdue under 90 days over paid flow; margin runs on 6 months and growth as the 3-month run rate over the trailing 12; no trend indicator lives inside the level, and the trend is measured on the level series and shown as direction, not used as a second predictor.
 
 ## 1. What the data forces on us
 
@@ -66,7 +68,7 @@ Rules that keep it deterministic and explainable:
 
 ## 4. Pillars and indicators
 
-Starting weights are in brackets. `opin` and `opout` are trailing 3-month operating inflow and outflow (section 1 exclusions applied).
+The design space. Opening weights are in brackets; the built weights and the subset of indicators that made it are in `scoring.md` sections 2 to 5. `opin` and `opout` are trailing 3-month operating inflow and outflow (section 1 exclusions applied).
 
 **A. Liquidity (25%)**
 - Cash buffer days: reconstructed month-end liquid balance (checking + saving) / (`opout` / 91). Anchors 0 -> 0, 13 -> 35, 27 -> 60, 62 -> 85, 120 -> 100.
@@ -133,10 +135,11 @@ Weights can be nudged with a constrained fit against the proxy events (non-negat
 
 ## 8. Open questions
 
-- Hidden-test submission format and leaderboard metric: a score per group at month 24, per month, a class, a rank? Ask before building the export.
-- Whether the synthetic generator planted distress patterns (the brief's 82 -> 68 and 45 -> 65 examples suggest planted trajectories). Look for them in the level series once it exists: they are the closest thing to ground truth.
-- Direction of `exchange_rate` (multiply or divide to reach the company currency).
-- What `DISCARDED` means in `accounting_status` (308k rows): if those are rejected movements they should leave operating flow.
+Live list in `brief.md` section 10. Answered since this was written: the generator did plant
+trajectories. With the same companies active over 18 or more months, 22 groups' operating inflow
+falls below 60% of its first six months and 8 rise above 160%; `GROUP_0220` (94 to 64, bending
+alarm four months before the tier moved) and `GROUP_0043` (41 to 81) are the brief's two
+examples in the real data.
 
 ## 9. Sources
 

@@ -91,6 +91,23 @@ class TestAsOf:
         assert panel.loc[M3, "has_erp"]
         assert pd.isna(panel.loc[M1, "dso_days"])
 
+    def test_overdue_90d_drops_invoices_long_past_due(self, tmp_path):
+        companies = pd.DataFrame([{"company_id": "c1", "group_id": "g1"}])
+        transactions = pd.DataFrame([_tx("c1", M1, 100.0), _tx("c1", "2025-03-01", 100.0)])
+        # Both unpaid and past due at the end of March 2025; only the second is under 90 days.
+        invoices = pd.DataFrame(
+            [
+                _invoice("c1", "payable", -300.0, "2024-09-10", "2024-10-10"),
+                _invoice("c1", "payable", -100.0, "2025-01-10", "2025-02-10"),
+            ]
+        )
+        panel = build(*_write(tmp_path, companies, transactions, invoices))[
+            "panel_group"
+        ].set_index("month")
+
+        assert panel.loc["2025-03-01", "ap_overdue"] == 400.0
+        assert panel.loc["2025-03-01", "ap_overdue_90d"] == 100.0
+
     def test_month_without_transactions_is_marked_uncovered(self, one_company):
         panel = build(*one_company)["panel_group"].set_index("month")
 

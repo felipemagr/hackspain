@@ -4,15 +4,15 @@ The tables the product reads, one parquet each in `data/serving/`. The API expos
 there as a DuckDB view with the file's name. The product team builds against this; the model team
 writes these same tables when the real score lands.
 
-**Today they are invented.** `make mock` (`src/xray/scoring/mock.py`) generates 45 made-up groups
-(`DEMO_001`..`DEMO_045`) that follow the design in `docs/health-score-research.md`. Nothing is
-computed from the challenge dataset. `groups.archetype` records the story each group was
-generated to tell; the real engine will not have that column.
+**They are real.** `make serve` (`src/xray/scoring/serve.py`) writes them from the challenge
+dataset: 250 groups, 1,286 companies, 4,114 scored group-months. The dataset has no trading
+names, so `groups.name` is the `group_id` and `groups.sector` is null. `make mock`
+(`src/xray/scoring/mock.py`) still generates 45 invented groups (`DEMO_001`..`DEMO_045`) with an
+`archetype` column for developing against a known story; do not ship them.
 
-`DEMO_001` Northbrook Foods (45 -> 65) and `DEMO_002` Velasco Industrial (82 -> 69) are the brief's
-worked example: 4 points apart at month 24, opposite bets, and the compound score ranks them the
-other way round (68 vs 64). `DEMO_003` is Cabify (52 -> 70, improving), under its real name so
-it matches the public context cached in `data/serving/context/cabify.json`. Its scores are invented too.
+The brief's worked example maps onto real groups. `GROUP_0220` is Velasco: 94 in January 2025,
+bending alarm in June 2025 at 82 while still in the healthy tier, tier crossed to coping in
+October 2025, 64 at month 24. `GROUP_0043` is Northbrook: 41 to 81, improving.
 
 ## The compound score
 
@@ -27,9 +27,10 @@ compound  clip(smooth + 4 * trend, 0, 100): the level projected four months alon
 
 `compound` is the single number the product prices and ranks on, because it rewards improving
 groups and tightens early on bending ones. `level` stays the number shown as "the score".
-Pillar weights: liquidity 25, cash generation 25, payment discipline 20, collections 15, debt
-burden 15. Groups without ERP have no payment discipline or collections pillar; weights
-renormalise and `coverage` says how much of the full weight was available.
+Pillar weights: liquidity 40, payment discipline 20, cash generation 20, collections 10, debt
+burden 10 (`src/xray/scoring/anchors.py`). Groups without ERP have no payment discipline or
+collections pillar; weights renormalise and `coverage` says how much of the full weight was
+available.
 
 ## Tables
 
