@@ -122,8 +122,6 @@ export interface PromptPayCustomerRow {
   n_paid: number;
   median_late: number | null;
   solid: boolean;
-  /** Joined from the payers table, so both panels quote the same score. Null outside its top list. */
-  payer_score: number | null;
   due_30_eur: number;
   exp_30_eur: number;
   var_30: number;

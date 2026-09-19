@@ -154,9 +154,9 @@ a thin file: its amount is reported apart as `thin_eur`, never counted as cash.
 
 One row per group, month and shown customer: the 10 largest by amount due inside 90 days,
 restricted to customers with a usable history. `group_id`, `month`, `counterparty_id`, `name`,
-`n_paid`, `median_late`, `solid` (from 12 paid invoices), `payer_score` (left-joined from
-`payers`, so the two panels can never disagree; null outside its top list) and, per window `w`
-in 30, 60, 90, `due_w_eur`, `exp_w_eur`, `var_w`. The "rest of the book" row the page shows is
-the group total minus these.
+`n_paid`, `median_late`, `solid` (from 12 paid invoices) and, per window `w` in 30, 60, 90,
+`due_w_eur`, `exp_w_eur`, `var_w`. The "rest of the book" row the page shows is the group total
+minus these. The panel quotes no payer score: it ranks by amount due in the window, which barely
+overlaps the top by billing that `payers` keeps, so the column would be mostly empty.
 
 Amounts arrive in euros from `xray.pipeline.clean`, at the average rate of the invoice's year.

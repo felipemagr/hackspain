@@ -165,12 +165,8 @@ select r.group_id, r.month::timestamp as month, r.counterparty_id,
     'Customer ' || regexp_extract(r.counterparty_id, '(\\d+)$', 1) as name,
     r.n_paid, r.median_late,
     r.n_paid >= {solid_paid} as solid,
-    p.payer_score,
     {rounded}
 from ranked r
-left join read_parquet('{payers}') p
-    on p.group_id = r.group_id and p.month = r.month::timestamp
-   and p.counterparty_id = r.counterparty_id
 where r.rank <= {top}
 order by r.group_id, r.month, r.rank
 """
@@ -185,7 +181,6 @@ def _case(prefix: str) -> str:
 def _format(query: str, serving, **extra) -> str:
     return query.format(
         scores=serving / "scores.parquet",
-        payers=serving / "payers.parquet",
         invoices=PROCESSED_DATA_DIR / "invoices.parquet",
         widest=max(WINDOWS),
         windows=list(WINDOWS),

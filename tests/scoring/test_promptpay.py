@@ -35,22 +35,12 @@ def dirs(tmp_path, monkeypatch):
     return processed, serving
 
 
-def _build(dirs, invoices, months=(M1, M2), payers=None):
+def _build(dirs, invoices, months=(M1, M2)):
     processed, serving = dirs
     pd.DataFrame({"month": pd.to_datetime(list(months))}).to_parquet(
         serving / "scores.parquet", index=False
     )
     pd.DataFrame(invoices).to_parquet(processed / "invoices.parquet", index=False)
-    if payers is None:
-        payers = pd.DataFrame(
-            {
-                "group_id": pd.Series(dtype=str),
-                "month": pd.Series(dtype="datetime64[ns]"),
-                "counterparty_id": pd.Series(dtype=str),
-                "payer_score": pd.Series(dtype=float),
-            }
-        )
-    payers.to_parquet(serving / "payers.parquet", index=False)
     promptpay.build_promptpay()
     return pd.read_parquet(serving / "promptpay.parquet")
 
@@ -123,19 +113,11 @@ def test_customers_table(dirs):
         ],
         _invoice("c2-open", "C2", "receivable", 500, "2024-09-05", "2024-10-20"),
     ]
-    payers = pd.DataFrame(
-        {
-            "group_id": ["G1"],
-            "month": [pd.Timestamp(M1)],
-            "counterparty_id": ["C1"],
-            "payer_score": [77.0],
-        }
-    )
-    _build(dirs, invoices, payers=payers)
-    processed, serving = dirs
+    _build(dirs, invoices)
+    _, serving = dirs
     customers = pd.read_parquet(serving / "promptpay_customers.parquet")
 
-    # The thin file never gets a row; the payer score is joined, not recomputed.
+    # The thin file never gets a row, and six paid invoices is not yet a solid one.
     assert list(customers.counterparty_id) == ["C1"]
-    assert customers.iloc[0].payer_score == 77.0
+    assert customers.iloc[0].n_paid == 6
     assert not customers.iloc[0].solid

@@ -181,7 +181,6 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                 <th scope="col">Customer</th>
                 <th scope="col">Paid</th>
                 <th scope="col">Delay</th>
-                <th scope="col">Pay score</th>
                 <th scope="col">File</th>
                 <th scope="col">Due in {days} days</th>
                 <th scope="col">p</th>
@@ -194,9 +193,6 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                   <th scope="row">{c.name}</th>
                   <td>{c.n_paid}</td>
                   <td>{c.median_late == null ? "-" : `${c.median_late.toFixed(0)} d`}</td>
-                  <td className="pillars__score">
-                    {c.payer_score == null ? "-" : c.payer_score.toFixed(0)}
-                  </td>
                   <td>{c.solid ? "solid" : "indicative"}</td>
                   <td>{fmtEur(due)}</td>
                   <td>{(expected / due).toFixed(2)}</td>
@@ -214,7 +210,6 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                   </th>
                   <td>-</td>
                   <td>-</td>
-                  <td className="pillars__score">-</td>
                   <td>-</td>
                   <td>{fmtEur(restDue)}</td>
                   <td>-</td>
