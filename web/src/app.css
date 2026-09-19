@@ -420,6 +420,21 @@ ol {
   margin-left: auto;
 }
 
+/* Conversations stay put while the fleet scrolls under them. */
+.chats {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-bottom: 8px;
+  background: var(--side);
+}
+
+/* Three rows tall (56.4px each with its 2px gap): the rest scrolls. */
+.chats__list {
+  max-height: 170px;
+  overflow-y: auto;
+}
+
 .link {
   padding: 0;
   border: 0;
@@ -1121,21 +1136,53 @@ select:hover {
 }
 
 .own__figure {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.03em;
   fill: var(--ink);
 }
 
 .own__zone {
-  margin-top: 6px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 10px;
   font-size: 12.5px;
   font-weight: 500;
+  color: var(--ink-2);
+}
+
+.own__tick {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+
+.own__tick.is-today {
+  stroke: var(--ink);
+  stroke-width: 1.5;
+  opacity: 1;
+}
+
+.own__zone-name {
+  font-size: 12.5px;
+  fill: var(--ink-3);
+}
+
+.own__zone-name.is-on {
+  font-weight: 600;
+  fill: var(--ink);
 }
 
 .own__end {
-  font-size: 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  fill: var(--ink-2);
+}
+
+.own__end-note {
+  font-size: 12.5px;
   fill: var(--ink-3);
 }
 
@@ -1148,7 +1195,7 @@ select:hover {
 }
 
 .own__rank {
-  font-size: 40px;
+  font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
@@ -1156,8 +1203,8 @@ select:hover {
 }
 
 .own__rank span {
-  margin-left: 4px;
-  font-size: 18px;
+  margin-left: 3px;
+  font-size: 15px;
   font-weight: 500;
   color: var(--ink-3);
 }
@@ -1165,15 +1212,6 @@ select:hover {
 .own__read strong {
   font-weight: 600;
   color: var(--ink);
-}
-
-.own__stats {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 4px;
-  font-size: 12.5px;
-  color: var(--ink-3);
 }
 
 .own__row {

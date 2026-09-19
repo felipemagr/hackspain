@@ -77,6 +77,11 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
   it), its score, the raw indicator, and how many points it moved the level this month, signed and
   colored. Figures right-aligned, hairline between rows.
+- **Own-range gauge** (`OwnHistory.tsx`): a half dial that runs from the group's own worst month
+  to its own best. A 6px arc in thirds (low, mid, high); only the third the needle sits in takes
+  its state color, the rest stay hairline grey. Every scored month is a tick outside the arc,
+  today's longer and in ink. Tapered ink needle, the level at 30px under the hub, the ends
+  labelled with value, worst or best, and month. Below it, the zone as a dot plus its words.
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
   and the writer, each with its live state and the tool it is running. The detail pane holds the
   conversation. A turn is the question at 22px, a line saying what the planner read it as, a
@@ -86,8 +91,8 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   one place monospace is used, because they are code. No bubbles, no avatars, no modal.
 - **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
   the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
-  button on hover. "New conversation" is a text link in the section head. Five are shown, the rest
-  behind "Show all N". Kept in localStorage (`xray.chats`, last 30); opening one selects its group.
+  button on hover. "New conversation" is a text link in the section head. The section is sticky at
+  the top of the rail; the list is three rows tall and scrolls for the rest. Kept in localStorage (`xray.chats`, last 30); opening one selects its group.
 - **Data sync** (`GroupDetail.tsx`): a borderless refresh icon beside the favorite star, same size
   and ink. It turns while the tables refetch, and only then. The meta line ends with when the data
   was last updated (the tables' Last-Modified); the icon's tooltip says when this browser synced.
