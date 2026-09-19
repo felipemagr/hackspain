@@ -28,7 +28,7 @@ records what the built UI does so later screens follow it instead of inventing a
 | Row hover / selected | `--hover` / `--selected` | `#e8e8ed` / `#dddde6` |
 | Hairline / strong line | `--line` / `--line-strong` | `#e8e8ed` / `#d2d2db` |
 | Text: primary, secondary, muted | `--ink`, `--ink-2`, `--ink-3` | `#050b2c`, `#42444c`, `#6e707c` |
-| Comparison series, by slot | `--series-2` to `--series-5` | `#8041d1`, `#00a39b`, `#b0661a`, `#d0408f` |
+| Secondary chart series | `--series-2` to `--series-5` | `#8041d1`, `#00a39b`, `#b0661a`, `#d0408f` |
 | State marks | `--good --warn --serious --bad --info --neutral` | see `app.css` |
 | State text (deltas) | `--good-ink`, `--bad-ink` | `#007d25`, `#ab2807` |
 | Easing | `--ease` | `cubic-bezier(0.16, 1, 0.3, 1)` |
@@ -68,18 +68,17 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   level is shown in `--ink-3` wherever it appears and a drawn warning glyph in ink says why. In
   the header it is a sentence, "Low confidence: 4 months of data, the score needs 6."; in a rail
   row the glyph takes the trend cell, which has nothing to draw yet, and the sentence is its
-  tooltip; a company row says "4 months of data" after its name. Never a state color: it says how
-  sure the score is, not how healthy.
+  tooltip. Never a state color: it says how sure the score is, not how healthy.
 - **Trajectory chart** (`TrajectoryChart.tsx`): 0-100 axis, dotted thresholds at 70 and 40
   labelled on the axis, 2px ink line up to the selected month and a receding grey line after it,
-  a faint ink wash under a single series, alert rings in the state color, crosshair tooltip, click to move the month. Comparison adds up to four
-  series, a legend and end labels; the wash is dropped. A compared group keeps its slot, and so
-  its color, while others come and go. The legend entries are the remove buttons. Dragging across
+  a faint ink wash under a single series, alert rings in the state color, crosshair tooltip, click to move the month.
+  The group view can overlay published market health; the company view compares its own curve with its group.
+  The optional local scorecard can draw additional pillar series. Dragging across
   months zooms into them and the score axis closes on what is drawn (rounded to tens, thresholds
   only when inside); a line under the chart names the range, with Reset and bordered minus and
   plus buttons that zoom around the selected month. Double click resets. A click still moves the month.
-- **Menu** (`Menu.tsx`): a bordered button that opens a panel of checkboxes, the multi-select
-  used for Compare (with a search field, capped at four). Checked boxes are ink. The one place a shadow is allowed besides the tooltip.
+- **Menu** (`Menu.tsx`): a bordered button opens the market selector above the trajectory.
+  The one place a shadow is allowed besides the tooltip.
 - **Rail tools** (`GroupList.tsx`): one search field (words match name, sector, country or state;
   `>70` and `<40` match the score) with the favorites-only star beside it, then four quiet chips
   with counts: All, Attention, Improving, Steady. Under them a status line: "N of M groups", Clear,
@@ -95,6 +94,9 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
   it), its score, the raw indicator, and how many points it moved the level this month, signed and
   colored. Figures right-aligned, hairline between rows.
+- **Company drill-down** (`GroupDetail.tsx`, `CompanyDetail.tsx`): group rows show each company's
+  inflow share, own score and signed pressure on the group; selecting one opens its trajectory
+  against the group, pillars and pressure explanation. A back link returns to the group.
 - **Own-range gauge (optional local scorecard)** (`OwnHistory.tsx`): a half dial that runs from the group's own worst month
   to its own best. A 6px arc in thirds (low, mid, high); only the third the needle sits in takes
   its state color, the rest stay hairline grey. Every scored month is a tick outside the arc,

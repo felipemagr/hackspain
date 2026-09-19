@@ -171,7 +171,7 @@ origination fee when a working-capital offer is taken up through a partner lende
 **Pitch in one line:** *"What will my bank think of me in three months, and what do I do about it
 this week?"*
 
-Five layers, each one mapped to a scoring block so nothing is built that the rubric does not pay
+Six layers, each one mapped to a scoring block so nothing is built that the rubric does not pay
 for:
 
 | Layer | What the CFO sees | Rubric it covers |
@@ -196,9 +196,8 @@ in the chat leaves ("Slack me when a group starts falling, email me everything o
 alert is `info`, `warning` or `critical`; a rule names a channel, the least urgency it wants, an
 optional severity floor and the groups it watches.
 
-1. Open on Northbrook (45 -> 65) and Velasco (82 -> 68) side by side at month 24. Three points
-   apart, opposite bets.
-2. Pull the trajectory. The two curves cross.
+1. Open Northbrook (45 -> 65), then Velasco (82 -> 68) at month 24. Similar levels, opposite bets.
+2. Read their trajectories in turn: Northbrook rises while Velasco bends.
 3. Open Velasco's drivers: what moved, and in which month.
 4. Show the monitor entry that fired at month 14, and the backtest saying it was visible N months
    before the level moved.
