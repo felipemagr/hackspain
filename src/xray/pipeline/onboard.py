@@ -115,30 +115,41 @@ def run(
     portfolio = load_base(marts_dir, processed_dir)
     arriving = panels_for(new_dir)
     ids = list(dict.fromkeys(arriving["groups"]["group_id"]))
-    logger.info(
-        "%d groups in the portfolio, %d arriving in %d batches",
-        portfolio["groups"]["group_id"].nunique() if len(portfolio["groups"]) else 0,
-        len(ids),
-        n_batches,
-    )
     versions = []
+    if len(portfolio["groups"]):
+        # Whatever an earlier run left in the serving directory (a replay stopped halfway, a
+        # portfolio without these groups), the room starts from today's portfolio, complete.
+        _, version = _publish(portfolio, serving_dir)
+        versions.append(version)
+        logger.info(
+            "portfolio live: %d groups as of %s; %d arriving in %d batches",
+            version["n_groups"],
+            version["latest_month"],
+            len(ids),
+            n_batches,
+        )
     for k, batch in enumerate(batches(ids, n_batches), start=1):
         if k > 1 and gap:
             time.sleep(gap)
         started = time.time()
         portfolio = _append(portfolio, _take(arriving, batch))
-        tables = serve.assemble(
-            portfolio["panel_group"],
-            portfolio["panel_company"],
-            portfolio["companies"],
-            portfolio["groups"],
-        )
-        versions.append(serve.publish(tables, serving_dir))
+        tables, version = _publish(portfolio, serving_dir)
+        versions.append(version)
         text = summary(tables, batch)
         logger.info("batch %d live in %.1fs. %s", k, time.time() - started, text)
         if channel == "slack":
             send_slack(text)
     return versions
+
+
+def _publish(portfolio: dict[str, pd.DataFrame], serving_dir: Path) -> tuple[dict, dict]:
+    tables = serve.assemble(
+        portfolio["panel_group"],
+        portfolio["panel_company"],
+        portfolio["companies"],
+        portfolio["groups"],
+    )
+    return tables, serve.publish(tables, serving_dir)
 
 
 def main() -> None:

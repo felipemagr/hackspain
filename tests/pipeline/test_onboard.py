@@ -56,7 +56,8 @@ class TestRun:
             processed_dir=processed,
             serving_dir=serving,
         )
-        assert [v["n_groups"] for v in versions] == [4, 6]
+        # Today's portfolio goes live first, whatever the serving directory held before.
+        assert [v["n_groups"] for v in versions] == [2, 4, 6]
         groups = pd.read_parquet(serving / "groups.parquet").set_index("group_id")
         assert set(groups.index) == {"g1", "g2", "GLOVO", "CABIFY", "IDEALISTA", "WALLAPOP"}
         # The plain groups keep their id as name; the newcomers bring theirs.

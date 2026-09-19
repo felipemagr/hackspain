@@ -44,7 +44,7 @@ data, `stub` exists but returns a placeholder, `todo` is not written.
 | Serving export | `src/xray/pipeline/export_serving.py` | built | `web/public/data/*.json`, the static fallback | `make web-data` |
 | Publish | `src/xray/scoring/serve.py::publish` | built | tables swapped into `data/serving` through `.next/`, `_version.json` stamped last | `make serve` |
 | Synthetic demo dump | `src/xray/pipeline/synth.py` | built | 24 named Spanish scale-ups with an archetype each, in the nine-CSV shape, under `data/demo/raw`; the real pipeline scores it | `make demo-data` |
-| Onboarding | `src/xray/pipeline/onboard.py` | built | the named groups connect to the current portfolio in batches, each scored on the spot with its whole history and published; nobody already there moves. About 1 s a batch | `make demo [BATCHES=2] [GAP=20] [CHANNEL=slack]` |
+| Onboarding | `src/xray/pipeline/onboard.py` | built | today's portfolio goes live first, complete; then the named groups connect to it in batches, each scored on the spot with its whole history and published; nobody already there moves. About 1 s a batch | `make demo [BATCHES=2] [GAP=20] [CHANNEL=slack]` |
 | Replay | `src/xray/pipeline/replay.py` | built | one month at a time: land in the lake, rebuild as-of, publish, notify. About 2 s a month. `CHECK=1` proves each month equals the full run | `make replay` |
 | API | `src/xray/api/` | built: health, version, tables, alerts, chat | DuckDB views over `data/serving/`, re-read on every query, re-registered on `/version` | `make api` |
 | Front end | `web/` | built | reads the API when it answers (`live` badge, polls `/version` every 3 s, follows new months), else the static JSON | `make web` |
