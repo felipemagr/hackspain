@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score validate monitor alerts notify api api-up api-down slack-test email-test \
+        events score validate monitor alerts notify serve submit api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
 
@@ -71,6 +71,12 @@ alerts: $(ALERTS) ## Show the alerts not yet sent, send nothing: make alerts [MO
 
 notify: $(ALERTS) ## Send the pending alerts: make notify [MONTH=2026-05] [CHANNEL=slack|email]
 	uv run python -m xray.scoring.notify --channel $(or $(CHANNEL),slack) $(if $(MONTH),--month $(MONTH))
+
+serve: $(PANEL) ## Write the real serving tables (scores, drivers, alerts, offers, actions) to data/serving
+	uv run python -m xray.scoring.serve
+
+submit: ## Score a hidden-test dump end to end: make submit RAW=path/to/csvs [OUT=submission]
+	uv run python -m xray.scoring.submit --raw-dir $(RAW) --out $(or $(OUT),submission)
 
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock

@@ -213,17 +213,18 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Monthly panel per group, no look-ahead | `src/xray/pipeline/panel.py` |
 | Daily extracts, as-of reads | `src/xray/pipeline/lake.py` |
 | Whole pipeline end to end | `python -m xray.pipeline`, `make panel` |
-| Anchor table: raw ratio to 0-100 | `src/xray/scoring/anchors.py` |
-| Score, level and trend | `src/xray/scoring/score.py` |
+| Anchor table: raw ratio to 0-100, pillar weights | `src/xray/scoring/anchors.py` |
+| Level score, per group or per company | `src/xray/scoring/score.py` |
 | Proxy distress labels for validation | `src/xray/scoring/events.py` |
 | Discrimination, trajectory, stability, ablation | `src/xray/scoring/validate.py` |
+| Smoothing, slope, state machine on the level series | `src/xray/scoring/trend.py` |
 | Named driver decomposition | `src/xray/scoring/explain.py` |
 | Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
-| Alert delivery to Slack | `src/xray/integrations/slack.py` |
+| Alert delivery to Slack or email | `src/xray/scoring/notify.py`, `src/xray/integrations/` |
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
-| Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py` |
-| Precomputed results the demo reads | parquet in `data/serving/`, written by the pipeline, read by the API through in-memory DuckDB |
+| Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |
+| Precomputed results the demo reads | parquet in `data/serving/`, written by `src/xray/scoring/serve.py` (`make serve`), read by the API through in-memory DuckDB |
 | API for the demo | `src/xray/api/`, one router per resource in `routers/` (see `.claude/rules/api-design.md`) |
 | Runtime settings from `.env`, `XRAY_` prefix | `src/xray/settings.py`, `.env.example` |
 | API container, CI | `Dockerfile` (target `api`), `docker-compose.yml`, `.github/workflows/ci.yml` |
@@ -264,11 +265,33 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
   operating flows show it 11bn in deficit. Intragroup transfers were masking the deficit.
 - **The score is calibrated and validated against proxy events, never trained on them.** With
   ~244 labelable groups and ~50 positives, a fitted model would memorise the training groups.
-- **`cash_negative` is the event the data supports.** The level reaches 0.876 AUC against it on
-  held-out groups. `missed_payroll` (0.600) and `inflow_collapse` (0.413) are not predictable
-  from the financial trail and are reported beside the score, not folded into it.
-- **Weights follow measured discrimination, not the opening guess.** Liquidity 0.35, payment
-  discipline 0.25, cash generation 0.15, collections 0.15, debt burden 0.10.
+- **`cash_negative` is the event the data supports.** The level reaches 0.903 AUC against it on
+  held-out groups (bottom level quintile 49.7% forward negative cash, top 0.6%). `missed_payroll`
+  (0.586) and `inflow_collapse` (0.395) are not predictable from the financial trail and are
+  reported beside the score, not folded into it.
+- **Weights follow measured discrimination, not the opening guess.** Liquidity 0.40, payment
+  discipline 0.20, cash generation 0.20, collections 0.10, debt burden 0.10. Only liquidity and
+  debt burden improve the negative-cash AUC; the other three cost it under 0.02 each and are kept
+  for the explanation and for whatever the hidden metric turns out to reward.
+- **Every flow indicator is a ratio of trailing sums**, never one month's ratio: margin over 6
+  months, lateness over 3, growth as the 3-month run rate against the trailing 12. Monthly flows
+  swing several-fold for an ordinary group. This alone took the level from 4.07 to 2.70 median
+  points of month-on-month change.
+- **Overdue invoices count only while under 90 days past due.** The open-book overdue ratio
+  drifts towards 1 for every group because unpaid rows never close; the 90-day version is flat
+  over the window and rank-orders forward negative cash equally well (AUC 0.652 vs 0.647).
+- **A zero balance is not an overdraft.** Reconstructed cash lands at plus or minus 1e-10 on an
+  emptied account depending on summation order; overdrawn means below minus one unit.
+- **The trend does not predict liquidity events beyond the level.** On the raw level, a falling
+  6-month slope is followed by mean reversion (corr with the next 6 months' change -0.2); on the
+  smoothed level it is weakly persistent. Direction is a description of where the group is going,
+  not a second predictor, and `compound` is priced as such.
+- **Anticipation is measured on the level series, not on proxy events.** Of the 11 groups that
+  went negative after six clean months, 73% had a smoothed level 5 points below its running
+  peak at least 7 months earlier (median), and the CUSUM alarm led the event by 6 months.
+- **A group scores the same alone as inside the portfolio.** Nothing is fitted, so 70 groups
+  cut out of the raw CSVs and scored on their own reproduce the full run to the last decimal;
+  `tests/scoring/test_submit.py` keeps that true.
 
 ---
 
@@ -298,19 +321,14 @@ guessing.
 8. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
    positive as receivable and negative as payable, which gives a plausible 13-day median DSO and
    21-day DPO, but confirm it before the score depends on it.
-9. **Does the open-invoice book need a censoring correction?** `ap_overdue_ratio` drifts upward
-   across the window for everyone, yet still rank-orders forward negative cash monotonically
-   (8.6% to 19.0% across quintiles), so it is scored on fixed anchors like everything else. A
-   cross-sectional correction would break the rule that a hidden-test group scores the same
-   whoever else is in the file. Revisit only if the drift shows up in the hidden test.
-10. **Two pillars do not yet earn their weight.** Dropping payment discipline moves held-out AUC
-    +0.024 and dropping collections +0.012, so the invoice pillars cost accuracy on liquidity
-    events while carrying the explanation the product sells. Decide whether to reweight or to
-    keep them for the narrative.
-11. **The level is not calm enough yet.** Median month-on-month change is 4.07 points against a
-    target under 3, p90 is 14.1. The trend only separates improvement (rising 1.7% vs falling
-    5.1% within the middle of the level band); deterioration is not yet distinguishable from
-    flat. Smoothing the level further is the prerequisite for the monitor.
+9. **Group names for the demo.** The dataset has none, so `groups.name` is the `group_id`. The
+   brief's worked example maps onto real groups: `GROUP_0220` is Velasco (94 in Jan 2025,
+   bending alarm in Jun 2025 at 82 while still healthy, tier crossed to coping in Oct 2025, 64 at
+   month 24), `GROUP_0043` is Northbrook (41 to 81, improving). Decide whether to show ids or
+   invent trading names.
+10. **The serving `alerts` table is the monitor's schema**, wider than the contract in
+    `docs/serving-contract.md` (kind, direction, sigmas, resolution, severity). Align the
+    contract or the front end.
 
 ---
 

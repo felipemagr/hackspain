@@ -88,8 +88,12 @@ make test
 make quality     # ruff check + format check
 make format
 
+make panel       # raw CSVs -> parquet -> monthly panel per group, no look-ahead
+make validate    # score it and measure: discrimination, trajectory, stability, ablation
 make monitor     # detect the jumps and the sustained shifts, write the alert feed
 make alerts      # show what the monitor would send, send nothing
+make serve       # write the real serving tables to data/serving
+make submit RAW=path/to/hidden   # score a dump the system has never seen
 
 cp .env.example .env   # optional: Slack webhook, SMTP, CORS origins, port
 make api         # API with reload on http://localhost:8000 (docs at /docs)
@@ -105,7 +109,7 @@ src/xray/
   config.py        paths and table names
   settings.py      runtime settings from .env (XRAY_ prefix)
   pipeline/        raw CSVs -> parquet -> monthly panel (data, clean, panel, lake); the only place pandas is imported
-  scoring/         score, explain, monitor, offer, submit: reads the panel, writes data/serving
+  scoring/         score, trend, monitor, explain, offer, serve, submit: reads the panel, writes data/serving
   agents/          research, macro and narrator agents around the score, tools under agents/tools
   integrations/    outbound clients, one module per service (slack)
   api/             FastAPI demo backend, one router per resource in api/routers
@@ -114,17 +118,19 @@ tests/             mirrors src/xray: tests/pipeline, tests/api, tests/agents
 notebooks/         exploration only; `01_eda.ipynb` is published with its outputs on purpose
 data/raw/          the dataset (git-ignored)
 data/processed/    derived tables (git-ignored)
-data/serving/      parquet written by the pipeline, read by the API (git-ignored)
-docs/              brief, architecture, score research, infra, agents
+data/serving/      parquet written by `make serve`, read by the API (tracked: the deployed API bakes it in)
+docs/              brief, architecture, scoring (as built), score research, serving contract, infra, agents, status
 .claude/rules/     coding, testing, API and commit conventions
 ```
 
 Dependencies point one way: `config`/`settings` <- `pipeline` <- `scoring` <- `agents`, `api`.
 The API never imports `pipeline` (no pandas in the container, see `docs/infra.md`).
 
-Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/infra.md). The score design is in [`docs/health-score-research.md`](docs/health-score-research.md).
+Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/infra.md). How the score is computed, exactly, is [`docs/scoring.md`](docs/scoring.md); the research behind it is [`docs/health-score-research.md`](docs/health-score-research.md).
 
-Next modules land in `scoring/`: `score` → `explain` → `monitor` → `offer` → `submit`.
+## The score in one paragraph
+
+Nine ratios read from the money trail, each over a trailing window: cash buffer in days of operating outflow, months overdrawn, six-month operating margin, run rate against the trailing year, amount-weighted days late and overdue months on payables and on receivables, debt service over inflow. Each maps to 0-100 through fixed published anchors, then into five pillars and one level with weights liquidity 0.40, payment discipline 0.20, cash generation 0.20, collections 0.10, debt burden 0.10. Nothing is fitted and nothing reads a population statistic, so a group scores the same alone as inside the portfolio. Direction and state come from a causal CUSUM on the smoothed level. Held out by group, the level separates forward negative cash at AUC 0.903 (49.7% in the bottom quintile, 0.6% in the top) and moves a median 2.7 points a month.
 
 ## Dataset
 
@@ -153,22 +159,22 @@ Next modules land in `scoring/`: `score` → `explain` → `monitor` → `offer`
 
 **Engine**
 - [x] Project scaffold, loaders, tooling
-- [ ] Data audit: target, leaderboard metric, group vs company unit, counterparty overlap
-- [ ] Monthly feature table per group
-- [ ] Baseline score + group-wise validation
-- [ ] First leaderboard submission
-- [ ] Driver decomposition (why, and what moved since last month)
+- [x] Data audit: traps in `docs/architecture.md` 6; target and metric still unknown (`docs/brief.md` Q1)
+- [x] Monthly feature table per group
+- [x] Anchored score + group-wise validation, AUC 0.903 held out
+- [ ] First leaderboard submission (`make submit` runs; format lands with the scoring script)
+- [x] Driver decomposition (why, and what moved since last month)
 
 **On time**
-- [ ] Bump-vs-fall logic
-- [ ] Monitor that fires on its own
-- [ ] Anticipation backtest, in months
+- [x] Bump-vs-fall logic (jumps resolve to sustained or reverted)
+- [x] Monitor that fires on its own (Slack or email)
+- [x] Anticipation measured: median 6 months before first negative cash, 4 before the tier moves
 
 **Worth something**
-- [ ] Offer engine: score → limit and price
-- [ ] Ranked actions with expected score impact
-- [ ] API + navigable demo, deployed
-- [ ] Pitch rehearsed: five minutes, Northbrook vs Velasco as the opener
+- [x] Offer engine: score → limit and price
+- [x] Ranked actions with expected score impact
+- [ ] API + navigable demo, deployed on the real tables
+- [ ] Pitch rehearsed: five minutes, `GROUP_0043` vs `GROUP_0220` as the opener
 
 ## How we are judged
 

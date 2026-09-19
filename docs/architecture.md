@@ -26,7 +26,7 @@ flowchart LR
 | Package | Job | Runs | Talks to the network |
 |---|---|---|---|
 | `xray.pipeline` | raw CSVs to parquet to the monthly panel | batch, `make panel` | no |
-| `xray.scoring` | level, trend, drivers, monitor, offer, over the panel | batch | no |
+| `xray.scoring` | level, trend, drivers, monitor, offer, serving tables and the hidden-test submission, over the panel. Formulas in `docs/scoring.md` | batch, `make serve`, `make submit` | no |
 | `xray.agents` | public context, macro and narrative around a score | batch or on demand, cached | yes: search and model |
 | `xray.integrations` | outbound clients, one module per service | called by scoring | yes: Slack |
 | `xray.api` | serves `data/serving` to the demo | long-running container | no |
@@ -85,8 +85,15 @@ data/processed/*.parquet     staging: same grain as the source
 panel_company.parquet        1,286 x 24
 panel_group.parquet            250 x 24   <- the contract
    |
-   v                         score, explain, monitor, offer, api
+   v  xray.scoring.score     indicators -> anchors -> pillars -> level, per group (and per company)
+scores.parquet                 4,114 covered group-months
+   |
+   +--> xray.scoring.monitor  trend, states, jumps and shifts        alerts.parquet, trajectory.parquet
+   +--> xray.scoring.serve    + explain, offer                       data/serving/*.parquet
+   +--> xray.scoring.submit   same chain over a hidden-test dump     predictions_*.csv
 ```
+
+`docs/scoring.md` is the reference for everything under `scores.parquet`.
 
 `make panel` runs it. Make tracks the file dependencies, so an unchanged raw dump rebuilds
 nothing and a touched `clean.py` rebuilds from there down.
@@ -168,7 +175,10 @@ knew at the end of that month.
 | `inflow_cover` | float | `inflow / outflow` |
 | `ar_open`, `ap_open` | float | Receivable and payable still open at month end |
 | `ar_overdue`, `ap_overdue` | float | Of those, past due |
+| `ar_overdue_90d`, `ap_overdue_90d` | float | Of those, due within the last 90 days. The score uses these: the uncapped book drifts towards all-overdue because unpaid rows never close |
 | `ar_overdue_ratio`, `ap_overdue_ratio` | float | Overdue over open |
+| `ar_late_days`, `ap_late_days` | float | Amount-weighted days beyond due on invoices settled that month, floored at zero per invoice |
+| `ar_days_late`, `ap_days_late` | float | `ar_late_days / ar_collected`, `ap_late_days / ap_paid` |
 | `ar_collected`, `ap_paid` | float | Settled during the month |
 | `dso_days`, `dpo_days` | float | Value-weighted days to settle |
 | `n_invoices_issued`, `n_invoices_received` | float | Invoice counts |

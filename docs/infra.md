@@ -35,8 +35,8 @@ flowchart LR
     classDef built fill:#064e3b,stroke:#34d399,color:#f9fafb
     classDef todo fill:#3f3f46,stroke:#a1a1aa,color:#e4e4e7,stroke-dasharray:4 3
     class RAW,PROC,SERV store
-    class CLEAN,FEAT,API,SLACK built
-    class SCORE,FRONT,SUB todo
+    class CLEAN,FEAT,SCORE,SUB,API,SLACK built
+    class FRONT todo
 ```
 
 Green is built, dashed grey is still to come, blue is data at rest.
@@ -48,6 +48,8 @@ The contract between the two halves is **one folder**: `data/serving/*.parquet`.
 | Piece | Runs on | Started with | Needs |
 |---|---|---|---|
 | Pipeline (clean, panel, then score) | laptop with `uv`, or Docker | `make panel`, `make pipeline`, `make docker-pipeline` | `pipeline` dependency group (pandas, pyarrow, scikit-learn) |
+| Score, alerts, serving tables | laptop with `uv`, or Docker | `make score`, `make monitor`, `make serve` | same |
+| Hidden-test submission | laptop with `uv`, or Docker | `make submit RAW=path/to/csvs` | same |
 | API, dev mode | laptop, `uv` | `make api` (auto-reload, docs at `/docs`) | core dependencies only |
 | API, container | Docker, target `api` | `make api-up` / `make api-down` | Docker |
 | Alerts | wherever the pipeline runs | `make slack-test` to try it | `XRAY_SLACK_WEBHOOK_URL` |
@@ -130,7 +132,7 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 - Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
 - Fallback on stage: `make api-up` plus `cloudflared tunnel --url http://localhost:8000`.
 
-## Still open
+## Serving schema
 
-- **Serving schema**: the parquet files in `data/serving/` (scores, drivers, alerts per group and month). Decide it together with the first routes, then write it here.
+`docs/serving-contract.md`. Written by `make serve` from the real score; `make web-data` re-exports it as JSON for the static front end.
 

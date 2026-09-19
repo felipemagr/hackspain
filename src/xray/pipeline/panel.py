@@ -35,6 +35,10 @@ from xray.pipeline.lineage import publish
 logger = logging.getLogger(__name__)
 
 TREND_WINDOW_MONTHS = 3
+# Overdue invoices older than this are mostly stale rows that never got a payment date: the
+# open-book overdue ratio drifts towards 1 for every group over the window. Capping the age
+# gives a level that does not drift and rank-orders forward negative cash just as well.
+OVERDUE_MAX_AGE_DAYS = 90
 
 # Categories that move money without being operating activity. Intragroup `transfer` nets to
 # +21bn across the dataset, so the two sides do not cancel and both flows are inflated.
@@ -69,6 +73,8 @@ _ADDITIVE = (
     "ap_open",
     "ar_overdue",
     "ap_overdue",
+    "ar_overdue_90d",
+    "ap_overdue_90d",
     "ar_collected",
     "ap_paid",
     "ar_collected_days",
@@ -140,7 +146,13 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
             sum(case when i.side = 'receivable' and i.due_date < s.month_end
                      then abs(i.amount) else 0 end) as ar_overdue,
             sum(case when i.side = 'payable' and i.due_date < s.month_end
-                     then abs(i.amount) else 0 end) as ap_overdue
+                     then abs(i.amount) else 0 end) as ap_overdue,
+            sum(case when i.side = 'receivable' and i.due_date < s.month_end
+                     and i.due_date >= s.month_end - interval {OVERDUE_MAX_AGE_DAYS} day
+                     then abs(i.amount) else 0 end) as ar_overdue_90d,
+            sum(case when i.side = 'payable' and i.due_date < s.month_end
+                     and i.due_date >= s.month_end - interval {OVERDUE_MAX_AGE_DAYS} day
+                     then abs(i.amount) else 0 end) as ap_overdue_90d
         from spine s join inv i
             on i.company_id = s.company_id
            and i.issuance_date <= s.month_end
@@ -200,6 +212,8 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         coalesce(o.ap_open, 0) as ap_open,
         coalesce(o.ar_overdue, 0) as ar_overdue,
         coalesce(o.ap_overdue, 0) as ap_overdue,
+        coalesce(o.ar_overdue_90d, 0) as ar_overdue_90d,
+        coalesce(o.ap_overdue_90d, 0) as ap_overdue_90d,
         coalesce(p.ar_collected, 0) as ar_collected,
         coalesce(p.ap_paid, 0) as ap_paid,
         coalesce(p.ar_collected_days, 0) as ar_collected_days,
