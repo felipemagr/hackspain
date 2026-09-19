@@ -57,6 +57,15 @@ export default function App() {
         setStore(s);
         const asked = params.get("month");
         setMonth(asked && s.months.includes(asked) ? asked : s.months[s.months.length - 1]);
+        // Another dump (the synthetic demo) has other ids: open on the group that is bending
+        // while still looking fine, the Velasco of that portfolio, else on the first one.
+        setSelectedId((id) => {
+          if (s.groupById.has(id)) return id;
+          const bending = s.groups
+            .filter((g) => s.latestMonth(g.group_id)?.state === "bending")
+            .sort((a, b) => (s.latestMonth(b.group_id)?.level ?? 0) - (s.latestMonth(a.group_id)?.level ?? 0));
+          return (bending[0] ?? s.groups[0])?.group_id ?? id;
+        });
       })
       .catch((e: Error) => setError(e.message));
   }, []);

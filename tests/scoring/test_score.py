@@ -64,10 +64,12 @@ class TestIndicators:
         # 10k overdue against 50k paid a month is 0.2 months of payables.
         assert out["ap_overdue_months"].iloc[-1] == pytest.approx(0.2)
 
-    def test_margin_needs_three_months(self):
+    def test_margin_is_available_from_the_first_month(self):
+        # A pillar that joins later would move the level for reasons that are not the group's.
         out = indicators(_panel())
-        assert out["op_margin"].iloc[:2].isna().all()
+        assert out["op_margin"].notna().all()
         assert out["op_margin"].iloc[-1] == pytest.approx(0.0875)
+        assert out["inflow_growth"].iloc[0] == pytest.approx(1.0)
 
     def test_invoice_indicators_are_absent_without_erp(self):
         out = indicators(_panel(has_erp=False))

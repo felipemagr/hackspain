@@ -143,7 +143,9 @@ def rebuild(as_of: date, lake_dir: Path = LAKE_DIR) -> dict[str, pd.DataFrame]:
             df.to_parquet(processed / f"{name}.parquet", index=False)
         cash.build(processed).to_parquet(marts / "cash_monthly.parquet", index=False)
         panels = panel.build(processed, marts)
-    return serve.assemble(panels["panel_group"], panels["panel_company"], cleaned["companies"])
+    return serve.assemble(
+        panels["panel_group"], panels["panel_company"], cleaned["companies"], cleaned["groups"]
+    )
 
 
 def run(
@@ -160,6 +162,10 @@ def run(
     serving_dir = serving_dir or get_settings().serving_dir
     raw = load_all(raw_dir)
     reference = pd.read_parquet(MARTS_DIR / "scores.parquet") if check else None
+    # The months before the first one shown still have to be in the lake: the reference tables
+    # land with the first month of the window, and every rebuild reads everything up to its date.
+    for month in pd.date_range(FIRST_MONTH, first - pd.offsets.MonthBegin(1), freq="MS"):
+        land_month(raw, month, lake_dir)
     for month in pd.date_range(first, last, freq="MS"):
         started = time.time()
         land_month(raw, month, lake_dir)

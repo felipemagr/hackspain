@@ -5,7 +5,7 @@ What is built, what is broken, what is next. Nothing else lives here: design is 
 
 | | |
 |---|---|
-| As of | 2026-09-19, branch `feat/live-replay` |
+| As of | 2026-09-19, branch `feat/demo-synth` |
 | Verified by | `make validate` and `make test` on that branch. Every number below comes from their output. |
 | Re-verify | `make validate` (rebuilds `data/marts/` from `data/raw/`, about 1 minute) and `make ci` |
 | Update rule | Change a row when its state changes. Keep the IDs (`P1`, `N1`, `Q1`) stable: commits and chats refer to them. |
@@ -43,6 +43,7 @@ data, `stub` exists but returns a placeholder, `todo` is not written.
 | Serving tables | `src/xray/scoring/serve.py` | built | `data/serving/*.parquet` from the real score: 250 groups, 1,286 companies, 4,114 scores, 16,485 drivers, 343 alerts, 4,114 offers, 749 actions. `mock.py` still runs for archetypes but is no longer what the demo reads | `make serve` |
 | Serving export | `src/xray/pipeline/export_serving.py` | built | `web/public/data/*.json`, the static fallback | `make web-data` |
 | Publish | `src/xray/scoring/serve.py::publish` | built | tables swapped into `data/serving` through `.next/`, `_version.json` stamped last | `make serve` |
+| Synthetic demo dump | `src/xray/pipeline/synth.py` | built | 24 named Spanish scale-ups with an archetype each, in the nine-CSV shape, under `data/demo/raw`; the real pipeline scores it | `make demo-data`, `make demo` |
 | Replay | `src/xray/pipeline/replay.py` | built | one month at a time: land in the lake, rebuild as-of, publish, notify. About 2 s a month. `CHECK=1` proves each month equals the full run | `make replay` |
 | API | `src/xray/api/` | built: health, version, tables, alerts, chat | DuckDB views over `data/serving/`, re-read on every query, re-registered on `/version` | `make api` |
 | Front end | `web/` | built | reads the API when it answers (`live` badge, polls `/version` every 3 s, follows new months), else the static JSON | `make web` |
@@ -50,10 +51,11 @@ data, `stub` exists but returns a placeholder, `todo` is not written.
 | Agent: peers | `src/xray/agents/peers.py` | built | `data/serving/context/` | `make peers NAME="Cabify"` |
 | Agent: macro | `src/xray/agents/macro.py` | stub | | |
 | Agent: narrator | `src/xray/agents/narrator.py` | partial: ranks weak pillars, prose pass not wired | | |
-| CI | `Makefile` | built | lint, format, 120 tests, green | `make ci` |
+| CI | `Makefile` | built | lint, format, 147 tests, green | `make ci` |
 
-Real score end to end, and live: `make api`, `make web`, `make replay` shows the portfolio move
-month by month with alerts landing as they would have. `groups.name` is the `group_id` because
+Real score end to end, and live: `make lighthouse` brings data, API and web up in one command;
+`make replay` (or `make demo`) beside it shows the portfolio move month by month with alerts
+landing as they would have. `groups.name` is the `group_id` because
 the dataset has no trading names (Q9).
 
 ```mermaid
@@ -62,7 +64,7 @@ flowchart LR
     proc --> cash["cash.py"] --> panel["panel.py"]
     proc --> panel
     panel --> pg["panel_group.parquet"]
-    pg --> events["events.py"] --> val["validate.py<br/>AUC 0.906"]
+    pg --> events["events.py"] --> val["validate.py<br/>AUC 0.910"]
     pg --> score["score.py + anchors.py"] --> sc["marts/scores.parquet"]
     sc --> val
     sc --> monitor["monitor.py + trend.py"] --> al["marts/alerts.parquet"]
@@ -86,16 +88,16 @@ From `make validate`. Split by group: 244 labelled groups, 73 held out (781 grou
 
 | Metric | Value | Target | Verdict |
 |---|---|---|---|
-| AUC, level vs `cash_negative`, held out | 0.906 | | good |
-| AUC, same, train | 0.875 | close to held out | good: nothing is fitted, so nothing overfits |
-| AUC vs `distress`, held out | 0.746 | | driven by `cash_negative` |
-| AUC vs `missed_payroll`, held out | 0.581 | | not predictable, see `P4` |
-| AUC vs `inflow_collapse`, held out | 0.406 | | not predictable, see `P4` |
-| Forward negative cash by level quintile, Q1 to Q5 | 51.0%, 7.7%, 1.3%, 1.9%, 0.6% | monotonic | good |
-| Forward negative cash, rising vs falling trend, middle half of the level | 3.3% vs 2.0% | | the trend is not a second predictor, see `P2` |
-| Forward negative cash by trend bucket: falling and rising | 8.8%, 10.0% | | see `P2` |
-| Level change month on month, median | 2.68 points | under 3 | good |
-| Level change month on month, p90 | 10.78 points | | one-month jumps remain, which is what the monitor's jump detector is for |
+| AUC, level vs `cash_negative`, held out | 0.910 | | good |
+| AUC, same, train | 0.878 | close to held out | good: nothing is fitted, so nothing overfits |
+| AUC vs `distress`, held out | 0.755 | | driven by `cash_negative` |
+| AUC vs `missed_payroll`, held out | 0.593 | | not predictable, see `P4` |
+| AUC vs `inflow_collapse`, held out | 0.392 | | not predictable, see `P4` |
+| Forward negative cash by level quintile, Q1 to Q5 | 51.6%, 7.1%, 1.3%, 1.9%, 0.6% | monotonic | good |
+| Forward negative cash, rising vs falling trend, middle half of the level | 3.4% vs 2.3% | | the trend is not a second predictor, see `P2` |
+| Forward negative cash by trend bucket: falling and rising | 11.9%, 5.6% | | see `P2` |
+| Level change month on month, median | 2.45 points | under 3 | good |
+| Level change month on month, p90 | 9.27 points | | one-month jumps remain, which is what the monitor's jump detector is for |
 | Level, median | 63.2 | | |
 | Months capped by the cap rule | 0.9% | | |
 | Event base rates: `cash_negative`, `missed_payroll`, `inflow_collapse`, `distress` | 10.0%, 16.1%, 20.8%, 24.1% | | |
@@ -106,11 +108,11 @@ Ablation, held-out AUC vs `cash_negative` when one pillar is dropped:
 
 | Pillar | Weight | AUC without it | Delta |
 |---|---|---|---|
-| liquidity | 0.40 | 0.540 | -0.366 |
-| payment_discipline | 0.20 | 0.923 | +0.017 |
-| cash_generation | 0.20 | 0.913 | +0.006 |
-| collections | 0.10 | 0.923 | +0.017 |
-| debt_burden | 0.10 | 0.899 | -0.007 |
+| liquidity | 0.40 | 0.549 | -0.362 |
+| payment_discipline | 0.20 | 0.927 | +0.017 |
+| cash_generation | 0.20 | 0.913 | +0.002 |
+| collections | 0.10 | 0.929 | +0.018 |
+| debt_burden | 0.10 | 0.903 | -0.008 |
 
 Weights were set from measured discrimination, not from the opening guess. On this one ruler
 the level would be better as liquidity plus debt; the other three pillars are kept because the
@@ -120,8 +122,9 @@ unknown (`Q1`).
 Indicator design, all measured on the same events (details in `brief.md` section 9): margin over
 6 months and lateness over 3 as ratios of sums, growth as 3-month run rate over the trailing 12,
 overdue capped at 90 days past due and divided by paid flow instead of the open book, buffer
-denominator a 3-month mean of monthly operating outflow. Together: stability 4.07 to 2.68,
-held-out AUC 0.876 to 0.906 (with every amount in euros at the yearly rate).
+denominator a 3-month mean of monthly operating outflow, every indicator available from a group's
+first month so no pillar joins late. Together: stability 4.07 to 2.45, held-out AUC 0.876 to
+0.910 (with every amount in euros at the yearly rate).
 
 ## Monitor
 
@@ -149,9 +152,9 @@ not fixed yet. When `N1` lands, raise the alpha and the alarms arrive earlier.
 
 | ID | Problem | Evidence | Blocks | Closed by |
 |---|---|---|---|---|
-| P1 | Level is too noisy | closed: median monthly change 2.68, p90 10.78. The monitor still smooths at alpha 0.4 and can now move towards 1 (`N4`) | | closed by `N1` |
+| P1 | Level is too noisy | closed: median monthly change 2.45, p90 9.27. The monitor still smooths at alpha 0.4 and can now move towards 1 (`N4`) | | closed by `N1` |
 | P2 | Trend is not a second predictor of liquidity events | on the raw level a falling 6-month slope mean-reverts (corr with the next 6 months' level change -0.2); with EWMA 0.3 it is weakly persistent (+0.19 at 3 months). `level + k * trend` forecasts the level 4 months out worse than the level alone for any k | nothing, but it fixes the pitch: direction is what the group is doing, measured and explained, not a forecast. Anticipation is measured on the level series | accepted, same finding as `P8` |
-| P3 | Invoice pillars cost accuracy | dropping payment_discipline +0.017 AUC, collections +0.017, cash_generation +0.006 | nothing; they pay in explanation, not prediction. Accepted in writing in `brief.md` section 9 | closed by `N2` |
+| P3 | Invoice pillars cost accuracy | dropping payment_discipline +0.017 AUC, collections +0.018, cash_generation +0.002 | nothing; they pay in explanation, not prediction. Accepted in writing in `brief.md` section 9 | closed by `N2` |
 | P4 | Only one event is predictable | `missed_payroll` 0.600, `inflow_collapse` 0.413 | nothing; both are reported beside the score, not inside it | accepted |
 | P5 | Label risk | `distress` was narrowed to `cash_negative` because that is what the data supports. Close to marking our own homework | the leaderboard may use another target | `Q1` |
 | P6 | Short history | 57 of 250 groups have under 9 months | those groups score on level but cannot carry a CUSUM state | state `not_enough_data` in `N4` |
@@ -187,7 +190,7 @@ In order. Each step is done when its check passes.
 
 | ID | Step | Files | Done when | Depends on |
 |---|---|---|---|---|
-| N1 | Smooth the level | done: stability 2.68, held-out AUC 0.906 | | |
+| N1 | Smooth the level | done: stability 2.45, held-out AUC 0.910 | | |
 | N2 | Decide the invoice-pillar weights | done: 0.20 and 0.10, cost accepted in `brief.md` section 9 | | |
 | N3 | Explanation | done: `tests/scoring/test_explain_offer.py` holds that pillar deltas sum to the level change | | |
 | N4 | Retune the monitor on the calmer level | `scoring/trend.py`, `scoring/monitor.py` | alpha raised from 0.4, late share under 51% at the same alert rate, anticipation re-measured | |

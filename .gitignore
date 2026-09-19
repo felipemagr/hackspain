@@ -37,3 +37,6 @@ web/dist/
 # Local
 .DS_Store
 .claude/settings.local.json
+
+# Synthetic demo dump, lake and anything else make demo writes
+data/demo/

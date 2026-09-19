@@ -121,6 +121,19 @@ sequenceDiagram
 Requires [uv](https://docs.astral.sh/uv/), Python 3.12+ and Node 20+ for the web app.
 
 ```bash
+# drop the nine dataset CSVs into data/raw/, then
+make lighthouse              # everything: install, load, score, publish, API on :8000, web on :5173
+make lighthouse RAW_DIR=output   # same, with the CSVs somewhere else
+```
+
+One command, a few minutes the first time (npm install and 615 MB of CSV), about fifteen seconds
+after that. Ctrl-C stops the API and the web together. With it running, a second terminal feeds
+the months in live: `make replay FROM=2025-01 PAUSE=8` on the challenge data, or
+`make demo FROM=2025-01 PAUSE=8` on a synthetic portfolio of named Spanish scale-ups.
+
+Piece by piece:
+
+```bash
 make install                 # Python dependencies
 make web-install             # front end dependencies
 cp .env.example .env         # optional: Slack webhook, SMTP, CORS origins, port
@@ -130,7 +143,7 @@ make web                     # web app on http://localhost:5173
 ```
 
 The repo ships the serving tables the demo reads, so the two commands above are enough to open it.
-To rebuild from a raw dataset, drop the CSVs into `data/raw/` (or set `XRAY_DATA_DIR`) and run:
+To rebuild from a raw dataset, drop the CSVs into `data/raw/` (or pass `RAW_DIR=`) and run:
 
 ```bash
 make panel                   # raw CSVs -> monthly panel per group
@@ -139,6 +152,7 @@ make monitor                 # detect sustained moves, write the alert feed
 make serve                   # write the tables the API reads
 make submit RAW=path/to/csvs # score a dataset the system has never seen
 make replay FROM=2025-01     # live mode: a month lands every few seconds
+make demo FROM=2025-01       # live mode on the synthetic Spanish scale-ups (make serve restores the real tables)
 ```
 
 `make help` lists every target. `make ci` runs what must pass before pushing.
