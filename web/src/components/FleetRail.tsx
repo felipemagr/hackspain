@@ -1,7 +1,4 @@
-import { useState } from "react";
 import { runNote, type Conversation, type FleetState, type Turn } from "../lib/chat";
-
-const SHOWN = 5;
 
 // A turn id is the time it was asked.
 function ago(then: number): string {
@@ -25,9 +22,8 @@ function Conversations({
   onNew: () => void;
   onRemove: (chatId: number) => void;
 }) {
-  const [all, setAll] = useState(false);
   return (
-    <>
+    <div className="chats">
       <div className="list__head">
         Conversations <span className="list__count">{chats.length}</span>
         <button className="link" onClick={onNew} disabled={activeId == null}>
@@ -37,45 +33,40 @@ function Conversations({
       {chats.length === 0 && (
         <p className="empty">Nothing asked yet. Conversations are kept in this browser.</p>
       )}
-      {(all ? chats : chats.slice(0, SHOWN)).map((chat) => {
-        const last = chat.turns[chat.turns.length - 1];
-        const title = chat.turns[0].question;
-        const working = ["planning", "agents", "writing"].includes(last.phase);
-        return (
-          <div
-            key={chat.id}
-            className={`row-wrap row-wrap--alert ${chat.id === activeId ? "is-selected" : ""}`}
-          >
-            <button className="row row--alert" onClick={() => onOpen(chat)}>
-              <span className="row__text">
-                <span className="row__name">{title}</span>
-                <span className="row__sub">
-                  {last.groupName} · {chat.turns.length}{" "}
-                  {chat.turns.length === 1 ? "question" : "questions"}
-                </span>
-              </span>
-              <span className="row__when">{working ? "answering" : ago(last.id)}</span>
-            </button>
-            <button
-              className="row__clear"
-              aria-label={`Delete the conversation: ${title}`}
-              onClick={() => onRemove(chat.id)}
+      <div className="chats__list">
+        {chats.map((chat) => {
+          const last = chat.turns[chat.turns.length - 1];
+          const title = chat.turns[0].question;
+          const working = ["planning", "agents", "writing"].includes(last.phase);
+          return (
+            <div
+              key={chat.id}
+              className={`row-wrap row-wrap--alert ${chat.id === activeId ? "is-selected" : ""}`}
             >
-              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
-                <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
-              </svg>
-            </button>
-          </div>
-        );
-      })}
-      {chats.length > SHOWN && (
-        <p className="list__status">
-          <button className="link" onClick={() => setAll(!all)}>
-            {all ? "Show fewer" : `Show all ${chats.length}`}
-          </button>
-        </p>
-      )}
-    </>
+              <button className="row row--alert" onClick={() => onOpen(chat)}>
+                <span className="row__text">
+                  <span className="row__name">{title}</span>
+                  <span className="row__sub">
+                    {last.groupName} · {chat.turns.length}{" "}
+                    {chat.turns.length === 1 ? "question" : "questions"}
+                  </span>
+                </span>
+                <span className="row__when">{working ? "answering" : ago(last.id)}</span>
+              </button>
+              <button
+                className="row__clear"
+                aria-label={`Delete the conversation: ${title}`}
+                onClick={() => onRemove(chat.id)}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden>
+                  <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
+                </svg>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -91,9 +82,7 @@ function Fleet({
 }) {
   if (fleet.status === "waking") {
     return (
-      <p className="empty">
-        Waking the agents. On the free tier the first call can take a minute.
-      </p>
+      <p className="empty">Waking the agents. On the free tier the first call can take a minute.</p>
     );
   }
   if (fleet.status === "down") {
@@ -151,7 +140,9 @@ function Fleet({
         </span>
         <span className="row__when">{writing ? "writing" : ""}</span>
       </div>
-      {!fleet.model && <p className="fleet__foot">No model key set: answers are the raw reports.</p>}
+      {!fleet.model && (
+        <p className="fleet__foot">No model key set: answers are the raw reports.</p>
+      )}
     </>
   );
 }
