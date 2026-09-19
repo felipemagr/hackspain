@@ -9,7 +9,6 @@ interface AlertListProps {
   onSelect: (groupId: string, month: string) => void;
   cleared: Set<string>;
   onClear: (keys: string[]) => void;
-  onRestore: () => void;
 }
 
 /** What the monitor has raised up to the selected month and nobody has cleared, newest first. */
@@ -20,11 +19,9 @@ export function AlertList({
   onSelect,
   cleared,
   onClear,
-  onRestore,
 }: AlertListProps) {
   const raised = store.alerts.filter((a) => a.month <= month);
   const alerts = raised.filter((a) => !cleared.has(alertKey(a)));
-  const nCleared = raised.length - alerts.length;
 
   if (raised.length === 0) {
     return (
@@ -38,11 +35,6 @@ export function AlertList({
     <div className="list">
       <p className="list__status list__status--top">
         {alerts.length === 0 ? "All clear" : `${alerts.length} open`}
-        {nCleared > 0 && (
-          <button className="link" onClick={onRestore}>
-            Restore {nCleared} cleared
-          </button>
-        )}
         {alerts.length > 0 && (
           <button className="link" onClick={() => onClear(alerts.map(alertKey))}>
             Clear all

@@ -199,7 +199,6 @@ export default function App() {
               }}
               cleared={cleared}
               onClear={(keys) => updateCleared((next) => keys.forEach((k) => next.add(k)))}
-              onRestore={() => updateCleared((next) => next.clear())}
             />
           )}
         </div>

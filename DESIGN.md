@@ -70,8 +70,8 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   toggle. Any active filter shows "N of M groups" and a Clear filters link.
 - **Favorite star**: ink outline, filled when on, never a state color. On a row it appears on
   hover and stays once on; it also sits beside the group name. Kept in localStorage.
-- **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all, a clear button on row hover, and
-  "Restore N cleared" so nothing is lost. Clearing empties the rail and its count; the rings on
+- **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all and a clear button on row hover.
+  Clearing empties the rail and its count; the rings on
   the chart stay, because they are history.
 - **Pillar table** (`Pillars.tsx`): the five pillars as rows, headers in sentence case. Pillar and
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
