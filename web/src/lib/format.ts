@@ -31,8 +31,10 @@ export function fmtScore(v: number | null | undefined): string {
 
 export function fmtSigned(v: number | null | undefined, digits = 1): string {
   if (v == null || !Number.isFinite(v)) return "-";
-  const s = v > 0 ? "+" : "";
-  return `${s}${v.toFixed(digits)}`;
+  // Round before the sign: a move too small to show at this many digits is not a fall, and
+  // would otherwise read as "-0.0".
+  const rounded = Number(v.toFixed(digits));
+  return `${rounded > 0 ? "+" : ""}${rounded.toFixed(digits)}`;
 }
 
 /** An amount held in euros, shown in the currency picked in the side rail. */

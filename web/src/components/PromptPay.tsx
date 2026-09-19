@@ -33,7 +33,9 @@ function cdf(z: number): number {
 function shortfall(committed: number, mean: number, sd: number): number {
   if (sd <= 0) return Math.max(0, committed - mean);
   const z = (committed - mean) / sd;
-  return (committed - mean) * cdf(z) + sd * pdf(z);
+  // Far in the tail the cdf approximation loses the cancellation between the two terms and comes
+  // back a hair under zero, where the true value is vanishingly small. A shortfall is never negative.
+  return Math.max(0, (committed - mean) * cdf(z) + sd * pdf(z));
 }
 
 export function PromptPay({ store, groupId, month }: PromptPayProps) {
