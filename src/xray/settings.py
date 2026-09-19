@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     serving_dir: Path = PROJECT_ROOT / "data" / "serving"
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    api_key: str | None = Field(default=None, validation_alias="LIGHTHOUSE_API_KEY")
     slack_webhook_url: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587

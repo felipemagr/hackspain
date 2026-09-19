@@ -1,3 +1,4 @@
+import { API_HEADERS, API_URL } from "./chat";
 import { PILLAR_LABEL, STATE_META } from "./meta";
 import type {
   ActionRow,
@@ -15,7 +16,6 @@ import type {
 
 // The API serves the live tables; the static JSON under /data is the build-time copy the site
 // falls back to when no API answers (the deployed static site, or the API asleep).
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
 export interface Version {
   build_id: string;
@@ -52,7 +52,10 @@ export interface Store {
 /** The live build, or null when the API is not reachable. Cheap: the front end polls it. */
 export async function fetchVersion(): Promise<Version | null> {
   try {
-    const res = await fetch(`${API_URL}/api/v1/version`, { signal: AbortSignal.timeout(2500) });
+    const res = await fetch(`${API_URL}/api/v1/version`, {
+      headers: API_HEADERS,
+      signal: AbortSignal.timeout(2500),
+    });
     if (!res.ok) return null;
     const v = (await res.json()) as Version;
     return v.tables.includes("scores") ? v : null;
@@ -66,7 +69,7 @@ let modified = 0;
 async function fetchTable<T>(name: string, live: boolean): Promise<T[]> {
   const url = live ? `${API_URL}/api/v1/tables/${name}` : `/data/${name}.json`;
   // Revalidate, so a sync never settles for the browser's copy.
-  const res = await fetch(url, { cache: "no-cache" });
+  const res = await fetch(url, { cache: "no-cache", headers: live ? API_HEADERS : {} });
   if (!res.ok) throw new Error(`table ${name}: ${res.status}`);
   modified = Math.max(modified, Date.parse(res.headers.get("last-modified") ?? "") || 0);
   return res.json() as Promise<T[]>;

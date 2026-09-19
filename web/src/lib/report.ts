@@ -1,4 +1,4 @@
-import { API_URL } from "./chat";
+import { API_HEADERS, API_URL } from "./chat";
 
 // The page is a static site: an error in someone's browser reaches nobody unless it is sent.
 // It goes to the API log, best effort, and never gets in the way of the page.
@@ -12,7 +12,7 @@ export function reportError(source: "render" | "window" | "promise", error: unkn
   });
   fetch(`${API_URL}/api/v1/client-errors`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...API_HEADERS },
     body,
     keepalive: true,
   }).catch(() => {});

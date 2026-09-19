@@ -1,8 +1,13 @@
 """Shared fixtures: a small synthetic raw dump in the challenge's nine-CSV shape."""
 
+import os
+
 import numpy as np
 import pandas as pd
 import pytest
+
+# Set before the app is imported: a key in the developer's .env must not lock the tests out.
+os.environ["LIGHTHOUSE_API_KEY"] = ""
 
 MONTHS = pd.date_range("2024-09-01", periods=12, freq="MS")
 

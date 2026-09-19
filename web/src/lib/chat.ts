@@ -3,6 +3,9 @@ import { displayCurrency } from "./currency";
 
 // The agent service. The rest of the demo reads static JSON and works without it.
 export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+// Baked into the bundle, so it keeps strangers off the API, not a reader of this page.
+const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
+export const API_HEADERS: Record<string, string> = API_KEY ? { "X-API-Key": API_KEY } : {};
 
 export interface FleetMember {
   id: string;
@@ -212,7 +215,7 @@ export function useChat() {
   const turns = chats.find((chat) => chat.id === activeId)?.turns ?? [];
 
   const load = useCallback(() => {
-    fetch(`${API_URL}/api/v1/agents`)
+    fetch(`${API_URL}/api/v1/agents`, { headers: API_HEADERS })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
       .then((body) => setFleet({ status: "ready", agents: body.agents, model: body.model }))
       .catch(() => setFleet({ status: "down" }));
@@ -277,7 +280,7 @@ export function useChat() {
       try {
         const response = await fetch(`${API_URL}/api/v1/chats`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...API_HEADERS },
           body: JSON.stringify({
             message: question,
             month,

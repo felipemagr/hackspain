@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import duckdb
-from fastapi import FastAPI, Request, status
+from fastapi import Depends, FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from xray.api.auth import require_api_key
 from xray.api.db import refresh_views
 from xray.api.routers import (
     alert_rules,
@@ -79,14 +80,12 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+# Open: the health check Render polls, and the mart behind the internal viewer, which is a plain
+# page with no key to send.
 app.include_router(health.router)
 app.include_router(real_groups.router)
-app.include_router(version.router)
-app.include_router(tables.router)
-app.include_router(alerts.router)
-app.include_router(alert_rules.router)
-app.include_router(chat.router)
-app.include_router(client_errors.router)
+for protected in (version, tables, alerts, alert_rules, chat, client_errors):
+    app.include_router(protected.router, dependencies=[Depends(require_api_key)])
 app.mount("/viewer/assets", StaticFiles(directory=STATIC_DIR), name="viewer-assets")
 
 
