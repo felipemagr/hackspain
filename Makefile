@@ -15,6 +15,7 @@ BASELINE_SCORE := $(MARTS_DIR)/real_scores.parquet
 IMAGE ?= xray:latest
 API_PORT ?= 8000
 WEB_PORT ?= 5173
+WEB_DEPS := web/node_modules/.package-lock.json
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -176,8 +177,6 @@ email-test: ## Send a test alert to the SMTP host in .env
 	uv run python -m xray.integrations.email
 
 # Web demo
-WEB_DEPS := web/node_modules/.package-lock.json
-
 $(WEB_DEPS): web/package.json web/package-lock.json
 	cd web && npm install --no-audit --no-fund
 
