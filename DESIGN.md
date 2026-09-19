@@ -52,7 +52,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 
 - **Brand mark** (`App.tsx`, `public/favicon.svg`): three ink facets in the angular language of
   Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: the lit
-  lantern of the lighthouse. The favicon sets it in white on an ink tile. Sources and rejected
+  lantern of the lighthouse. The favicon is the same mark with no tile: ink facets, white in a dark browser. Sources and rejected
   options in `docs/brand/`.
 - **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
