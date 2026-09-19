@@ -4,7 +4,9 @@ The Vite app fetches one JSON array per table from ``/data/``. When the API grow
 routes, the fetch layer moves to ``/api/v1`` without the page changing.
 """
 
+import gzip
 import logging
+import shutil
 from pathlib import Path
 
 import duckdb
@@ -24,6 +26,10 @@ REQUIRED_COLUMNS: dict[str, set[str]] = {
     "actions": {"group_id", "month", "rank", "pillar", "action"},
     "companies": {"company_id", "group_id", "name", "inflow_share", "level"},
     "drivers": {"group_id", "month", "pillar", "score", "contribution"},
+    "company_scores": {"company_id", "group_id", "month", "level", "trend", "state", "tier"},
+    "company_drivers": {"company_id", "month", "pillar", "score", "contribution"},
+    "company_impact": {"company_id", "group_id", "month", "impact_points"},
+    "company_alerts": {"company_id", "group_id", "month", "state_from", "state_to"},
     "promptpay": {
         "group_id",
         "month",
@@ -57,7 +63,14 @@ VALID_PILLARS = {
 
 ENUM_CHECKS: dict[str, dict[str, set[str]]] = {
     "scores": {"state": VALID_STATES, "tier": VALID_TIERS},
+    "company_scores": {"state": VALID_STATES, "tier": VALID_TIERS},
     "alerts": {
+        "state_from": VALID_STATES,
+        "state_to": VALID_STATES,
+        "driver_1": VALID_PILLARS,
+        "driver_2": VALID_PILLARS,
+    },
+    "company_alerts": {
         "state_from": VALID_STATES,
         "state_to": VALID_STATES,
         "driver_1": VALID_PILLARS,
@@ -65,11 +78,13 @@ ENUM_CHECKS: dict[str, dict[str, set[str]]] = {
     },
     "actions": {"pillar": VALID_PILLARS},
     "drivers": {"pillar": VALID_PILLARS},
+    "company_drivers": {"pillar": VALID_PILLARS},
 }
 
 FX_RATES_FILE = Path(__file__).with_name("fx_rates.csv")
 # Read by the agents through the API, never by the page: not worth shipping as JSON.
 API_ONLY = {"payers"}
+COMPRESSED_TABLES = {"company_scores", "company_drivers", "company_impact", "company_alerts"}
 
 
 def _validate(con: duckdb.DuckDBPyConnection, parquet: Path) -> None:
@@ -102,6 +117,15 @@ def export_serving() -> list[Path]:
             _validate(con, parquet)
             target = WEB_DATA_DIR / f"{parquet.stem}.json"
             con.execute(f"copy (select * from '{parquet}') to '{target}' (format json, array true)")
+            if parquet.stem in COMPRESSED_TABLES:
+                compressed = target.with_suffix(".json.gz")
+                with (
+                    target.open("rb") as source,
+                    gzip.open(compressed, "wb", compresslevel=9) as sink,
+                ):
+                    shutil.copyfileobj(source, sink)
+                target.unlink()
+                target = compressed
             written.append(target)
             logger.info("Exported %s -> %s", parquet.name, target.name)
     written.append(_export_usd_rates())

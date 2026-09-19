@@ -94,7 +94,25 @@ export interface CompanyRow {
   inflow_share: number | null;
   // Null for a company with no activity in the window.
   level: number | null;
-  is_weakest: boolean;
+}
+
+export interface CompanyScoreRow extends ScoreRow {
+  company_id: string;
+}
+
+export interface CompanyDriverRow extends DriverRow {
+  company_id: string;
+}
+
+export interface CompanyImpactRow {
+  company_id: string;
+  group_id: string;
+  month: string;
+  impact_points: number | null;
+}
+
+export interface CompanyAlertRow extends AlertRow {
+  company_id: string;
 }
 
 /** One row per group, month and window: what falls due, and what can be paid early with it. */

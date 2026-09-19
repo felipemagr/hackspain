@@ -23,6 +23,7 @@ import pandas as pd
 
 from xray.config import MARTS_DIR, PROCESSED_DATA_DIR
 from xray.scoring import explain, offer
+from xray.scoring.company_impact import impacts
 from xray.scoring.monitor import detect
 from xray.scoring.score import score
 from xray.settings import get_settings
@@ -57,10 +58,10 @@ SCORE_COLUMNS = {
 }
 
 
-def _with_panel(scores: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
+def _with_panel(scores: pd.DataFrame, panel: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
     """Size and headline columns the score table does not carry itself."""
     cols = ["opin_3m", "opin_12m", "opout_12m", "debt_service_12m"]
-    out = scores.merge(panel[KEYS + cols], on=KEYS, how="left")
+    out = scores.merge(panel[[key, "month"] + cols], on=[key, "month"], how="left")
     out["monthly_inflow_eur"] = out["opin_3m"] / MONTHS_PER_QUARTER
     out["dscr"] = np.where(
         out["debt_service_12m"] > 0,
@@ -107,11 +108,13 @@ def _groups(
 
 
 def _companies(
-    panel_company: pd.DataFrame, scores: pd.DataFrame, companies: pd.DataFrame
+    panel_company: pd.DataFrame,
+    scores: pd.DataFrame,
+    company_scores: pd.DataFrame,
+    companies: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Subsidiaries at the group's last scored month: share of inflow, own level, weakest flag."""
+    """Subsidiaries at the group's last scored month: share of inflow and own level."""
     last_month = scores.groupby("group_id")["month"].max().rename("last_month")
-    company_scores = score(panel_company, key="company_id")
     rows = panel_company.merge(last_month, left_on="group_id", right_index=True)
     rows = rows[rows["month"] == rows["last_month"]]
     rows = rows.merge(
@@ -119,14 +122,9 @@ def _companies(
     )
     group_inflow = rows.groupby("group_id")["opin_3m"].transform("sum")
     rows["inflow_share"] = np.where(group_inflow > 0, rows["opin_3m"] / group_inflow, np.nan)
-    weakest = rows.groupby("group_id")["level"].transform("min")
-    n_scored = rows.groupby("group_id")["level"].transform("count")
-    rows["is_weakest"] = (rows["level"] == weakest) & (n_scored > 1)
     named = pd.Series(_label(companies, "company_id", "name", rows["company_id"]))
     rows["name"] = named.fillna(rows["company_id"].reset_index(drop=True)).to_numpy()
-    return rows[
-        ["company_id", "group_id", "name", "inflow_share", "level", "is_weakest"]
-    ].reset_index(drop=True)
+    return rows[["company_id", "group_id", "name", "inflow_share", "level"]].reset_index(drop=True)
 
 
 def build(
@@ -152,12 +150,36 @@ def assemble(
     trajectory, alerts = detect(scores)
     scores = scores.merge(trajectory.drop(columns=["onset_month"]), on=KEYS)
 
+    company_scores = _with_panel(
+        score(panel_company, key="company_id"), panel_company, key="company_id"
+    )
+    company_trajectory, company_alerts = detect(
+        company_scores.drop(columns="group_id").rename(columns={"company_id": "group_id"})
+    )
+    company_scores = company_scores.merge(
+        company_trajectory.drop(columns="onset_month").rename(columns={"group_id": "company_id"}),
+        on=["company_id", "month"],
+    )
+    company_alerts = company_alerts.rename(columns={"group_id": "company_id"}).merge(
+        company_scores[["company_id", "group_id", "month"]], on=["company_id", "month"]
+    )
+
     serving_scores = scores[list(SCORE_COLUMNS.values())].set_axis(list(SCORE_COLUMNS), axis=1)
+    company_columns = ["company_id"] + list(SCORE_COLUMNS.values())
     return {
         "groups": _groups(scores, companies, groups),
-        "companies": _companies(panel_company, scores, companies),
+        "companies": _companies(panel_company, scores, company_scores, companies),
         "scores": _rounded(serving_scores),
         "drivers": _rounded(explain.drivers(scores)),
+        "company_scores": _rounded(company_scores[company_columns]),
+        "company_drivers": _rounded(
+            explain.drivers(company_scores, key="company_id").merge(
+                company_scores[["company_id", "group_id", "month"]],
+                on=["company_id", "month"],
+            )
+        ),
+        "company_impact": _rounded(impacts(panel, panel_company, scores)),
+        "company_alerts": company_alerts,
         "alerts": alerts,
         "offers": offer.offers(scores),
         "actions": offer.actions(scores),

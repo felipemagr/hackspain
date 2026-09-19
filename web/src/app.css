@@ -1028,9 +1028,85 @@ select:hover {
 
 .company {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 48px 28px;
+  grid-template-columns: minmax(0, 1fr) 48px 34px 42px;
   gap: 14px;
   padding: 7px 0;
+}
+
+.company--open {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.company--open:hover,
+.company--open:focus-visible {
+  background: var(--hover);
+}
+
+.company__impact {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-back {
+  border: 0;
+  background: transparent;
+  padding: 0 0 20px;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.company-back:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.company-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin: 14px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.company-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.company-legend__key {
+  width: 24px;
+  height: 3px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.company-legend__role {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+.company-context {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.company-note {
+  max-width: 36ch;
+  margin-top: 16px;
+  line-height: 1.5;
 }
 
 .company__flag {
@@ -1098,116 +1174,6 @@ select:hover {
 .offer span {
   margin-left: 12px;
   font-size: 12.5px;
-}
-
-/* ---------- own history ---------- */
-
-.own {
-  margin-top: 48px;
-}
-
-.own__lede {
-  margin-top: 10px;
-  max-width: 64ch;
-  color: var(--ink-3);
-  text-wrap: pretty;
-}
-
-.own__top {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  align-items: center;
-  gap: 40px;
-  margin: 20px 0 32px;
-}
-
-.own__gauge {
-  margin: 0;
-}
-
-.own__gauge svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.own__figure {
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  fill: var(--ink);
-}
-
-.own__zone {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  margin-top: 10px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--ink-2);
-}
-
-.own__tick {
-  stroke: var(--ink-3);
-  stroke-width: 1;
-  opacity: 0.7;
-}
-
-.own__tick.is-today {
-  stroke: var(--ink);
-  stroke-width: 1.5;
-  opacity: 1;
-}
-
-.own__zone-name {
-  font-size: 12.5px;
-  fill: var(--ink-3);
-}
-
-.own__zone-name.is-on {
-  font-weight: 600;
-  fill: var(--ink);
-}
-
-.own__end {
-  font-size: 12.5px;
-  font-weight: 500;
-  fill: var(--ink-2);
-}
-
-.own__end-note {
-  font-size: 12.5px;
-  fill: var(--ink-3);
-}
-
-.own__read {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 62ch;
-  color: var(--ink-2);
-}
-
-.own__rank {
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1;
-  color: var(--ink);
-}
-
-.own__rank span {
-  margin-left: 3px;
-  font-size: 15px;
-  font-weight: 500;
-  color: var(--ink-3);
-}
-
-.own__read strong {
-  font-weight: 600;
-  color: var(--ink);
 }
 
 /* ---------- splash ---------- */
@@ -1685,21 +1651,9 @@ select:hover {
   }
 }
 
-/* ---------- what if ---------- */
+/* ---------- offer controls ---------- */
 
-.whatif {
-  margin-top: 48px;
-}
-
-.whatif__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  align-items: start;
-  gap: 40px;
-  margin-top: 20px;
-}
-
-.whatif__lever {
+.promptpay__control-lever {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 48px;
   align-items: baseline;
@@ -1707,19 +1661,12 @@ select:hover {
   padding: 10px 0;
 }
 
-.whatif__label {
+.promptpay__control-label {
   font-weight: 500;
   cursor: pointer;
 }
 
-.whatif__weight {
-  margin-left: 6px;
-  font-size: 12.5px;
-  font-weight: 400;
-  color: var(--ink-3);
-}
-
-.whatif__value {
+.promptpay__control-value {
   width: 100%;
   padding: 0;
   border: 0;
@@ -1733,16 +1680,16 @@ select:hover {
   cursor: text;
 }
 
-.whatif__value:hover {
+.promptpay__control-value:hover {
   border-bottom-color: var(--ink-3);
 }
 
-.whatif__value:focus {
+.promptpay__control-value:focus {
   outline: none;
   border-bottom: 1px solid currentColor;
 }
 
-.whatif__slider {
+.promptpay__control-slider {
   grid-column: 1 / -1;
   width: 100%;
   margin: 8px 0 4px;
@@ -1751,19 +1698,19 @@ select:hover {
   cursor: pointer;
 }
 
-.whatif__slider::-webkit-slider-runnable-track {
+.promptpay__control-slider::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
   background: var(--line);
 }
 
-.whatif__slider::-moz-range-track {
+.promptpay__control-slider::-moz-range-track {
   height: 4px;
   border-radius: 2px;
   background: var(--line);
 }
 
-.whatif__slider::-webkit-slider-thumb {
+.promptpay__control-slider::-webkit-slider-thumb {
   appearance: none;
   width: 14px;
   height: 14px;
@@ -1773,7 +1720,7 @@ select:hover {
   background: var(--ink);
 }
 
-.whatif__slider::-moz-range-thumb {
+.promptpay__control-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border: 0;
@@ -1781,53 +1728,30 @@ select:hover {
   background: var(--ink);
 }
 
-.whatif__today {
+.promptpay__control-today {
   grid-column: 1 / -1;
   font-size: 12.5px;
   color: var(--ink-3);
 }
 
-.whatif__out {
+.promptpay__control-out {
   padding: 20px;
   border-radius: 8px;
   background: var(--side);
 }
 
-.whatif__level {
+.promptpay__control-level {
   font-size: 40px;
   font-weight: 600;
   letter-spacing: -0.03em;
   line-height: 1;
 }
 
-.whatif__delta {
-  margin-top: 6px;
-  font-weight: 500;
-  color: var(--ink-3);
-}
-
-/* Both appended after .is-up / .is-down, so the direction needs the extra class to win. */
-.whatif__level.is-up,
-.whatif__delta.is-up {
-  color: var(--good-ink);
-}
-
-.whatif__level.is-down,
-.whatif__delta.is-down {
-  color: var(--bad-ink);
-}
-
-.whatif__note {
+.promptpay__control-note {
   margin-top: 12px;
   font-size: 12.5px;
   color: var(--ink-2);
   text-wrap: pretty;
-}
-
-@media (max-width: 900px) {
-  .whatif__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Early payment: what falls due in the window, and which supplier bills it can pay early. */

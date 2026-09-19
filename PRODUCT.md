@@ -39,7 +39,7 @@ both directions, and decomposes every number into named drivers.
 ## Operating Context
 
 - Read-only demo over precomputed parquet in `data/serving/` (contract: `docs/serving-contract.md`).
-- The unit of everything on screen is the business group, not the company.
+- The group is the portfolio decision unit; each company has a diagnostic health view showing its own trajectory, drivers and pressure on the group score.
 - The five-minute demo script (docs/brief.md section 7) is the binding usage scene: Northbrook
   Foods (45 -> 65) vs Velasco Industrial (82 -> 68) side by side, trajectory cross, drivers,
   monitor alert with measured anticipation, and the two offers diverging.

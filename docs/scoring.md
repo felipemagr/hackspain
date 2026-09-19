@@ -279,7 +279,7 @@ would recover by closing 40% of its gap to 70, in level points.
 
 `serve.build()` scores the group panel, attaches `monthly_inflow_eur` and `dscr`
 (`(opin_12m - opout_12m) / debt_service_12m`), runs `monitor.detect`, then `serve.publish()`
-swaps the seven tables of `serving-contract.md` into `data/serving` and stamps `_version.json`.
+swaps the tables of `serving-contract.md` into `data/serving` and stamps `_version.json`.
 `serve.assemble()` is the same from in-memory panels, which is what the replay uses.
 `groups.name` is the `group_id`; the dataset has no names.
 
@@ -287,9 +287,11 @@ swaps the seven tables of `serving-contract.md` into `data/serving` and stamps `
 as-of, publish, notify) so the product can be watched moving. It relies on every step above
 being causal and unfitted: the score a month gets during the replay is the score it has in the
 full run, and `make replay CHECK=1` asserts that on the real data.
-`companies` is scored with `score(panel_company, key="company_id")` at the group's last month,
-with `inflow_share = company opin_3m / group opin_3m` and `is_weakest` on the lowest level when
-more than one company is scored.
+`company_scores` uses `score(panel_company, key="company_id")` for every covered month, followed
+by the same monitor and pillar explanation as the group series. `companies` holds names and the
+last month's level and operating inflow share. `company_impact` recomputes the group without
+each company; positive points mean the company lowers the group score. It is unavailable when
+the remaining companies lack coverage or their available pillars differ.
 
 `submit.predict(raw_dir)` runs clean -> cash -> panel -> score -> detect over any directory
 holding the nine CSVs, in a temporary directory, and returns `groups` (`group_id, month, level,

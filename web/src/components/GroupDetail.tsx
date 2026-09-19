@@ -5,13 +5,11 @@ import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
 import { Check, Menu } from "./Menu";
-import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
 import { PromptPay } from "./PromptPay";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
-import { WhatIf } from "./WhatIf";
 
 interface GroupDetailProps {
   store: Store;
@@ -27,6 +25,7 @@ interface GroupDetailProps {
   onFavorite: () => void;
   syncing: boolean;
   onSync: () => void;
+  onCompany: (companyId: string) => void;
 }
 
 const clock = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
@@ -58,6 +57,7 @@ export function GroupDetail({
   onFavorite,
   syncing,
   onSync,
+  onCompany,
 }: GroupDetailProps) {
   const [query, setQuery] = useState("");
   const group = store.groupById.get(groupId);
@@ -74,7 +74,11 @@ export function GroupDetail({
   const drivers = store.driversAt(groupId, month);
   const offer = store.offerAt(groupId, month);
   const actions = [...(store.actionsByGroup.get(groupId) ?? [])].sort((a, b) => a.rank - b.rank);
-  const companies = store.companiesByGroup.get(groupId) ?? [];
+  const companies = [...(store.companiesByGroup.get(groupId) ?? [])].sort(
+    (a, b) =>
+      (store.companyImpactAt(b.company_id, month)?.impact_points ?? -Infinity) -
+      (store.companyImpactAt(a.company_id, month)?.impact_points ?? -Infinity),
+  );
   const compare = compareSlots.map((id) => store.groupById.get(id) ?? null);
   const nCompare = compare.filter(Boolean).length;
   const full = nCompare === compareSlots.length;
@@ -242,22 +246,29 @@ export function GroupDetail({
               <span className="hint">what each moved this month</span>
             </div>
             <Pillars score={score} drivers={drivers} />
-            {companies.length > 1 && (
+            {companies.length > 0 && (
               <>
                 <div className="section-head section-head--spaced">
                   <h2>Companies in the group</h2>
-                  <span className="hint">share of inflow</span>
+                  <span className="hint">inflow · score · group pressure</span>
                 </div>
-                {companies.map((c) => (
-                  <div className="company" key={c.company_id}>
-                    <span className="company__name">
-                      {c.name}
-                      {c.is_weakest && <span className="company__flag">drags the group</span>}
-                    </span>
-                    <span className="company__share">{((c.inflow_share ?? 0) * 100).toFixed(0)}%</span>
-                    <span className="company__level">{fmtScore(c.level)}</span>
-                  </div>
-                ))}
+                {companies.map((c) => {
+                  const own = store.companyScoreAt(c.company_id, month);
+                  const impact = store.companyImpactAt(c.company_id, month)?.impact_points;
+                  const share = own && score.monthly_inflow_eur > 0
+                    ? own.monthly_inflow_eur / score.monthly_inflow_eur
+                    : null;
+                  return (
+                    <button className="company company--open" key={c.company_id} onClick={() => onCompany(c.company_id)}>
+                      <span className="company__name">{c.name}</span>
+                      <span className="company__share">{share == null ? "-" : `${(share * 100).toFixed(0)}%`}</span>
+                      <span className="company__level">{fmtScore(own?.level ?? null)}</span>
+                      <span className={`company__impact ${impact == null || Math.abs(impact) < 0.05 ? "" : impact > 0 ? "is-down" : "is-up"}`}>
+                        {impact == null ? "-" : Math.abs(impact) < 0.05 ? "0.0" : fmtSigned(impact, 1)}
+                      </span>
+                    </button>
+                  );
+                })}
               </>
             )}
           </section>
@@ -301,8 +312,6 @@ export function GroupDetail({
         </div>
       )}
 
-      {score && <OwnHistory history={history} month={month} />}
-      {score && <WhatIf score={score} />}
       {score && <PromptPay store={store} groupId={groupId} month={month} />}
     </article>
   );

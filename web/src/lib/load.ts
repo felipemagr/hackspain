@@ -3,6 +3,10 @@ import type {
   ActionRow,
   AlertRow,
   CompanyRow,
+  CompanyScoreRow,
+  CompanyDriverRow,
+  CompanyImpactRow,
+  CompanyAlertRow,
   DriverRow,
   GroupRow,
   OfferRow,
@@ -44,6 +48,12 @@ export interface Store {
   offerAt: (groupId: string, month: string) => OfferRow | undefined;
   actionsByGroup: Map<string, ActionRow[]>;
   companiesByGroup: Map<string, CompanyRow[]>;
+  companyById: Map<string, CompanyRow>;
+  scoresByCompany: Map<string, CompanyScoreRow[]>;
+  companyScoreAt: (companyId: string, month: string) => CompanyScoreRow | undefined;
+  companyDriversAt: (companyId: string, month: string) => CompanyDriverRow[];
+  companyImpactAt: (companyId: string, month: string) => CompanyImpactRow | undefined;
+  companyAlerts: CompanyAlertRow[];
   driversAt: (groupId: string, month: string) => DriverRow[];
   promptPayAt: (groupId: string, month: string, windowDays: number) => PromptPayRow | undefined;
   promptPayCustomers: (groupId: string, month: string) => PromptPayCustomerRow[];
@@ -64,11 +74,17 @@ export async function fetchVersion(): Promise<Version | null> {
 let modified = 0;
 
 async function fetchTable<T>(name: string, live: boolean): Promise<T[]> {
-  const url = live ? `${API_URL}/api/v1/tables/${name}` : `/data/${name}.json`;
+  const compressed = !live && ["company_scores", "company_drivers", "company_impact", "company_alerts"].includes(name);
+  const url = live ? `${API_URL}/api/v1/tables/${name}` : `/data/${name}.json${compressed ? ".gz" : ""}`;
   // Revalidate, so a sync never settles for the browser's copy.
   const res = await fetch(url, { cache: "no-cache" });
   if (!res.ok) throw new Error(`table ${name}: ${res.status}`);
   modified = Math.max(modified, Date.parse(res.headers.get("last-modified") ?? "") || 0);
+  if (compressed && res.headers.get("content-encoding") !== "gzip") {
+    const stream = res.body?.pipeThrough(new DecompressionStream("gzip"));
+    if (!stream) throw new Error(`table ${name}: empty response`);
+    return new Response(stream).json() as Promise<T[]>;
+  }
   return res.json() as Promise<T[]>;
 }
 
@@ -86,6 +102,10 @@ function fetchTables(live: boolean) {
     fetchTable<ActionRow>("actions", live),
     fetchTable<CompanyRow>("companies", live),
     fetchTable<DriverRow>("drivers", live),
+    fetchTable<CompanyScoreRow>("company_scores", live),
+    fetchTable<CompanyDriverRow>("company_drivers", live),
+    fetchTable<CompanyImpactRow>("company_impact", live),
+    fetchTable<CompanyAlertRow>("company_alerts", live),
     fetchTable<PromptPayRow>("promptpay", live),
     fetchTable<PromptPayCustomerRow>("promptpay_customers", live),
   ]);
@@ -100,8 +120,7 @@ export async function loadStore(version?: Version | null): Promise<Store> {
         return fetchTables(false);
       })
     : fetchTables(false));
-  const [groups, scores, alerts, offers, actions, companies, drivers, promptPay, promptPayCustomers] =
-    tables;
+  const [groups, scores, alerts, offers, actions, companies, drivers, companyScores, companyDrivers, companyImpact, companyAlerts, promptPay, promptPayCustomers] = tables;
 
   const norm = (m: string) => m.slice(0, 10);
   const normState = (s: string): State => (s in STATE_META ? (s as State) : "not_enough_data");
@@ -113,12 +132,19 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     ...offers,
     ...actions,
     ...drivers,
+    ...companyScores,
+    ...companyDrivers,
+    ...companyImpact,
+    ...companyAlerts,
     ...promptPay,
     ...promptPayCustomers,
   ]) {
     row.month = norm(row.month);
   }
   for (const s of scores) {
+    s.state = normState(s.state);
+  }
+  for (const s of companyScores) {
     s.state = normState(s.state);
   }
   for (const a of alerts) {
@@ -129,7 +155,16 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     a.driver_2 = normPillar(a.driver_2);
     if (a.tier_change_month) a.tier_change_month = norm(a.tier_change_month);
   }
+  for (const a of companyAlerts) {
+    a.onset_month = norm(a.onset_month);
+    a.state_from = normState(a.state_from);
+    a.state_to = normState(a.state_to);
+    a.driver_1 = normPillar(a.driver_1);
+    a.driver_2 = normPillar(a.driver_2);
+    if (a.tier_change_month) a.tier_change_month = norm(a.tier_change_month);
+  }
   const cleanDrivers = drivers.filter((d) => normPillar(d.pillar) != null);
+  const cleanCompanyDrivers = companyDrivers.filter((d) => normPillar(d.pillar) != null);
   for (const a of actions) {
     a.pillar = normPillar(a.pillar) ?? a.pillar;
   }
@@ -177,6 +212,25 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     list.push(c);
     companiesByGroup.set(c.group_id, list);
   }
+  const companyById = new Map(companies.map((c) => [c.company_id, c]));
+  const scoresByCompany = new Map<string, CompanyScoreRow[]>();
+  for (const s of companyScores) {
+    const list = scoresByCompany.get(s.company_id) ?? [];
+    list.push(s);
+    scoresByCompany.set(s.company_id, list);
+  }
+  for (const list of scoresByCompany.values()) {
+    list.sort((a, b) => a.month.localeCompare(b.month));
+  }
+  const companyScoresKeyed = new Map([...scoresByCompany].map(([id, rows]) => [id, byMonth(rows)]));
+  const companyDriversKeyed = new Map<string, CompanyDriverRow[]>();
+  for (const d of cleanCompanyDrivers) {
+    const key = `${d.company_id}|${d.month}`;
+    const list = companyDriversKeyed.get(key) ?? [];
+    list.push(d);
+    companyDriversKeyed.set(key, list);
+  }
+  const companyImpactKeyed = new Map(companyImpact.map((r) => [`${r.company_id}|${r.month}`, r]));
 
   const driversKeyed = new Map<string, DriverRow[]>();
   for (const d of cleanDrivers) {
@@ -219,6 +273,12 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     offerAt: (gid, month) => offersKeyed.get(gid)?.get(month),
     actionsByGroup,
     companiesByGroup,
+    companyById,
+    scoresByCompany,
+    companyScoreAt: (id, month) => companyScoresKeyed.get(id)?.get(month),
+    companyDriversAt: (id, month) => companyDriversKeyed.get(`${id}|${month}`) ?? [],
+    companyImpactAt: (id, month) => companyImpactKeyed.get(`${id}|${month}`),
+    companyAlerts,
     driversAt: (gid, month) => driversKeyed.get(`${gid}|${month}`) ?? [],
     promptPayAt: (gid, month, windowDays) => promptPayKeyed.get(`${gid}|${month}|${windowDays}`),
     promptPayCustomers: (gid, month) => promptPayCustomersKeyed.get(`${gid}|${month}`) ?? [],

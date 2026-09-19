@@ -52,7 +52,7 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
   const lineDefault = offer?.apr != null ? offer.apr * 100 : DEFAULT_LINE_COST;
   const [lineCost, setLineCost] = useState(lineDefault);
   // A different group or month is a different line and a different supplier: back to its
-  // starting point, the way WhatIf drops its moves.
+  // starting point.
   useEffect(() => {
     setDiscount(DEFAULT_DISCOUNT);
     setLineCost(lineDefault);
@@ -262,14 +262,14 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
             <>
               <div className="promptpay__deal">
                 <div className="promptpay__levers">
-                  <div className="whatif__lever">
-                    <label className="whatif__label" htmlFor="promptpay-discount">
+                  <div className="promptpay__control-lever">
+                    <label className="promptpay__control-label" htmlFor="promptpay-discount">
                       Discount the supplier offers
                     </label>
-                    <span className="whatif__value">{discount.toFixed(1)}%</span>
+                    <span className="promptpay__control-value">{discount.toFixed(1)}%</span>
                     <input
                       id="promptpay-discount"
-                      className="whatif__slider"
+                      className="promptpay__control-slider"
                       type="range"
                       min={0}
                       max={5}
@@ -277,18 +277,18 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                       value={discount}
                       onChange={(e) => setDiscount(Number(e.target.value))}
                     />
-                    <span className="whatif__today">
+                    <span className="promptpay__control-today">
                       what you negotiate, not something the data knows
                     </span>
                   </div>
-                  <div className="whatif__lever">
-                    <label className="whatif__label" htmlFor="promptpay-line">
+                  <div className="promptpay__control-lever">
+                    <label className="promptpay__control-label" htmlFor="promptpay-line">
                       Cost of your credit line
                     </label>
-                    <span className="whatif__value">{lineCost.toFixed(2)}%</span>
+                    <span className="promptpay__control-value">{lineCost.toFixed(2)}%</span>
                     <input
                       id="promptpay-line"
-                      className="whatif__slider"
+                      className="promptpay__control-slider"
                       type="range"
                       min={0}
                       max={25}
@@ -296,7 +296,7 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                       value={lineCost}
                       onChange={(e) => setLineCost(Number(e.target.value))}
                     />
-                    <span className="whatif__today">
+                    <span className="promptpay__control-today">
                       {offer?.apr == null
                         ? "no line this month, so this one is yours to set"
                         : `starts at the ${(offer.apr * 100).toFixed(2)}% this group is offered`}
@@ -304,10 +304,10 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                   </div>
                 </div>
 
-                <aside className="whatif__out">
+                <aside className="promptpay__control-out">
                   <span className="promptpay__label">With the discount above</span>
-                  <p className="whatif__level">{fmtEur(captured)}</p>
-                  <p className="whatif__note">
+                  <p className="promptpay__control-level">{fmtEur(captured)}</p>
+                  <p className="promptpay__control-note">
                     Taken on {fmtEur(advance)} paid {payableDays.toFixed(0)} days early, inside{" "}
                     {days} days. Worth {equivalentApr.toFixed(1)}% a year against{" "}
                     {fmtEur(costOfRisk)} of risk.

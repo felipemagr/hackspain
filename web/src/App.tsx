@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AlertList } from "./components/AlertList";
 import { Chat } from "./components/Chat";
+import { CompanyDetail } from "./components/CompanyDetail";
 import { CurrencyToggle } from "./components/CurrencyToggle";
 import { FleetRail } from "./components/FleetRail";
 import { GroupDetail } from "./components/GroupDetail";
@@ -23,10 +24,12 @@ const askedCompare = (params.get("compare") ?? "").split(",").filter(Boolean);
 const POLL_MS = 3000;
 
 export default function App() {
+  const mainRef = useRef<HTMLElement>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("group") ?? DEFAULT_GROUP);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [compareSlots, setCompareSlots] = useState(() =>
     Array.from({ length: COMPARE_SLOTS }, (_, k) => askedCompare[k] ?? ""),
   );
@@ -40,6 +43,10 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const chat = useChat();
   useDisplayCurrency(month);
+
+  useLayoutEffect(() => {
+    if (selectedCompanyId && mainRef.current) mainRef.current.scrollTop = 0;
+  }, [selectedCompanyId]);
 
   // Held for a moment so a sync that finds nothing new is still seen to have happened.
   // A sync that fails keeps the data already on screen.
@@ -114,6 +121,7 @@ export default function App() {
 
   const select = (groupId: string) => {
     setSelectedId(groupId);
+    setSelectedCompanyId(null);
     setCompareSlots((slots) => slots.map((id) => (id === groupId ? "" : id)));
   };
   const toggleCompare = (groupId: string) =>
@@ -203,7 +211,7 @@ export default function App() {
           )}
         </div>
       </aside>
-      <main className="main">
+      <main className="main" ref={mainRef}>
         {tab === "agents" ? (
           <Chat
             month={month}
@@ -214,7 +222,15 @@ export default function App() {
             onStop={chat.stop}
           />
         ) : (
-          <GroupDetail
+          selectedCompanyId ? (
+          <CompanyDetail
+            store={store}
+            companyId={selectedCompanyId}
+            month={month}
+            onMonth={setMonth}
+            onBack={() => setSelectedCompanyId(null)}
+          />
+          ) : <GroupDetail
             store={store}
             groupId={selectedId}
             compareSlots={compareSlots}
@@ -226,6 +242,7 @@ export default function App() {
             onFavorite={() => toggleFavorite(selectedId)}
             syncing={syncing}
             onSync={sync}
+            onCompany={setSelectedCompanyId}
           />
         )}
       </main>

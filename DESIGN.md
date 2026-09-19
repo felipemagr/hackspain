@@ -80,11 +80,6 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
   it), its score, the raw indicator, and how many points it moved the level this month, signed and
   colored. Figures right-aligned, hairline between rows.
-- **Own-range gauge** (`OwnHistory.tsx`): a half dial that runs from the group's own worst month
-  to its own best. A 6px arc in thirds (low, mid, high); only the third the needle sits in takes
-  its state color, the rest stay hairline grey. Every scored month is a tick outside the arc,
-  today's longer and in ink. Tapered ink needle, the level at 30px under the hub, the ends
-  labelled with value, worst or best, and month. Below it, the zone as a dot plus its words.
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
   and the writer, each with its live state and the tool it is running. The detail pane holds the
   conversation. A turn is the question at 22px, a line saying what the planner read it as, a

@@ -47,7 +47,20 @@ when `build_id` changes; without an API it reads the same tables from `web/publi
 `group_id`, `name`, `sector`, `country`, `n_companies`, `has_erp`, `annual_revenue_eur`, `archetype` (mock only).
 
 `companies`: subsidiaries at the last month.
-`company_id`, `group_id`, `name`, `inflow_share`, `level`, `is_weakest`.
+`company_id`, `group_id`, `name`, `inflow_share`, `level`.
+
+`company_scores`: one row per covered company and month. Same score, pillars, trajectory,
+state and headline indicators as `scores`, keyed by `company_id`, `group_id`, `month`.
+
+`company_drivers`: same pillar decomposition as `drivers`, keyed by `company_id`, `month`.
+
+`company_impact`: one row per company and group month with at least two companies. Positive
+`impact_points` means the group's score would be higher without that company. It is null when
+the remaining group has no coverage or removing the company changes available pillars. These
+counterfactual differences are diagnostic, not additive contributions.
+`company_alerts`: jump and sustained shift alerts from the same monitor applied to each
+company's level series. The static web export stores these four company tables as compressed
+`.json.gz` files.
 
 `scores`: one row per group and observed month. Groups onboard at different months, as in the real data.
 

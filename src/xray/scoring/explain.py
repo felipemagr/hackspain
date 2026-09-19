@@ -23,7 +23,7 @@ HEADLINES = {
 }
 
 
-def drivers(scores: pd.DataFrame) -> pd.DataFrame:
+def drivers(scores: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
     """One row per group, month and available pillar, with its move since the previous month.
 
     Args:
@@ -33,17 +33,18 @@ def drivers(scores: pd.DataFrame) -> pd.DataFrame:
         ``group_id, month, pillar, score, contribution, headline, delta_score,
         delta_contribution``. Pillars a group does not have are absent, not null.
     """
-    score = scores.melt(KEYS, PILLARS, "pillar", "score").dropna(subset=["score"])
-    contrib = scores.melt(KEYS, [f"contrib_{p}" for p in PILLARS], "pillar", "contribution")
+    keys = [key, "month"]
+    score = scores.melt(keys, PILLARS, "pillar", "score").dropna(subset=["score"])
+    contrib = scores.melt(keys, [f"contrib_{p}" for p in PILLARS], "pillar", "contribution")
     contrib["pillar"] = contrib["pillar"].str.removeprefix("contrib_")
-    headline = scores.melt(KEYS, list(HEADLINES.values()), "indicator", "headline")
+    headline = scores.melt(keys, list(HEADLINES.values()), "indicator", "headline")
     headline["pillar"] = headline["indicator"].map({v: k for k, v in HEADLINES.items()})
     out = (
-        score.merge(contrib, on=KEYS + ["pillar"])
-        .merge(headline.drop(columns="indicator"), on=KEYS + ["pillar"])
-        .sort_values(["group_id", "pillar", "month"])
+        score.merge(contrib, on=keys + ["pillar"])
+        .merge(headline.drop(columns="indicator"), on=keys + ["pillar"])
+        .sort_values([key, "pillar", "month"])
     )
-    by = out.groupby(["group_id", "pillar"])
+    by = out.groupby([key, "pillar"])
     out["delta_score"] = by["score"].diff()
     out["delta_contribution"] = by["contribution"].diff()
     return out.reset_index(drop=True)

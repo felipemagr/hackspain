@@ -177,7 +177,7 @@ for:
 | Layer | What the CFO sees | Rubric it covers |
 |---|---|---|
 | **Score** | One number per group per month, level and trend, over the full 24 months | Generalization, trajectory, both directions |
-| **Explanation** | Which named drivers moved, when, and which subsidiary drags the group | Explanation |
+| **Explanation** | Which named drivers moved, when, and which subsidiary pressures the group score | Explanation |
 | **Monitor** | An alert when the score *really* moves, silence on a one-month dip | Monitor, stability |
 | **Offer** | A working-capital limit and price recalculated monthly from the score: up when improving, tightening early when bending | Product, buyer, both directions |
 | **Actions** | Three ranked moves, each tied to a driver, each with its expected score impact | Product, buyer |
@@ -232,6 +232,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Discrimination, trajectory, stability, ablation | `src/xray/scoring/validate.py` |
 | Smoothing, slope, state machine on the level series | `src/xray/scoring/trend.py` |
 | Named driver decomposition | `src/xray/scoring/explain.py` |
+| Company pressure on the group score | `src/xray/scoring/company_impact.py` |
 | Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
 | Alert delivery to Slack or email | `src/xray/scoring/notify.py`, `src/xray/integrations/` |
 | Who is told, where, from which urgency: the rule book, written in plain words through the chat | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py`, `make replay CHANNEL=rules` |
