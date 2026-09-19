@@ -13,8 +13,7 @@ from pydantic import BaseModel, Field
 
 from xray.agents.base import AgentReport, ScoreSnapshot
 from xray.agents.cache import JsonCache
-from xray.agents.context_retrieval import _strip_fences
-from xray.agents.llm import LLM, build_llm
+from xray.agents.llm import LLM, build_llm, complete_json
 from xray.agents.sources import is_social, published_on
 from xray.agents.tools import exa
 from xray.agents.tools.exa import ExaResult
@@ -28,9 +27,10 @@ NEWS_PER_PEER = 3
 NEWS_WINDOW_DAYS = 540
 SNIPPET_CHARS = 600
 
-PEERS_PROMPT = """You are given web pages of companies that may compete with a target company.
-Pick the direct competitors: same business, overlapping markets. Drop the target itself,
-its subsidiaries, directories, marketplaces of reviews and anything that is not a company.
+PEERS_PROMPT = """You are given web pages about the competitive landscape of a target company.
+Pick its direct competitors as the pages name them: same business, overlapping markets, the
+ones named most often first. Drop the target itself, its subsidiaries, suppliers and the
+sites that publish the comparisons. Only use names that appear in the pages.
 
 Answer with JSON only:
 {"sector": "the sector in three or four words", "peers": ["Company name", ...]}
@@ -89,25 +89,29 @@ class PeersAgent:
 
     def find_peers(self, snapshot: ScoreSnapshot) -> PeerSet:
         assert self.exa_api_key and self.llm and snapshot.name
+        # Exa's `company` category returns look-alike home pages and misses the obvious rivals.
+        # Plain search returns the articles that compare the company with them.
         hits = exa.search(
-            f"companies that compete with {snapshot.name}, same business and markets",
+            f"{snapshot.name} competidores principales: empresas rivales en sus mercados",
             self.exa_api_key,
             num_results=PEER_CANDIDATES,
-            category="company",
+            text_chars=SNIPPET_CHARS,
         )
-        user = f"Target company: {snapshot.name}\n\nCandidates:\n\n" + _blocks(hits)
-        raw = self.llm.complete(PEERS_PROMPT.replace("{max_peers}", str(MAX_PEERS)), user)
-        peer_set = PeerSet.model_validate_json(_strip_fences(raw))
+        user = f"Target company: {snapshot.name}\n\nPages:\n\n" + _blocks(hits)
+        system = PEERS_PROMPT.replace("{max_peers}", str(MAX_PEERS))
+        peer_set = complete_json(self.llm, system, user, PeerSet)
         peer_set.peers = peer_set.peers[:MAX_PEERS]
         return peer_set
 
-    def peer_news(self, peers: list[str]) -> dict[str, list[ExaResult]]:
+    def peer_news(self, peer_set: PeerSet) -> dict[str, list[ExaResult]]:
         assert self.exa_api_key
         since = date.today() - timedelta(days=NEWS_WINDOW_DAYS)
 
         def one(peer: str) -> list[ExaResult]:
             hits = exa.search(
-                f"{peer} financial results, debt, layoffs, regulation",
+                # The sector keeps a common name on the right company: Bolt the ride-hailing
+                # firm, not Bolt the checkout fintech.
+                f"{peer} ({peer_set.sector}) financial results, debt, layoffs, regulation",
                 self.exa_api_key,
                 num_results=NEWS_PER_PEER,
                 category="news",
@@ -116,6 +120,7 @@ class PeersAgent:
             )
             return [hit for hit in hits if not is_social(hit.url)]
 
+        peers = peer_set.peers
         with ThreadPoolExecutor(max_workers=len(peers)) as pool:
             return dict(zip(peers, pool.map(one, peers), strict=True))
 
@@ -130,7 +135,7 @@ class PeersAgent:
             f"Score {snapshot.level:.0f}/100 in {snapshot.month}, "
             f"moves since last month: {moves or 'none reported'}\n\n" + "\n\n".join(sections)
         )
-        return SectorRead.model_validate_json(_strip_fences(self.llm.complete(SECTOR_PROMPT, user)))
+        return complete_json(self.llm, SECTOR_PROMPT, user, SectorRead)
 
     def run(self, snapshot: ScoreSnapshot, refresh: bool = False) -> AgentReport:
         if not self.exa_api_key or not self.llm or not snapshot.name:
@@ -142,7 +147,7 @@ class PeersAgent:
         peer_set = self.find_peers(snapshot)
         if not peer_set.peers:
             return AgentReport(agent=self.name, summary=f"No peers found for {snapshot.name}.")
-        news = self.peer_news(peer_set.peers)
+        news = self.peer_news(peer_set)
         read = self.read_sector(snapshot, peer_set, news)
         report = AgentReport(
             agent=self.name,

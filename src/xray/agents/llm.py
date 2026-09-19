@@ -4,6 +4,7 @@ import json
 from typing import Protocol
 
 import httpx
+from pydantic import BaseModel
 
 from xray.settings import Settings
 
@@ -49,6 +50,14 @@ class OpenAICompatibleLLM:
                 if choices and (text := choices[0]["delta"].get("content")):
                     parts.append(text)
         return "".join(parts)
+
+
+def complete_json[T: BaseModel](llm: LLM, system: str, user: str, schema: type[T]) -> T:
+    """Ask for JSON and validate it. Models wrap JSON in a code fence even when told not to."""
+    text = llm.complete(system, user).strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
+    return schema.model_validate_json(text.strip())
 
 
 def build_llm(settings: Settings) -> LLM | None:

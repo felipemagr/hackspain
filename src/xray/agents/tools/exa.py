@@ -27,10 +27,7 @@ def search(
     published_after: date | None = None,
     text_chars: int = 700,
 ) -> list[ExaResult]:
-    """Run one search and return the hits with the first `text_chars` of each page.
-
-    `category="company"` returns company home pages, which is how peers are found.
-    """
+    """Run one search and return the hits with the first `text_chars` of each page."""
     body: dict = {
         "query": query,
         "numResults": num_results,

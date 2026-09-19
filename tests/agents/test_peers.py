@@ -36,7 +36,7 @@ def exa_calls(monkeypatch):
 
 class FakeLLM:
     def complete(self, system, user):
-        if "Candidates:" in user:
+        if "Pages:" in user:
             return '{"sector": "ride hailing", "peers": ["Rival", "Other", "C", "D", "E"]}'
         assert "published: 2026-02-10" in user
         assert "x.com" not in user
@@ -55,8 +55,8 @@ def test_run_finds_peers_then_reads_their_news(exa_calls, snapshot):
     assert report.summary == "ride hailing, sector deteriorating. Peers are cutting too."
     assert report.findings == ["Rival: Laid off 200 in Q1 2026 [seen 2026-02-10, hurts]"]
     assert report.sources == ["https://news.example/rival"]
-    assert exa_calls[0]["category"] == "company"
-    # One company search, then one news search for each of the four peers kept.
+    assert "category" not in exa_calls[0]
+    # One landscape search, then one news search for each of the four peers kept.
     assert [call.get("category") for call in exa_calls[1:]] == ["news"] * 4
 
 

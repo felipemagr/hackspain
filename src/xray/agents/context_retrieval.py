@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from xray.agents.base import AgentReport, ScoreSnapshot
 from xray.agents.cache import JsonCache
-from xray.agents.llm import LLM, build_llm
+from xray.agents.llm import LLM, build_llm, complete_json
 from xray.agents.sources import TIER_LABELS, is_social, published_on, tier
 from xray.agents.tools import tavily
 from xray.agents.tools.tavily import Depth, SearchResult, Topic
@@ -115,8 +115,7 @@ class ContextRetrievalAgent:
                 f"{hit.content[:SNIPPET_CHARS]}"
             )
         user = f"Company: {name}\n\nSearch results:\n\n" + "\n\n".join(blocks)
-        raw = self.llm.complete(SYSTEM_PROMPT, user)
-        return Extraction.model_validate_json(_strip_fences(raw))
+        return complete_json(self.llm, SYSTEM_PROMPT, user, Extraction)
 
     def run(self, snapshot: ScoreSnapshot, refresh: bool = False) -> AgentReport:
         if not self.tavily_api_key or not snapshot.name:
@@ -165,13 +164,6 @@ def _line(finding: Finding) -> str:
     seen = finding.published.isoformat() if finding.published else "undated"
     period = finding.period or "period unknown"
     return f"{finding.fact} [{period}, seen {seen}, {finding.direction}]"
-
-
-def _strip_fences(text: str) -> str:
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
-    return text.strip()
 
 
 def main() -> None:

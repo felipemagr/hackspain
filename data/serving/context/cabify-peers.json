@@ -1,41 +1,41 @@
 {
   "key": "Cabify peers",
-  "stored_at": "2026-09-19T09:48:58.499610+00:00",
+  "stored_at": "2026-09-19T09:54:53.021266+00:00",
   "payload": {
-    "sector": "Ride-hailing and taxi booking",
-    "sector_direction": "mixed",
+    "sector": "ride-hailing mobility platforms",
+    "sector_direction": "improving",
     "peers": [
-      "Freenow",
-      "Gett",
-      "Heetch",
-      "Rapido"
+      "Uber",
+      "Bolt",
+      "Free Now",
+      "DiDi"
     ],
     "report": {
       "agent": "peers",
-      "summary": "Ride-hailing and taxi booking, sector mixed. Peer signals are split: Rapido grew FY25 revenue 44% to Rs 934.4 crore and cut losses about 30%, and Freenow gained a deep-pocketed owner via Lyft's US$200m acquisition with expansion plans, while Gett was sold at a modest $190m valuation amid Israeli regulatory friction, Heetch is quietly cutting French staff and offshoring to Algeria, and Rapido was fined by India's consumer watchdog in September 2026. With no uniform deterioration or improvement across the sector, Cabify's unchanged 50/100 score in 2026-09 looks company-specific rather than tracking a clear sector-wide move.",
+      "summary": "ride-hailing mobility platforms, sector improving. The most recent peer signals are broadly positive: Uber grew Q2 2026 gross bookings 22% year over year with a 13.3% margin (though its net debt rose sharply), Bolt posted its first-ever annual profit in 2025 and beat Kenya's government in court over commission caps, and DiDi swung back to a Q2 2026 quarterly profit after a Q1 loss. Remaining negatives are mostly unit- or market-specific: Uber's rising net debt, DiDi's first-half loss from overseas expansion, and the near-wipeout of Bolt's UK profit on legal costs. With no score move reported for Cabify this month, its static 50/100 looks company-specific rather than a reflection of sector-wide deterioration, since the peer group is if anything improving.",
       "findings": [
-        "Rapido: India's consumer watchdog fined Rapido Rs 10 lakh (September 2026) for misleading ads, unfair practices and dark patterns, saying it displayed an initial fare and then prompted riders to pay more. [seen 2026-09-15, hurts]",
-        "Gett: VNV Global reported that the Israeli Competition Authority's review of the sale of its Gett holding had raised concerns that could potentially impact completion of the transaction. [seen 2026-08-19, hurts]",
-        "sector: Algeria's ride-hailing market is consolidating around Yassir ($193M raised, 45 cities), Temtem (4,000+ drivers, 21 wilayas) and Heetch after Yango's regulatory-driven exit in August 2024, with the Transport Ministry developing updated VTC rules and taxi pricing (April 2026). [seen 2026-04-10, neutral]",
-        "Rapido: Rapido's parent Roppen Transportation Services narrowed FY25 (year ended March 2025) losses 30% to Rs 258.4 crore from Rs 370.7 crore in FY24 while revenue crossed Rs 900 crore. [seen 2026-01-20, helps]",
-        "Rapido: Rapido's operating revenue rose 44% to Rs 934.4 crore in FY25 (ended March 2025) from Rs 648 crore, and including other income of Rs 68.4 crore it surpassed Rs 1,000 crore, with losses cut by 23%. [seen 2026-01-12, helps]",
-        "Freenow: Freenow, entering its first full year under Lyft ownership, outlined an expanded European growth strategy and confirmed preparations to introduce autonomous vehicles from 2026 (January 2026). [seen 2026-01-03, helps]",
-        "Heetch: Heetch is discreetly reducing its workforce in France and relocating operations to Algeria, with reports of degraded working conditions for drivers (November 2025). [seen 2025-11-27, hurts]",
-        "Gett: Gett was sold for $190 million (August 2025) to a six-investor consortium, each taking a 16.6% stake of about $31.66 million, with no due diligence and buyers inheriting a $70 million cash reserve. [seen 2025-08-15, hurts]",
-        "Freenow: Lyft completed its US$200m acquisition of Freenow (August 2025) after regulator approval, its first expansion outside North America, strengthening its foothold across nine European countries. [seen 2025-08-07, helps]",
-        "Gett: After Pango withdrew a previous merger agreement with Gett due to Israel's Competition Authority opposition, a restructured $190M deal with Leumi Partners and five investors, none holding control, was initiated to sidestep scrutiny (June 2025). [seen 2025-06-11, neutral]"
+        "Bolt: Bolt defeated the Kenyan government in court over commission caps and licence rules, easing regulatory pressure on its take rate in that market. [seen 2026-09-15, helps]",
+        "Uber: Uber's margin improved year over year to 13.3% in Q2 2026. [seen 2026-09-11, helps]",
+        "Uber: Uber's net debt rose sharply sequentially, offsetting its year-over-year improvement in revenue, EPS and pre-tax margin. [seen 2026-09-11, hurts]",
+        "Uber: Uber announced organizational changes removing management layers and simplifying team structures to refocus people and investments. [seen 2026-09-08, neutral]",
+        "DiDi: Didi returned to a net profit of 869 million yuan in Q2 2026, swinging to profit from a year earlier. [seen 2026-08-14, helps]",
+        "DiDi: Didi remained in the red for the first half of 2026 as aggressive overseas expansion weighed on results. [seen 2026-08-14, hurts]",
+        "Uber: Uber's Q2 2026 gross bookings grew 22% year over year on a constant-currency basis with trips up 18%, GAAP income from operations of $1.9 billion and non-GAAP operating income of $2.1 billion, up 40% year over year. [seen 2026-08-05, helps]",
+        "Bolt: Bolt posted its first-ever net profit of €900,000 for 2025, with revenue up 14% year over year to €2.27 billion. [seen 2026-06-29, helps]",
+        "DiDi: Didi swung to a Q1 2026 net loss of 1.2 billion yuan ($177.43 million) as higher losses from its international business weighed on profitability. [seen 2026-06-02, hurts]",
+        "Bolt: Bolt's UK arm reported a pre-tax profit of £133,355 for 2024, down from £8.2 million in 2023, as ongoing legal battles consumed considerable resources. [seen 2025-09-18, hurts]",
+        "FreeNow: Lyft agreed to acquire European taxi app FreeNow for $199 million, its first acquisition in the highly competitive European ride-hailing market. [seen 2025-04-16, neutral]"
       ],
       "sources": [
-        "https://actualite-vtc.com/heetch-delocalisation-algerie-reductions-deffectifs-et-degradation-des-conditions-travail-risques-securite-chauffeurs-vtc/",
-        "https://algeriatech.news/algeria-ride-hailing-regulation-yassir-temtem-heetch-2026/",
-        "https://telcomagazine.com/news/will-buying-freenow-help-lyft-compete-with-uber-in-europe",
-        "https://www.calcalistech.com/ctechnews/article/rjmuqknuxe",
-        "https://www.calcalistech.com/ctechnews/article/twc9n0coj",
-        "https://www.cnbctv18.com/business/consumer-watchdog-fines-rapido-rs-10-lakh-for-misleading-ads-unfair-practices-and-dark-patterns-19991247.htm",
-        "https://www.cnbctv18.com/business/startup/rapido-shifts-gears-revenue-crosses-rs-900-crore-losses-shrink-in-fy25-ws-l-19824720.htm",
-        "https://www.inderes.fi/en/releases/vnv-global-provides-update-on-the-ongoing-gett-transaction",
-        "https://www.medianama.com/2026/01/223-rapido-fy25-revenue-jumps-44-percent-loss-narrows/",
-        "https://www.taxi-point.co.uk/post/freenow-ceo-sets-out-post-acquisition-strategy-as-lyft-integration-deepens-and-autonomous-plans-adva"
+        "https://hk.marketscreener.com/news/china-ride-hailing-giant-didi-swings-to-q1-loss-ce7f5dded981f422",
+        "https://last10k.com/sec-filings/uber/0001543151-26-000032.htm",
+        "https://news.err.ee/1610065420/estonian-mobility-unicorn-bolt-reaches-profit-for-the-first-time",
+        "https://sagenoodle.com/research/uber-margin-improves-as-net-debt-rises",
+        "https://www.caixinglobal.com/2026-08-14/didi-swings-to-quarterly-profit-but-overseas-push-weighs-on-first-half-results-102474321.html",
+        "https://www.cityam.com/bolt-uber-rivals-profit-almost-wiped-out-as-legal-battles-drag-on/",
+        "https://www.cnbc.com/2025/04/16/lyft-to-buy-taxi-app-free-now-for-200-million-to-expand-into-europe.html",
+        "https://www.standardmedia.co.ke/business/business/article/2001557787/bolt-beats-government-in-a-clash-in-court-over-commission-caps-license-rules",
+        "https://www.uber.com/us/en/newsroom/simplerfasteruber/"
       ]
     }
   }
