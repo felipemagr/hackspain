@@ -120,7 +120,7 @@ export function GroupList({
             type="search"
             value={view.query}
             onChange={(e) => onView({ ...view, query: e.target.value })}
-            placeholder="Search name, sector, state, or >70"
+            placeholder="Search name, state, or >70"
             aria-label="Search groups"
           />
           <button

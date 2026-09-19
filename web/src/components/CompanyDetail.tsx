@@ -74,7 +74,7 @@ export function CompanyDetail({ store, companyId, month, onMonth, onBack }: Comp
           onMonth={onMonth}
           primary={{ name: company.name, history }}
           compare={[group ? { name: group.name, history: store.scoresByGroup.get(company.group_id) ?? [] } : null]}
-          macro={null}
+          macros={[]}
           alerts={store.companyAlerts.filter((a) => a.company_id === companyId).map((a) => ({ ...a, group_id: companyId }))}
         />
       </section>

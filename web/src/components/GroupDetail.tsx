@@ -19,19 +19,19 @@ import type { ScoreRow } from "../lib/types";
 import type { Weights } from "../lib/scoring";
 import { useTween } from "../lib/useTween";
 import { LowDataNote } from "./LowData";
-import { Menu } from "./Menu";
+import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
 import { PromptPay } from "./PromptPay";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
-import { TrajectoryChart } from "./TrajectoryChart";
+import { MACRO_COLORS, TrajectoryChart } from "./TrajectoryChart";
 import { WhatIf } from "./WhatIf";
 import { CHART_COLORS, DEFAULT_CHART, type ChartConfig } from "../lib/viewAgent";
 import { scoreLabels } from "../lib/scoring";
 
 /** Where a market's level comes from and how it is built. Opens on hover or keyboard focus. */
-function MacroInfo({ macro }: { macro: MacroSeries }) {
+function MacroInfo({ macros }: { macros: MacroSeries[] }) {
   return (
     <span className="info">
       <button
@@ -54,8 +54,9 @@ function MacroInfo({ macro }: { macro: MacroSeries }) {
         </span>
         <span className="info__note">
           Each pillar is 0-100 on fixed anchors, then a weighted mean.
-          Conditions, not distance to distress. Built from {macro.source}, to{" "}
-          {macro.through}.
+          Conditions, not distance to distress. Built from{" "}
+          {[...new Set(macros.map((m) => m.source))].join("; ")}, to{" "}
+          {macros.map((m) => m.through).sort().slice(-1)[0]}.
         </span>
       </span>
     </span>
@@ -65,6 +66,11 @@ function MacroInfo({ macro }: { macro: MacroSeries }) {
 interface GroupDetailProps {
   store: Store;
   groupId: string;
+  /** One group id per comparison slot, "" when free. */
+  compareSlots: string[];
+  /** Adds the group to a free slot, or removes it. */
+  onCompare: (groupId: string) => void;
+  onClearCompare: () => void;
   month: string;
   onMonth: (month: string) => void;
   favorite: boolean;
@@ -104,6 +110,9 @@ function heading(score: ScoreRow): string {
 export function GroupDetail({
   store,
   groupId,
+  compareSlots,
+  onCompare,
+  onClearCompare,
   month,
   onMonth,
   favorite,
@@ -132,9 +141,10 @@ export function GroupDetail({
   const line = score ? heading(score) : "";
   const thin = !store.localScoring && thinHistory(score?.months_observed);
   const [level] = useTween([score?.level ?? NaN]);
-  const [macroId, setMacroId] = useState(() =>
+  const [macroIds, setMacroIds] = useState(() => [
     defaultMacro(group?.country ?? null),
-  );
+  ]);
+  const [query, setQuery] = useState("");
   if (!group) return null;
 
   const drivers = store.driversAt(groupId, month);
@@ -150,7 +160,13 @@ export function GroupDetail({
       (store.companyImpactAt(b.company_id, month)?.impact_points ?? -Infinity) -
       (store.companyImpactAt(a.company_id, month)?.impact_points ?? -Infinity),
   );
-  const macro = MACRO_BY_ID.get(macroId) ?? null;
+  const macros = macroIds.flatMap((id) => MACRO_BY_ID.get(id) ?? []);
+  const peers = compareSlots.flatMap((id) => store.groupById.get(id) ?? []);
+  const slotsFree = peers.length < compareSlots.length;
+  const q = query.trim().toLowerCase();
+  const candidates = store.groups.filter(
+    (g) => g.group_id !== groupId && (!q || g.name.toLowerCase().includes(q)),
+  );
   const chartHistory = (metric: string) => metric === "level" ? history : history.map(row => ({ ...row, level: row.localScoring?.families[metric]?.score ?? null }));
   const periodStart = chart.months ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - chart.months, 1)).toISOString().slice(0, 10) : "";
   const observed = new Map(chart.series.map(metric => [metric, chartHistory(metric).filter(row => row.month <= month && row.month >= periodStart && row.level != null && Number.isFinite(row.level)).length]));
@@ -159,7 +175,10 @@ export function GroupDetail({
   const chartPrimary = chartSeries[0];
   const primaryName = chartPrimary === "level" ? group.name : scoreLabels[chartPrimary];
   const showMarket = chartSeries.length === 1 && chartPrimary === "level";
-  const chartComparisons = chartSeries.slice(1).map(metric => ({ name: metric === "level" ? "Health score" : scoreLabels[metric], history: chartHistory(metric) }));
+  const chartComparisons = [
+    ...chartSeries.slice(1).map(metric => ({ name: metric === "level" ? "Health score" : scoreLabels[metric], history: chartHistory(metric) })),
+    ...(showMarket ? peers.map(peer => ({ name: peer.name, history: store.scoresByGroup.get(peer.group_id) ?? [] })) : []),
+  ];
 
   return (
     <article className="detail" aria-label={group.name}>
@@ -238,56 +257,113 @@ export function GroupDetail({
 
       <section>
         <div className="section-head">
-          <h2>{(omitted.length ? null : chart.title) ?? (showMarket ? "Health score" : "Pillar scores")}, {monthLong(month)}</h2>
+          <div className="section-title">
+            <h2>{(omitted.length ? null : chart.title) ?? (showMarket ? "Health score" : "Pillar scores")}</h2>
+            <span className="hint">{monthLong(month)}</span>
+          </div>
           {store.localScoring && <span className="hint">{store.localWeights?.has(groupId) ? "Custom weights" : "Default weights"}</span>}
           {showMarket && <div className="compare">
-            {macro && (
-              <span className="legend">
-                <span className="legend__item">
-                  <span className="key" style={{ background: CHART_COLORS[chart.color] }} />
-                  {group.name}
-                </span>
-                <span className="legend__item">
+            <span className="legend">
+              <span className="legend__item">
+                <span className="key" style={{ background: CHART_COLORS[chart.color] }} />
+                {group.name}
+              </span>
+              {peers.map((peer, k) => (
+                <button
+                  key={peer.group_id}
+                  className="legend__item legend__item--remove"
+                  aria-label={`Stop comparing with ${peer.name}`}
+                  onClick={() => onCompare(peer.group_id)}
+                >
+                  <span className="key" style={{ background: SERIES_COLORS[k % SERIES_COLORS.length] }} />
+                  {peer.name}
+                  <svg width="8" height="8" viewBox="0 0 10 10" aria-hidden>
+                    <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
+                  </svg>
+                </button>
+              ))}
+              {macros.map((series, k) => (
+                <span className="legend__item" key={series.id}>
                   <span
                     className="key key--dashed"
-                    style={{ background: "var(--series-3)" }}
+                    style={{ background: MACRO_COLORS[k % MACRO_COLORS.length] }}
                   />
-                  {macro.name}
+                  {series.name}
                 </span>
-              </span>
-            )}
+              ))}
+            </span>
             <Menu
-              label={macro ? `Against ${macro.name}` : "Against the market..."}
-              ariaLabel="Lay a market's health behind the score"
+              label={peers.length ? `Compare · ${peers.length}` : "Compare with..."}
+              ariaLabel="Compare with other groups"
+              align="right"
+            >
+              <input
+                className="menu__search"
+                type="search"
+                placeholder="Find a group"
+                aria-label="Find a group"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                autoFocus
+              />
+              <div className="menu__scroll">
+                {candidates.map((g) => {
+                  const on = compareSlots.includes(g.group_id);
+                  return (
+                    <Check
+                      key={g.group_id}
+                      checked={on}
+                      disabled={!on && !slotsFree}
+                      onChange={() => onCompare(g.group_id)}
+                    >
+                      {g.name}
+                    </Check>
+                  );
+                })}
+                {candidates.length === 0 && <p className="menu__note">No group by that name.</p>}
+              </div>
+              <p className="menu__note menu__foot">
+                {slotsFree ? `${peers.length} of ${compareSlots.length} selected` : `Up to ${compareSlots.length} at a time`}
+                {peers.length > 0 && (
+                  <button className="link" onClick={onClearCompare}>
+                    Clear
+                  </button>
+                )}
+              </p>
+            </Menu>
+            <Menu
+              label={macros.length === 1 ? macros[0].name : macros.length ? `Markets · ${macros.length}` : "Market health..."}
+              ariaLabel="Lay market health behind the score"
               align="right"
             >
               <div className="menu__scroll">
                 {MACRO_SERIES.map((series) => (
-                  <button
+                  <Check
                     key={series.id}
-                    className={`pick ${series.id === macroId ? "is-on" : ""}`}
-                    aria-pressed={series.id === macroId}
-                    onClick={() =>
-                      setMacroId(series.id === macroId ? "" : series.id)
+                    checked={macroIds.includes(series.id)}
+                    onChange={() =>
+                      setMacroIds((ids) =>
+                        ids.includes(series.id) ? ids.filter((id) => id !== series.id) : [...ids, series.id],
+                      )
                     }
                   >
                     {series.name}
                     {series.country && (
                       <span className="pick__tag">{series.country}</span>
                     )}
-                  </button>
+                  </Check>
                 ))}
               </div>
               <p className="menu__note menu__foot">
                 Published figures, aligned to the score's months.
-                {macro && (
-                  <button className="link" onClick={() => setMacroId("")}>
+                {macros.length > 0 && (
+                  <button className="link" onClick={() => setMacroIds([])}>
                     Clear
                   </button>
                 )}
               </p>
             </Menu>
-            {macro && <MacroInfo macro={macro} />}
+            {macros.length > 0 && <MacroInfo macros={macros} />}
           </div>}
         </div>
         {chartSeries.length > 0 ? <TrajectoryChart
@@ -297,7 +373,7 @@ export function GroupDetail({
           onMonth={onMonth}
           primary={{ name: primaryName, history: chartHistory(chartPrimary) }}
           compare={chartComparisons}
-          macro={showMarket ? macro : null}
+          macros={showMarket ? macros : []}
           alerts={chartPrimary === "level" ? store.alerts.filter((a) => a.group_id === groupId) : []}
         /> : <p className="empty">A time chart needs at least two observations in this period.</p>}
         {chartSeries.length > 0 && !showMarket && <div className="view-chart-legend">{chartSeries.map((metric, index) => <span className="legend__item" key={metric}><span className="key" style={{ background: index === 0 ? CHART_COLORS[chart.color] : SERIES_COLORS[index - 1] }} />{metric === "level" ? "Health score" : scoreLabels[metric]}</span>)}</div>}

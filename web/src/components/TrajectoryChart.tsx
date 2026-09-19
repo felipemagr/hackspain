@@ -16,8 +16,8 @@ interface TrajectoryChartProps {
   month: string;
   onMonth: (month: string) => void;
   primary: ChartSeries;
-  /** Market health level behind the score, on the same 0-100 axis. Null when none is picked. */
-  macro: MacroSeries | null;
+  /** Market health levels behind the score, on the same 0-100 axis. Empty when none is picked. */
+  macros: MacroSeries[];
   compare?: (ChartSeries | null)[];
   alerts: AlertRow[];
   config?: ChartConfig;
@@ -28,7 +28,7 @@ const M = { top: 16, right: 44, bottom: 28, left: 96 };
 const THRESHOLDS: Record<number, string> = { 70: "Healthy", 40: "Vulnerable" };
 // Narrowest zoom, in months between the two ends of the axis.
 const MIN_SPAN = 2;
-const MACRO_COLOR = "var(--series-3)";
+export const MACRO_COLORS = ["var(--series-3)", "var(--series-5)", "var(--series-4)", "var(--series-2)"];
 
 function align(months: string[], history: ScoreRow[]): number[] {
   const byMonth = new Map(history.map((s) => [s.month, s.level]));
@@ -40,7 +40,7 @@ export function TrajectoryChart({
   month,
   onMonth,
   primary,
-  macro,
+  macros,
   compare = [],
   alerts,
   config = DEFAULT_CHART,
@@ -77,7 +77,11 @@ export function TrajectoryChart({
   const cursor = months.indexOf(month);
   const target = align(months, primary.history);
   const a = useTween(target);
-  const macroVals = macro ? alignMacro(macro, months) : [];
+  const macroLines = macros.map((series, index) => ({
+    series,
+    color: MACRO_COLORS[index % MACRO_COLORS.length],
+    vals: alignMacro(series, months),
+  }));
   const compareTargets = compare.map(series => series ? align(months, series.history) : months.map(() => NaN));
   const flat = useTween(compareTargets.flat());
   const others = compare.flatMap((series, index) =>
@@ -88,7 +92,7 @@ export function TrajectoryChart({
   const [i0, i1] = zi[0] >= 0 && zi[1] > zi[0] ? zi : [0, Math.max(n - 1, 0)];
   const zoomed = i0 > 0 || i1 < n - 1;
   // Zoomed in, the score axis closes on what is drawn; the full window keeps the fixed 0 to 100.
-  const seen = [target, macroVals, ...compareTargets]
+  const seen = [target, ...macroLines.map((line) => line.vals), ...compareTargets]
     .flatMap((vals) => vals.slice(i0, i1 + 1))
     .filter(Number.isFinite);
   const yLo =
@@ -164,7 +168,7 @@ export function TrajectoryChart({
   const endLabels = [
     { v: a[cursor], color: primaryColor },
     ...others.map(series => ({ v: series.vals[cursor], color: series.color })),
-    ...(macro ? [{ v: macroVals[cursor], color: MACRO_COLOR }] : []),
+    ...macroLines.map((line) => ({ v: line.vals[cursor], color: line.color })),
   ]
     .filter((l) => cursorSeen && Number.isFinite(l.v))
     .map((l) => ({ ...l, py: y(l.v) }))
@@ -195,7 +199,7 @@ export function TrajectoryChart({
         width={width}
         height={H}
         role="img"
-        aria-label={`${config.type} chart of ${primary.name}${others.map(series => ` and ${series.name}`).join("")} over ${n} months${macro ? `, against ${macro.name}` : ""}. Click to move to a month, drag across months to zoom in.`}
+        aria-label={`${config.type} chart of ${primary.name}${others.map(series => ` and ${series.name}`).join("")} over ${n} months${macros.length ? `, against ${macros.map((series) => series.name).join(", ")}` : ""}. Click to move to a month, drag across months to zoom in.`}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           press.current = { index: indexAt(e.clientX), clientX: e.clientX };
@@ -302,13 +306,14 @@ export function TrajectoryChart({
             />
           )}
 
-          {macro && (
+          {macroLines.map((line) => (
             <path
-              d={path(macroVals, 0, n - 1)}
+              key={line.series.id}
+              d={path(line.vals, 0, n - 1)}
               className="chart__line chart__line--macro"
-              stroke={MACRO_COLOR}
+              stroke={line.color}
             />
-          )}
+          ))}
 
           {config.type === "area" && <>
             <path d={areaPath(a)} fill="url(#wash)" />
@@ -411,16 +416,16 @@ export function TrajectoryChart({
               </div>
             ),
           )}
-          {macro && Number.isFinite(macroVals[activeHover]) && (
-            <div className="tooltip__row">
+          {macroLines.map((line) => Number.isFinite(line.vals[activeHover]) && (
+            <div className="tooltip__row" key={line.series.id}>
               <span
                 className="key key--dashed"
-                style={{ background: MACRO_COLOR }}
+                style={{ background: line.color }}
               />
-              <strong>{macroVals[activeHover].toFixed(0)}</strong>
-              <span>{macro.name}</span>
+              <strong>{line.vals[activeHover].toFixed(0)}</strong>
+              <span>{line.series.name}</span>
             </div>
-          )}
+          ))}
           {hoverAlert && (
             <div className="tooltip__note">
               Alert: {STATE_META[hoverAlert.state_from].label} to{" "}

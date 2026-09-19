@@ -18,8 +18,11 @@ import type { EntityDetail, Weights } from "./lib/scoring";
 import { alertKey } from "./lib/meta";
 import { useStoredSet } from "./lib/useStoredSet";
 
-// Deep links for the demo: ?group=GROUP_0220&month=2026-08-01&tab=alerts|agents
+// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043,GROUP_0173&month=2026-08-01&tab=alerts|agents
 const params = new URLSearchParams(window.location.search);
+// How many groups can sit on the chart beside the selected one.
+const COMPARE_SLOTS = 4;
+const askedCompare = (params.get("compare") ?? "").split(",").filter(Boolean);
 // The brief's Velasco: healthy at 94, bending alarm at 82, tier crossed four months later.
 const DEFAULT_GROUP = "GROUP_0220";
 // How often to ask the API whether a new build of the tables was published.
@@ -39,6 +42,9 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("entity") ?? params.get("group") ?? DEFAULT_GROUP);
+  const [compareSlots, setCompareSlots] = useState(() =>
+    Array.from({ length: COMPARE_SLOTS }, (_, k) => askedCompare[k] ?? ""),
+  );
   const [view, setView] = useState(DEFAULT_VIEW);
   const [favorites, updateFavorites] = useStoredSet("xray.favorites");
   const [cleared, updateCleared] = useStoredSet("xray.clearedAlerts");
@@ -155,8 +161,18 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
   }
   if (!store) return <p className="splash">Loading</p>;
 
+  const toggleCompare = (groupId: string) =>
+    setCompareSlots((slots) => {
+      const next = [...slots];
+      const at = next.indexOf(groupId);
+      if (at >= 0) next[at] = "";
+      else if (next.includes("")) next[next.indexOf("")] = groupId;
+      return next;
+    });
+
   const select = (groupId: string) => {
     setSelectedId(groupId);
+    setCompareSlots((slots) => slots.map((id) => (id === groupId ? "" : id)));
     setSelectedCompanyId(null);
   };
   const toggleFavorite = (groupId: string) =>
@@ -275,6 +291,9 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
             onEntity={localScoring ? (id, scope) => { setSelectedId(id); setKind(scope); } : undefined}
             store={store}
             groupId={selectedId}
+            compareSlots={compareSlots}
+            onCompare={toggleCompare}
+            onClearCompare={() => setCompareSlots((slots) => slots.map(() => ""))}
             month={month}
             onMonth={setMonth}
             favorite={favorites.has(selectedId)}
