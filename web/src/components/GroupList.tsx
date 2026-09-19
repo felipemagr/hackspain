@@ -1,8 +1,9 @@
 import { fmtScore } from "../lib/format";
 import { DEFAULT_VIEW, type Direction, type ListView, type SortKey } from "../lib/listView";
-import { STATE_META, STATE_ORDER, toneColor } from "../lib/meta";
+import { STATE_META, STATE_ORDER, thinHistory, toneColor } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { GroupRow, ScoreRow, State } from "../lib/types";
+import { LowDataMark } from "./LowData";
 import { Check, Menu } from "./Menu";
 import { Sparkline } from "./Sparkline";
 import { Star } from "./Star";
@@ -184,6 +185,8 @@ export function GroupList({
               .filter((s) => s.month <= month)
               .map((s) => s.level);
             const state = score?.state ?? "not_enough_data";
+            const months = score?.months_observed;
+            const thin = thinHistory(months);
             const favorite = favorites.has(group.group_id);
             return (
               <div
@@ -223,8 +226,15 @@ export function GroupList({
                     </span>
                   </span>
                   <Sparkline series={series} total={store.months.length} />
-                  <span className="row__level">{fmtScore(score?.level)}</span>
-                  <TrendArrow trend={score?.trend ?? null} />
+                  <span className={`row__level ${thin ? "is-thin" : ""}`}>{fmtScore(score?.level)}</span>
+                  {/* Under six months there is no trend to draw, so the cell says why instead. */}
+                  {thin ? (
+                    <span className="trend row__caveat">
+                      <LowDataMark months={months} />
+                    </span>
+                  ) : (
+                    <TrendArrow trend={score?.trend ?? null} />
+                  )}
                 </button>
               </div>
             );

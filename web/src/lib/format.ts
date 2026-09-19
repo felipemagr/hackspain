@@ -44,6 +44,10 @@ export function fmtEur(eur: number | null | undefined): string {
   return `${symbol}${v.toFixed(0)}`;
 }
 
+export function fmtMonthsOfData(months: number): string {
+  return `${months.toFixed(0)} ${months === 1 ? "month" : "months"} of data`;
+}
+
 /** "4 months early", or null when the alert did not run ahead of the tier change. */
 export function fmtEarly(months: number | null | undefined): string | null {
   if (!months || months <= 0) return null;

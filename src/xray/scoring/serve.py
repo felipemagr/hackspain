@@ -109,7 +109,11 @@ def _groups(
 def _companies(
     panel_company: pd.DataFrame, scores: pd.DataFrame, companies: pd.DataFrame
 ) -> pd.DataFrame:
-    """Subsidiaries at the group's last scored month: share of inflow, own level, weakest flag."""
+    """Subsidiaries at the group's last scored month: share of inflow, own level, weakest flag.
+
+    ``months_observed`` is the company's own count, so the front end can flag a subsidiary
+    whose level rests on a short history even when the group's is long.
+    """
     last_month = scores.groupby("group_id")["month"].max().rename("last_month")
     company_scores = score(panel_company, key="company_id")
     rows = panel_company.merge(last_month, left_on="group_id", right_index=True)
@@ -125,7 +129,7 @@ def _companies(
     named = pd.Series(_label(companies, "company_id", "name", rows["company_id"]))
     rows["name"] = named.fillna(rows["company_id"].reset_index(drop=True)).to_numpy()
     return rows[
-        ["company_id", "group_id", "name", "inflow_share", "level", "is_weakest"]
+        ["company_id", "group_id", "name", "inflow_share", "level", "is_weakest", "months_observed"]
     ].reset_index(drop=True)
 
 

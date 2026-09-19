@@ -60,6 +60,12 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 - **List row**: name and sector, sparkline (own range, shared time axis), level, trend arrow.
   Hover and selected are background fills with an 8px radius.
 - **State tag**: 7-8px dot plus label.
+- **Low-data caveat** (`LowData.tsx`): under six covered months (the engine's own cut-off) the
+  level is shown in `--ink-3` wherever it appears and a drawn warning glyph in ink says why. In
+  the header it is a sentence, "Low confidence: 4 months of data, the score needs 6."; in a rail
+  row the glyph takes the trend cell, which has nothing to draw yet, and the sentence is its
+  tooltip; a company row says "4 months of data" after its name. Never a state color: it says how
+  sure the score is, not how healthy.
 - **Trajectory chart** (`TrajectoryChart.tsx`): fixed 0-100 axis, dotted thresholds at 70 and 40
   labelled on the axis, 2px ink line up to the selected month and a receding grey line after it,
   a faint ink wash under a single series, alert rings in the state color, crosshair tooltip, click to move the month. Comparison adds up to four
