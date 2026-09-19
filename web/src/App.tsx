@@ -8,19 +8,30 @@ import { GroupList } from "./components/GroupList";
 import { useChat } from "./lib/chat";
 import { useDisplayCurrency } from "./lib/currency";
 import { monthLong } from "./lib/format";
+import { DEFAULT_VIEW } from "./lib/listView";
 import { loadStore, type Store } from "./lib/load";
+import { alertKey } from "./lib/meta";
+import { useStoredSet } from "./lib/useStoredSet";
 
-// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043&month=2026-08-01&tab=alerts|agents
+// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043,GROUP_0173&month=2026-08-01&tab=alerts|agents
 const params = new URLSearchParams(window.location.search);
 // The brief's Velasco: healthy at 94, bending alarm at 82, tier crossed four months later.
 const DEFAULT_GROUP = "GROUP_0220";
+// A comparison keeps its slot, and so its color, while others come and go. "" is a free slot.
+const COMPARE_SLOTS = 4;
+const askedCompare = (params.get("compare") ?? "").split(",").filter(Boolean);
 
 export default function App() {
   const [store, setStore] = useState<Store | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("group") ?? DEFAULT_GROUP);
-  const [compareId, setCompareId] = useState(params.get("compare") ?? "");
+  const [compareSlots, setCompareSlots] = useState(() =>
+    Array.from({ length: COMPARE_SLOTS }, (_, k) => askedCompare[k] ?? ""),
+  );
+  const [view, setView] = useState(DEFAULT_VIEW);
+  const [favorites, updateFavorites] = useStoredSet("xray.favorites");
+  const [cleared, updateCleared] = useStoredSet("xray.clearedAlerts");
   const askedTab = params.get("tab");
   const [tab, setTab] = useState<"groups" | "alerts" | "agents">(
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
@@ -49,7 +60,12 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return;
+      if (
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLInputElement
+      )
+        return;
       if (e.key === "ArrowLeft") stepMonth(-1);
       if (e.key === "ArrowRight") stepMonth(1);
     };
@@ -68,10 +84,24 @@ export default function App() {
 
   const select = (groupId: string) => {
     setSelectedId(groupId);
-    if (groupId === compareId) setCompareId("");
+    setCompareSlots((slots) => slots.map((id) => (id === groupId ? "" : id)));
   };
+  const toggleCompare = (groupId: string) =>
+    setCompareSlots((slots) => {
+      const next = [...slots];
+      const at = next.indexOf(groupId);
+      if (at >= 0) next[at] = "";
+      else if (next.includes("")) next[next.indexOf("")] = groupId;
+      return next;
+    });
+  const toggleFavorite = (groupId: string) =>
+    updateFavorites((next) => {
+      if (!next.delete(groupId)) next.add(groupId);
+    });
   const i = store.months.indexOf(month);
-  const alertCount = store.alerts.filter((a) => a.month <= month).length;
+  const alertCount = store.alerts.filter(
+    (a) => a.month <= month && !cleared.has(alertKey(a)),
+  ).length;
 
   return (
     <div className="app">
@@ -128,7 +158,16 @@ export default function App() {
               onRetry={chat.wake}
             />
           ) : tab === "groups" ? (
-            <GroupList store={store} month={month} selectedId={selectedId} onSelect={select} />
+            <GroupList
+              store={store}
+              month={month}
+              selectedId={selectedId}
+              onSelect={select}
+              view={view}
+              onView={setView}
+              favorites={favorites}
+              onFavorite={toggleFavorite}
+            />
           ) : (
             <AlertList
               store={store}
@@ -138,6 +177,9 @@ export default function App() {
                 select(groupId);
                 setMonth(m);
               }}
+              cleared={cleared}
+              onClear={(keys) => updateCleared((next) => keys.forEach((k) => next.add(k)))}
+              onRestore={() => updateCleared((next) => next.clear())}
             />
           )}
         </div>
@@ -161,10 +203,13 @@ export default function App() {
           <GroupDetail
             store={store}
             groupId={selectedId}
-            compareId={compareId}
+            compareSlots={compareSlots}
             month={month}
             onMonth={setMonth}
-            onCompare={setCompareId}
+            onCompare={toggleCompare}
+            onClearCompare={() => setCompareSlots((slots) => slots.map(() => ""))}
+            favorite={favorites.has(selectedId)}
+            onFavorite={() => toggleFavorite(selectedId)}
           />
         )}
       </main>

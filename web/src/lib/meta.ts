@@ -24,6 +24,11 @@ export const STATE_ORDER = (Object.keys(STATE_META) as State[]).sort(
   (a, b) => STATE_META[a].order - STATE_META[b].order,
 );
 
+// Comparison series by slot. Validated for color-blind separation against each other; none is a state color.
+export const SERIES_COLORS = ["var(--series-2)", "var(--series-3)", "var(--series-4)", "var(--series-5)"];
+
+export const alertKey = (a: { group_id: string; month: string }) => `${a.group_id}-${a.month}`;
+
 export const toneColor = (tone: Tone) => `var(--${tone})`;
 
 export interface PillarMeta {
