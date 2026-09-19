@@ -4,7 +4,7 @@ import pytest
 
 from xray.scoring.anchors import PILLAR_WEIGHTS
 from xray.scoring.explain import drivers
-from xray.scoring.offer import MIN_COMPOUND, actions, offers
+from xray.scoring.offer import HOLD_MONTHS, MIN_COMPOUND, actions, offers
 
 PILLARS = list(PILLAR_WEIGHTS)
 MONTHS = pd.date_range("2025-01-01", periods=3, freq="MS")
@@ -68,6 +68,46 @@ class TestOffers:
     def test_not_enough_data_is_never_eligible(self):
         o = offers(_scores(compound=MIN_COMPOUND + 20, state="not_enough_data"))
         assert not o["eligible"].any()
+
+
+class TestHold:
+    """A line is not repriced on a single bad month until the fall is confirmed."""
+
+    @staticmethod
+    def _falling(levels, states=None):
+        """One group over as many months as levels, priced off a compound that tracks the level."""
+        months = pd.date_range("2025-01-01", periods=len(levels), freq="MS")
+        return _scores(
+            month=months,
+            level=levels,
+            compound=levels,
+            state=states or ["stable"] * len(levels),
+        )
+
+    def test_one_bad_month_keeps_the_previous_terms(self):
+        levels = [70.0] * 6 + [45.0]
+        o = offers(self._falling(levels))
+        assert o["limit_hold"].iat[-1]
+        assert o["limit_eur"].iat[-1] == o["limit_eur"].iat[-2]
+        assert o["limit_change_eur"].iat[-1] == 0
+
+    def test_the_hold_expires_and_the_line_reprices(self):
+        levels = [70.0] * 6 + [45.0] * 3
+        o = offers(self._falling(levels))
+        assert o["limit_hold"].to_numpy()[6:].sum() == HOLD_MONTHS
+        assert o["limit_eur"].iat[-1] < o["limit_eur"].iat[5]
+
+    def test_a_confirmed_decline_reprices_at_once(self):
+        levels = [70.0] * 6 + [45.0]
+        o = offers(self._falling(levels, states=["stable"] * 6 + ["falling"]))
+        assert not o["limit_hold"].iat[-1]
+        assert o["limit_eur"].iat[-1] < o["limit_eur"].iat[-2]
+
+    def test_nothing_is_held_on_the_way_up(self):
+        levels = [45.0] * 6 + [70.0]
+        o = offers(self._falling(levels))
+        assert not o["limit_hold"].any()
+        assert o["limit_eur"].iat[-1] > o["limit_eur"].iat[-2]
 
 
 class TestActions:
