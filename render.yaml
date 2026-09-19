@@ -11,7 +11,7 @@ services:
     envVars:
       # Vite bakes it in at build time: the Agents tab calls the API, nothing else does.
       - key: VITE_API_URL
-        value: https://xray-api-w2uy.onrender.com
+        value: https://lighthouse-api-sku5.onrender.com
     routes:
       - type: rewrite
         source: /*
