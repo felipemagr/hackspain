@@ -325,7 +325,8 @@ web  polls /version every 3 s, refetches /api/v1/tables/*, tweens the cards, fol
 ```
 
 `make replay FROM=2025-01 PAUSE=8 CHANNEL=slack` cuts the challenge dump into the extracts each
-month would have delivered and feeds them through that loop. The cut is honest: transactions of
+month would have delivered and feeds them through that loop; `make demo` does the same with a
+synthetic dump of named Spanish scale-ups from `xray.pipeline.synth` (see `infra.md`). The cut is honest: transactions of
 the month; an invoice landing as pending in its issuance month and again as paid, under the same
 `operation_id`, in its payment month; and a balance snapshot per month, the final balance minus
 the booked flows after that month end, because landing the 2026-09 snapshot early would make

@@ -95,6 +95,7 @@ make alerts      # show what the monitor would send, send nothing
 make serve       # write the real serving tables to data/serving
 make submit RAW=path/to/hidden   # score a dump the system has never seen
 make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # live: a month lands every 8 s, web and Slack follow
+make demo FROM=2025-01 PAUSE=8           # same, on a synthetic dump of named Spanish scale-ups
 
 cp .env.example .env   # optional: Slack webhook, SMTP, CORS origins, port
 make api         # API with reload on http://localhost:8000 (docs at /docs)
@@ -135,7 +136,7 @@ Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/in
 
 ## The score in one paragraph
 
-Nine ratios read from the money trail, each over a trailing window: cash buffer in days of operating outflow, months overdrawn, six-month operating margin, run rate against the trailing year, amount-weighted days late and overdue months on payables and on receivables, debt service over inflow. Each maps to 0-100 through fixed published anchors, then into five pillars and one level with weights liquidity 0.40, payment discipline 0.20, cash generation 0.20, collections 0.10, debt burden 0.10. Nothing is fitted and nothing reads a population statistic, so a group scores the same alone as inside the portfolio. Direction and state come from a causal CUSUM on the smoothed level. Held out by group, the level separates forward negative cash at AUC 0.906 (51.0% in the bottom quintile, 0.6% in the top) and moves a median 2.7 points a month.
+Nine ratios read from the money trail, each over a trailing window: cash buffer in days of operating outflow, months overdrawn, six-month operating margin, run rate against the trailing year, amount-weighted days late and overdue months on payables and on receivables, debt service over inflow. Each maps to 0-100 through fixed published anchors, then into five pillars and one level with weights liquidity 0.40, payment discipline 0.20, cash generation 0.20, collections 0.10, debt burden 0.10. Nothing is fitted and nothing reads a population statistic, so a group scores the same alone as inside the portfolio. Direction and state come from a causal CUSUM on the smoothed level. Held out by group, the level separates forward negative cash at AUC 0.910 (51.6% in the bottom quintile, 0.6% in the top) and moves a median 2.5 points a month.
 
 ## Dataset
 
@@ -166,7 +167,7 @@ Nine ratios read from the money trail, each over a trailing window: cash buffer 
 - [x] Project scaffold, loaders, tooling
 - [x] Data audit: traps in `docs/architecture.md` 6; target and metric still unknown (`docs/brief.md` Q1)
 - [x] Monthly feature table per group
-- [x] Anchored score + group-wise validation, AUC 0.906 held out
+- [x] Anchored score + group-wise validation, AUC 0.910 held out
 - [ ] First leaderboard submission (`make submit` runs; format lands with the scoring script)
 - [x] Driver decomposition (why, and what moved since last month)
 

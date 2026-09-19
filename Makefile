@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score score-baseline validate monitor alerts notify serve submit replay api api-up api-down slack-test email-test \
+        events score score-baseline validate monitor alerts notify serve submit replay demo demo-data \
+        api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
 
@@ -92,6 +93,16 @@ replay: ## Land the dump month by month, publish and alert after each: make repl
 	uv run python -m xray.pipeline.replay --raw-dir $(RAW_DIR) \
 		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) $(if $(PAUSE),--pause $(PAUSE)) \
 		$(if $(CHANNEL),--channel $(CHANNEL)) $(if $(RESET),--reset) $(if $(CHECK),--check)
+
+DEMO_DIR := data/demo
+
+demo-data: ## Generate the synthetic Spanish scale-up dump (nine CSVs, invented figures) in data/demo/raw
+	uv run python -m xray.pipeline.synth --out $(DEMO_DIR)/raw
+
+demo: demo-data ## Live demo on that dump: a month lands every PAUSE s into data/serving. Run make api and make web first; make serve restores the real tables after
+	uv run python -m xray.pipeline.replay --raw-dir $(DEMO_DIR)/raw --lake-dir $(DEMO_DIR)/lake --reset \
+		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) --pause $(or $(PAUSE),8) \
+		$(if $(CHANNEL),--channel $(CHANNEL))
 
 mock: ## Write invented serving tables to data/serving so the product can be built before the score
 	uv run python -m xray.scoring.mock

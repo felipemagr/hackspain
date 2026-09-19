@@ -59,6 +59,17 @@ class TestReplayMatchesTheFullRun:
             expected = full.loc[full.index.get_level_values("month") <= month].sort_index()
             pd.testing.assert_series_equal(now, expected, check_names=False, atol=0.011)
 
+    def test_run_from_a_later_month_lands_the_earlier_ones_first(self, dump, tmp_path):
+        lake, serving = tmp_path / "lake", tmp_path / "serving"
+        serving.mkdir()
+        replay.run(
+            dump, MONTHS[6], MONTHS[7], pause=0, channel=None, lake_dir=lake, serving_dir=serving
+        )
+        version = json.loads((serving / "_version.json").read_text())
+        assert version["latest_month"] == MONTHS[7].strftime("%Y-%m-%d")
+        scores = pd.read_parquet(serving / "scores.parquet")
+        assert scores["month"].min() == MONTHS[0]
+
     def test_publish_swaps_tables_and_stamps_a_version(self, dump, tmp_path):
         raw = load_all(dump)
         lake, serving = tmp_path / "lake", tmp_path / "serving"

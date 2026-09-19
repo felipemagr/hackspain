@@ -161,3 +161,13 @@ make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # a month lands every 8 s, aler
 
 Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `xray-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
 
+### With names the room knows: `make demo`
+
+```bash
+make api && make web           # in two terminals, as above
+make demo FROM=2025-01 PAUSE=8 CHANNEL=slack
+make serve                     # afterwards: put the real challenge tables back in data/serving
+```
+
+`make demo` generates a synthetic dump in the challenge's nine-CSV shape for 24 Spanish scale-ups (`src/xray/pipeline/synth.py`: Glovo, Cabify, Jobandtalent, Idealista, Wallbox, Factorial...), each with an archetype written into its trail only, then replays it month by month exactly as above. Nothing downstream is scripted: the real pipeline scores the files, and the story has to come out of the transactions, invoices and balances. Glovo is the brief's Velasco (about 81 to 69, bending alarm in month 15 while still in the coping tier), Cabify its Northbrook (56 to 80). Every figure is invented and the names are labels; say so on stage. The dump and its lake live under `data/demo/`, git-ignored, and `make demo` overwrites `data/serving`, hence `make serve` after.
+

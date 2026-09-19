@@ -70,20 +70,35 @@ def _with_panel(scores: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
     return out.drop(columns=cols)
 
 
-def _groups(scores: pd.DataFrame, companies: pd.DataFrame) -> pd.DataFrame:
-    """One row per group as of its last scored month. The dataset carries no trading names."""
+def _label(table: pd.DataFrame | None, key: str, column: str, ids: pd.Series) -> np.ndarray:
+    """``column`` of ``table`` looked up by ``key``, when the dump carries it; else nulls."""
+    if table is None or column not in table:
+        return np.full(len(ids), None, dtype=object)
+    return ids.map(table.drop_duplicates(key).set_index(key)[column]).to_numpy()
+
+
+def _groups(
+    scores: pd.DataFrame, companies: pd.DataFrame, groups: pd.DataFrame | None
+) -> pd.DataFrame:
+    """One row per group as of its last scored month.
+
+    The challenge dump carries no trading names or sectors, so ``name`` falls back to the id; a
+    dump that does carry them (the synthetic demo) shows them.
+    """
     last = scores.sort_values("month").groupby("group_id").tail(1)
+    ids = last["group_id"]
     country = (
         companies.dropna(subset=["country"])
         .groupby("group_id")["country"]
         .agg(lambda s: s.mode().iat[0])
     )
+    names = pd.Series(_label(groups, "group_id", "name", ids)).fillna(ids.reset_index(drop=True))
     return pd.DataFrame(
         {
-            "group_id": last["group_id"].to_numpy(),
-            "name": last["group_id"].to_numpy(),
-            "sector": None,
-            "country": last["group_id"].map(country).to_numpy(),
+            "group_id": ids.to_numpy(),
+            "name": names.to_numpy(),
+            "sector": _label(groups, "group_id", "sector", ids),
+            "country": ids.map(country).to_numpy(),
             "n_companies": last["n_companies"].astype(int).to_numpy(),
             "has_erp": last["has_erp"].to_numpy(),
             "annual_revenue_eur": (last["monthly_inflow_eur"] * 12).round(-3).to_numpy(),
@@ -91,7 +106,9 @@ def _groups(scores: pd.DataFrame, companies: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def _companies(panel_company: pd.DataFrame, scores: pd.DataFrame) -> pd.DataFrame:
+def _companies(
+    panel_company: pd.DataFrame, scores: pd.DataFrame, companies: pd.DataFrame
+) -> pd.DataFrame:
     """Subsidiaries at the group's last scored month: share of inflow, own level, weakest flag."""
     last_month = scores.groupby("group_id")["month"].max().rename("last_month")
     company_scores = score(panel_company, key="company_id")
@@ -105,7 +122,8 @@ def _companies(panel_company: pd.DataFrame, scores: pd.DataFrame) -> pd.DataFram
     weakest = rows.groupby("group_id")["level"].transform("min")
     n_scored = rows.groupby("group_id")["level"].transform("count")
     rows["is_weakest"] = (rows["level"] == weakest) & (n_scored > 1)
-    rows["name"] = rows["company_id"]
+    named = pd.Series(_label(companies, "company_id", "name", rows["company_id"]))
+    rows["name"] = named.fillna(rows["company_id"].reset_index(drop=True)).to_numpy()
     return rows[
         ["company_id", "group_id", "name", "inflow_share", "level", "is_weakest"]
     ].reset_index(drop=True)
@@ -119,11 +137,15 @@ def build(
         pd.read_parquet(marts_dir / "panel_group.parquet"),
         pd.read_parquet(marts_dir / "panel_company.parquet"),
         pd.read_parquet(processed_dir / "companies.parquet"),
+        pd.read_parquet(processed_dir / "groups.parquet"),
     )
 
 
 def assemble(
-    panel: pd.DataFrame, panel_company: pd.DataFrame, companies: pd.DataFrame
+    panel: pd.DataFrame,
+    panel_company: pd.DataFrame,
+    companies: pd.DataFrame,
+    groups: pd.DataFrame | None = None,
 ) -> dict[str, pd.DataFrame]:
     """Every serving table from in-memory panels, for callers that never touch the marts."""
     scores = _with_panel(score(panel), panel)
@@ -132,8 +154,8 @@ def assemble(
 
     serving_scores = scores[list(SCORE_COLUMNS.values())].set_axis(list(SCORE_COLUMNS), axis=1)
     return {
-        "groups": _groups(scores, companies),
-        "companies": _companies(panel_company, scores),
+        "groups": _groups(scores, companies, groups),
+        "companies": _companies(panel_company, scores, companies),
         "scores": _rounded(serving_scores),
         "drivers": _rounded(explain.drivers(scores)),
         "alerts": alerts,

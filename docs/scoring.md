@@ -82,8 +82,8 @@ trailing sums and means over the last `k` covered months of the group, `min_peri
 |---|---|---|---|
 | `buffer_days` | `mean_3(cash) / (mean_3(outflow_op) / 30.42)` | `min_periods=1` | Days of operating outflow the cash covers. Both sides averaged so one lumpy month moves it by a third. The denominator is a mean, not `opout_3m / 91`, so the first months are not inflated by a partial window |
 | `negative_cash_share` | share of the last 3 months with `cash < -1.0` | `min_periods=1` | `-1.0`, not `< 0`: an emptied account reconstructs to `+-1e-10` depending on summation order |
-| `op_margin` | `(sum_6(inflow_op) - sum_6(outflow_op)) / sum_6(inflow_op)` | `min_periods=3` | Monthly margins swing several-fold; six months is where the median month-on-month move of this indicator falls under 5 points |
-| `inflow_growth` | `mean_3(inflow_op) / mean_12(inflow_op)` | 12m `min_periods=6` | Run rate against the trailing year. Ratio indicators cannot see a business shrinking proportionally; this one can |
+| `op_margin` | `(sum_6(inflow_op) - sum_6(outflow_op)) / sum_6(inflow_op)` | `min_periods=1` | Monthly margins swing several-fold; six months is where the median month-on-month move of this indicator falls under 5 points |
+| `inflow_growth` | `mean_3(inflow_op) / mean_12(inflow_op)` | `min_periods=1` | Run rate against the trailing year. Ratio indicators cannot see a business shrinking proportionally; this one can. Near 1 until history accrues |
 | `ap_days_late` | `sum_3(ap_late_days) / sum_3(ap_paid)` | `min_periods=1` | Amount-weighted days beyond due on payables paid in the window. A ratio of sums, not a mean of monthly ratios, so a month with nothing paid does not distort it |
 | `ap_overdue_months` | `ap_overdue_90d / (sum_3(ap_paid) / 3)` | `min_periods=1` | Overdue payables in months of the paid flow. The open-book ratio `ap_overdue / ap_open` was dropped: unpaid rows never close in this dataset, so it drifts towards 1 for every group |
 | `ar_days_late` | `sum_3(ar_late_days) / sum_3(ar_collected)` | `min_periods=1` | Same on the receivable side |
@@ -93,9 +93,15 @@ trailing sums and means over the last `k` covered months of the group, `min_peri
 Then `out.loc[~has_erp, INVOICE_INDICATORS] = NaN`: the four invoice indicators are absent, not
 zero, for a group without an ERP.
 
+Every indicator is available from a group's first covered month (`min_periods=1`). A pillar that
+joined later would move the level for a reason that is not the group's: the level is a
+renormalised mean, so a pillar arriving below the others reads as a decline. Making the basis
+complete from month one took real-data stability from 2.68 to 2.45 points and held-out AUC from
+0.906 to 0.910.
+
 Constants: `CASH_WINDOW_MONTHS = 3`, `NEGATIVE_CASH_WINDOW = 3`, `LATENESS_WINDOW_MONTHS = 3`,
-`MARGIN_WINDOW_MONTHS = 6`, `MARGIN_MIN_MONTHS = 3`, `GROWTH_SHORT_MONTHS = 3`,
-`GROWTH_LONG_MONTHS = 12`, `GROWTH_MIN_MONTHS = 6`, `DAYS_PER_MONTH = 365 / 12`,
+`MARGIN_WINDOW_MONTHS = 6`, `MARGIN_MIN_MONTHS = 1`, `GROWTH_SHORT_MONTHS = 3`,
+`GROWTH_LONG_MONTHS = 12`, `GROWTH_MIN_MONTHS = 1`, `DAYS_PER_MONTH = 365 / 12`,
 `OVERDRAWN_BELOW = -1.0`. All in `score.py`.
 
 ## 3. Sub-scores (`score.sub_scores`, `anchors.ANCHORS`)
@@ -304,15 +310,15 @@ and must never become a feature.
 `make validate` prints four blocks, split by **group** (30% held out, seed 2026):
 
 1. **Discrimination**: AUC of the level against each event, train and held out, plus the event
-   rate by level quintile. Today: `cash_negative` 0.906 held out (0.875 train), quintiles 51.0%
-   -> 0.6%. `missed_payroll` 0.581 and `inflow_collapse` 0.406 are not readable from the trail.
+   rate by level quintile. Today: `cash_negative` 0.910 held out (0.878 train), quintiles 51.6%
+   -> 0.6%. `missed_payroll` 0.593 and `inflow_collapse` 0.392 are not readable from the trail.
 2. **Trajectory**: event rate by 6-month Theil-Sen trend bucket. Today it shows the trend is not
    a second predictor (section 6).
-3. **Stability**: median and p90 of the month-on-month level change. Today 2.68 and 10.78,
+3. **Stability**: median and p90 of the month-on-month level change. Today 2.45 and 9.27,
    target under 3 on the median.
-4. **Ablation**: held-out AUC with each pillar dropped. Today only liquidity (-0.366) and debt
-   burden (-0.007) cost AUC when removed; payment discipline, collections and cash generation
-   each add +0.006 to +0.017 when dropped. They are kept for what they explain.
+4. **Ablation**: held-out AUC with each pillar dropped. Today only liquidity (-0.362) and debt
+   burden (-0.008) cost AUC when removed; payment discipline, collections and cash generation
+   each add +0.002 to +0.018 when dropped. They are kept for what they explain.
 
 ## 12. Changing things
 
