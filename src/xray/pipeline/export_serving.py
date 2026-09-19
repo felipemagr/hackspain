@@ -57,6 +57,9 @@ ENUM_CHECKS: dict[str, dict[str, set[str]]] = {
     "drivers": {"pillar": VALID_PILLARS},
 }
 
+# Read by the agents through the API, never by the page: not worth shipping as JSON.
+API_ONLY = {"payers"}
+
 
 def _validate(con: duckdb.DuckDBPyConnection, parquet: Path) -> None:
     """Fail loudly if a serving table drifts from what the front end renders."""
@@ -83,6 +86,8 @@ def export_serving() -> list[Path]:
     written = []
     with duckdb.connect() as con:
         for parquet in sorted(serving_dir.glob("*.parquet")):
+            if parquet.stem in API_ONLY:
+                continue
             _validate(con, parquet)
             target = WEB_DATA_DIR / f"{parquet.stem}.json"
             con.execute(f"copy (select * from '{parquet}') to '{target}' (format json, array true)")

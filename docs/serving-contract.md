@@ -100,3 +100,22 @@ monthly inflow), `apr` (12.5% down to 4.5%), `limit_change_eur`.
 
 `actions`: three ranked moves per group at its last month.
 `group_id`, `month`, `rank`, `pillar`, `action`, `expected_level_gain`.
+
+### `payers` (read by the Customers agent, not exported to the page)
+
+One row per group, month and customer, written by `xray.scoring.payers` (`make serve`). Built from
+the group's own receivable invoices as of each month: open and overdue are rebuilt from dates,
+`status` and `pending_amount` are never read. Kept: the 12 largest customers by billing plus the
+5 with the most overdue. Only groups with an ERP have rows.
+
+| Column | Meaning |
+|---|---|
+| `counterparty_id`, `name` | the customer; `name` is an alias, ids do not link to `companies` |
+| `billed_12m_eur`, `share_of_billing` | billing over the last twelve months and its share of the group's |
+| `open_eur`, `overdue_eur`, `oldest_overdue_days` | unpaid as of the month, the part past due, the oldest of it |
+| `n_paid`, `reliable` | paid invoices so far; reliable from 6 |
+| `days_late`, `days_late_change` | amount-weighted days beyond terms over six months, and against the six before |
+| `payer_score` | 100, minus 1.5 per day late (capped at 60 days), minus up to 10 for overdue exposure |
+
+Amounts are in euros at one rate per currency: the median of the last year of `exchange_rate`
+seen against the euro. The median, because USD carries a few rates off by orders of magnitude.
