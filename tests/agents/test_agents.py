@@ -6,8 +6,8 @@ import pytest
 
 from xray.agents.base import AgentReport, ScoreSnapshot
 from xray.agents.cache import JsonCache
-from xray.agents.context_retrieval import ContextRetrievalAgent
-from xray.agents.llm import OpenAICompatibleLLM
+from xray.agents.context_retrieval import ContextRetrievalAgent, Extraction
+from xray.agents.llm import OpenAICompatibleLLM, complete_json
 from xray.agents.narrator import NarratorAgent
 from xray.agents.orchestrator import Orchestrator
 from xray.agents.tools import tavily
@@ -146,3 +146,28 @@ def test_openai_compatible_llm_joins_streamed_content(monkeypatch):
     monkeypatch.setattr(httpx, "stream", fake_stream)
     llm = OpenAICompatibleLLM(api_key="k", model="m", base_url="https://llm.example/v1/")
     assert llm.complete("sys", "usr") == "hello"
+
+
+class TestCompleteJson:
+    @pytest.mark.parametrize(
+        "answer",
+        [
+            '{"summary": "fine"}',
+            '```json\n{"summary": "fine"}\n```',
+            'Here is the read:\n{"summary": "fine"}\nLet me know if you need more.',
+        ],
+    )
+    def test_reads_the_object_out_of_fences_and_prose(self, answer):
+        class Wordy:
+            def complete(self, system, user):
+                return answer
+
+        assert complete_json(Wordy(), "sys", "usr", Extraction).summary == "fine"
+
+    def test_an_answer_without_an_object_names_what_came_back(self):
+        class Chatty:
+            def complete(self, system, user):
+                return "I cannot do that."
+
+        with pytest.raises(ValueError, match="No JSON object in the answer: 'I cannot do that.'"):
+            complete_json(Chatty(), "sys", "usr", Extraction)

@@ -176,10 +176,7 @@ def test_a_question_on_collecting_reads_the_invoices_and_drafts_who_to_chase(db,
 def test_investor_lens_screens_the_group_and_sizes_its_debt_capacity(db, tmp_path):
     events = run(db, tmp_path, "would a search fund buy g1?")
 
-    assert (
-        "fails it on: margin 15% or more, not bending or falling"
-        in (done(events)["peers"]["summary"])
-    )
+    assert "fails it on: margin 9%, under 15%, state bending" in done(events)["peers"]["summary"]
     # 1.2m revenue at a 9% margin is 108,000 of cash: at 1.5x cover it carries 72,000 of debt
     # service against 77,143 today, so there is no headroom.
     assert any("carries 0 EUR more debt service" in f for f in done(events)["ledger"]["findings"])
@@ -228,6 +225,14 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
     # Asking what is set lists the book and adds nothing.
     events = run(db, tmp_path, "which alert rules are in place?")
     assert done(events)["notifier"]["summary"] == "2 rules in force."
+    assert len(load_rules(tmp_path / RULES_FILE)) == 2
+
+    # Asking again for a rule already in force keeps the one copy.
+    events = run(db, tmp_path, "slack me every move")
+    assert done(events)["notifier"]["summary"] == (
+        "Already in force as rule 2: Slack gets every alert on any group. Nothing added. "
+        "2 rules in force."
+    )
     assert len(load_rules(tmp_path / RULES_FILE)) == 2
 
 
@@ -293,11 +298,65 @@ class TestDirector:
 
         assert move.calls[0].month == "2026-03-01"
 
+    def test_spells_ids_as_the_tables_do_and_never_reads_a_later_month(self, db):
+        move = self.move(
+            db,
+            '{"calls": [{"tool": "peers", "group_id": " G1", "compare": "g9", "month": "2026-09"},'
+            ' {"tool": "scorecard", "group_id": "g1", "month": "March 2026"}]}',
+        )
+
+        assert [(c.group_id, c.compare, c.month) for c in move.calls] == [
+            ("g1", "g9", "2026-03-01"),
+            ("g1", None, "2026-03-01"),
+        ]
+
+    def test_reads_a_what_if_written_as_pillar_and_points(self, db):
+        move = self.move(
+            db,
+            '{"calls": [{"tool": "simulator", "group_id": "g1",'
+            ' "what_if": {"pillar": "collections", "points": 10}},'
+            ' {"tool": "simulator", "group_id": "g1",'
+            ' "what_if": [{"pillar": "liquidity", "points": -5}, {"pillar": "made_up"}]}]}',
+        )
+
+        assert [c.what_if for c in move.calls] == [{"collections": 10}, {"liquidity": -5}]
+
+    def test_sends_an_unreadable_answer_back_once_with_its_error(self, db):
+        asked: list[tuple[str, str]] = []
+
+        class Flaky:
+            def complete(self, system, user):
+                asked.append((system, user))
+                if len(asked) == 1:
+                    return "Sure, here is the plan."
+                return '{"calls": [{"tool": "scorecard", "group_id": "g1"}]}'
+
+        request = ChatRequest(message="why?", month=MONTH)
+        move = direct(request, "- scores: level double", [], Flaky(), db, round_no=2)
+
+        assert [call.tool for call in move.calls] == ["scorecard"]
+        assert "Round 2 of 4." in asked[0][1]
+        assert "could not be read as a move: No JSON object" in asked[1][1]
+        # The director reads each agent's rules along with its tools.
+        assert "Rule: Runs only for a real company the user names" in asked[0][0]
+
     def test_falls_back_to_rules_when_the_model_fails_on_the_first_round(self, db):
         move = self.move(db, RuntimeError("down"), message="Is the sector of g1 moving too?")
 
         assert [call.tool for call in move.calls] == ["scorecard", "macro"]
         assert move.purpose == "us or the market"
+
+    def test_the_fallback_points_the_agents_at_the_last_scored_month(self, db):
+        class Down:
+            def complete(self, system, user):
+                raise RuntimeError("down")
+
+        request = ChatRequest(message="why did G1 move?", month="2026-05-01")
+        move = direct(request, "", [], Down(), db)
+
+        assert [(c.tool, c.group_id, c.month) for c in move.calls] == [
+            ("scorecard", "g1", "2026-03-01")
+        ]
 
     def test_stops_when_the_model_fails_after_results_came_back(self, db):
         results = [(Call(tool="query", query="select 1"), "1 row")]
@@ -327,23 +386,92 @@ def test_a_failed_call_goes_back_to_the_director_to_be_corrected(db, tmp_path, m
     assert events[-2]["untraced"] == []
 
 
-def test_an_agent_pointed_at_an_unscored_group_fails_and_the_chat_still_answers(
-    db, tmp_path, monkeypatch
+@pytest.mark.parametrize(
+    ("group_id", "month", "error"),
+    [
+        ("g7", MONTH, "No group g7 in the portfolio: check the id."),
+        (
+            "g1",
+            "2026-05-01",
+            "No score for group g1 in 2026-05: its last scored month before that is 2026-03.",
+        ),
+        (
+            "g1",
+            "2025-06-01",
+            "No score for group g1 in 2025-06: its first scored month is 2025-09, after the "
+            "month on screen.",
+        ),
+    ],
+)
+def test_an_agent_pointed_at_an_unscored_month_fails_naming_the_month_to_use(
+    db, tmp_path, monkeypatch, group_id, month, error
 ):
     class FakeLLM:
         def complete(self, system, user):
-            return '{"final": true, "calls": [{"tool": "scorecard", "group_id": "g7"}]}'
+            if "failed:" in user:
+                return '{"calls": []}'
+            call = f'{{"tool": "scorecard", "group_id": "{group_id}"}}'
+            return f'{{"final": true, "calls": [{call}]}}'
 
         def stream(self, system, user):
-            yield "Nothing on g7."
+            yield "Nothing."
 
     monkeypatch.setattr("xray.agents.fleet.build_llm", lambda *_, **__: FakeLLM())
 
-    events = run(db, tmp_path, "how is g7 doing?")
+    request = ChatRequest(message=f"how is {group_id} doing?", month=month)
+    events = list(run_chat(request, db, no_keys(tmp_path)))
 
     failed = next(e for e in events if e["type"] == "agent")
-    assert failed["error"] == "No score for group g7 in 2026-03: check the id and month."
+    assert failed["error"] == error
     assert events[-1]["type"] == "done"
+
+
+def test_a_final_round_with_a_failed_call_gets_another_to_correct_it(db, tmp_path, monkeypatch):
+    class FakeLLM:
+        def complete(self, system, user):
+            # The director reads the month off the error and re-points the call there.
+            month = '"2026-03-01"' if "last scored month before that is 2026-03" in user else "null"
+            return f'{{"final": true, "calls": [{{"tool": "scorecard", "group_id": "g1", "month": {month}}}]}}'  # noqa: E501
+
+        def stream(self, system, user):
+            yield "Level 68 in 2026-03."
+
+    monkeypatch.setattr("xray.agents.fleet.build_llm", lambda *_, **__: FakeLLM())
+
+    request = ChatRequest(message="how is g1 doing?", month="2026-05-01")
+    events = list(run_chat(request, db, no_keys(tmp_path)))
+
+    outcomes = [(e["run"], e["status"]) for e in events if e["type"] == "agent"]
+    assert outcomes == [("1", "failed"), ("2", "done")]
+    assert [p["agents"][0]["target"] for p in events if p["type"] == "plan"] == [
+        "g1, 2026-05",
+        "g1, 2026-03",
+    ]
+
+
+def test_a_comparison_with_an_unscored_group_fails_naming_it(db, tmp_path):
+    call = Call(tool="peers", group_id="g1", month="2026-03-01", compare="g9", tools=["compare"])
+    snapshot = ScoreSnapshot(group_id="g1", month="2026-03", level=68)
+    ctx = AgentContext(
+        "1", call, ChatRequest(message="?", month=MONTH), snapshot, db, no_keys(tmp_path),
+        None, True, lambda _: None,
+    )  # fmt: skip
+
+    with pytest.raises(ValueError, match="No score for group g9 in 2026-03 to compare with."):
+        AGENTS["peers"](ctx)
+
+
+def test_the_ledger_says_when_a_group_has_no_invoices_to_read(db, tmp_path):
+    call = Call(tool="ledger", group_id="g1", month="2026-03-01", tools=["overdue_ranked"])
+    snapshot = ScoreSnapshot(group_id="g1", month="2026-03", level=68)
+    ctx = AgentContext(
+        "1", call, ChatRequest(message="?", month=MONTH), snapshot, db, no_keys(tmp_path),
+        None, False, lambda _: None,
+    )  # fmt: skip
+
+    report = AGENTS["ledger"](ctx)
+
+    assert report.summary.startswith("g1 has no ERP connected, so there are no invoices")
 
 
 class TestFigures:
@@ -352,6 +480,8 @@ class TestFigures:
 
         assert untraced_figures("Level 68, a line of 250,000 EUR, 3 alerts.", source) == []
         assert untraced_figures("Level 70 and 1.2 million EUR.", source) == ["70", "1.2"]
+        # A month is a name, not a figure, even when the source never spells it.
+        assert untraced_figures("Level 68 in 2025-11, alert on 2025-11-01.", source) == []
 
     def test_a_thought_with_a_new_figure_never_leads_the_report(self, db, tmp_path):
         class Inventive:

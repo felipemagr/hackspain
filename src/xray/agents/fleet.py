@@ -234,8 +234,10 @@ what to run next, and a writer answers from what came back.
 Two kinds of call:
 - `query`: one read-only DuckDB SELECT over the tables below. Use it for the portfolio, several
   groups, rankings, counts, and the raw invoices, transactions, debt and balances. At most {rows}
-  rows come back: aggregate, order, and select only the columns the answer needs.
-- an agent, pointed at one `group_id` and `month`:
+  rows come back: aggregate, order, and select only the columns the answer needs. A ranking is
+  `order by ... limit 10`, never the whole table.
+- an agent, pointed at one `group_id` and `month`. Each one has rules it follows; read them
+  before calling it:
 {roster}
 
 Tables:
@@ -245,29 +247,49 @@ Tables:
 The user is looking at {month}: use that month when the question names none. No data exists
 after it for the user: never read a later month.
 
-Answer with JSON only:
-{{"purpose": "three to six words on what the question is for", "lens": "cfo", "final": false,
+How to direct:
+- Point an agent only at a group id the question names or a result returned. Never guess one.
+- Not every group is scored every month. A call that fails with "No score for group ..." names
+  the last month the group was scored: re-point the same call at that month, in the next round.
+- Never repeat a call that already came back, with the same or a different wording of `why`:
+  the results are kept across rounds. `notifier` saves rules: call it once per request, and
+  never a second time in the same conversation.
+- One round is the norm. Put every call the answer needs in the first round and set `final` to
+  true. A second round is only for a call that needs a figure from the first, or to correct one
+  that failed. You have {rounds} rounds in all; after the last one the writer answers with what
+  there is.
+- When what has come back already answers the question, or nothing can, return "calls": [].
+  A greeting or a question on how the product works needs no calls.
+- Calls of one round run in parallel, at most {calls}.
+
+Answer with one JSON object and nothing else: no words before or after it, no code fence.
+{{"purpose": "three to six words on what the question is for", "lens": "cfo", "final": true,
 "calls": [{{"tool": "query", "why": "up to twelve words on what to look for", "query": "select 1"}},
-{{"tool": "scorecard", "group_id": "GROUP_0001", "month": "2026-08-01", "why": "..."}}]}}
-`lens` is one of cfo, lender, investor. Optional on an agent call: `tools`, a list that narrows
-the agent to some of its tools; `compare`, another group id for `peers`; `what_if`, pillar to
-points moved for `simulator`; `company`, the real-world company the user names, for `market`:
-groups are anonymous ids and `market` runs only with one.
-Calls of one turn run in parallel, at most {calls}: put together the ones that do not depend on
-each other. Set `final` to true when these calls will be enough to answer. When what has come
-back already answers the question, or nothing can, return "calls": []. A greeting or a question
-on how the product works needs no calls."""
+{{"tool": "scorecard", "group_id": "GROUP_0001", "month": "2026-08-01", "why": "..."}},
+{{"tool": "simulator", "group_id": "GROUP_0001", "month": "2026-08-01", "why": "...",
+"what_if": {{"collections": 10}}}}]}}
+`lens` is one of cfo, lender, investor. `month` is YYYY-MM-DD, the first day of the month.
+Optional on an agent call: `tools`, a list that narrows the agent to some of its tools;
+`compare`, another group id for `peers`; `what_if`, an object of pillar name to points moved,
+for `simulator` (pillars: liquidity, cash_generation, payment_discipline, collections,
+debt_burden); `company`, the real-world company the user names, for `market`: groups are
+anonymous ids and `market` runs only with one."""
 
 TABLE_NOTES = """Notes on the data:
+- Group ids are upper case, GROUP_0130: write them so in SQL and in calls, whatever the user
+  typed.
 - `month` is a timestamp on the first day of the month: month = '2026-08-01'.
-- `scores`: one row per group and month. `level` is the 0-100 health score, `trend` its points a
-  month, `state` one of healthy, stable, improving, bending, falling, weak, not_enough_data,
-  `tier` one of healthy, coping, vulnerable. The five pillar columns are 0-100.
+- `scores`: one row per group and month, from the group's first scored month to its last. A
+  group may have no row for the month on screen. `level` is the 0-100 health score, `trend` its
+  points a month, `state` one of healthy, stable, improving, bending, falling, weak,
+  not_enough_data, `tier` one of healthy, coping, vulnerable. The five pillar columns are 0-100.
   A change over N months is a self join: past.month = now.month - interval N month.
 - `drivers`: one row per group, month and pillar, with its contribution to the level.
 - `alerts`: only the months the monitor fired, never a history of levels.
-  `anticipation_months` is how early it fired, against the tier change.
-- `groups.name` is the group id again; `country` can be null.
+  `anticipation_months` is how early it fired, against the tier change. Urgency of an alert:
+  critical when the group enters falling, warning for any other move down, info for a move up.
+- `groups.name` is the group id again; `country` can be null; `has_erp` says whether the group
+  has invoices.
 - `payers`: customers of a group as of a month, only for groups with invoices (`has_erp`).
 - `offers`, `actions`: the working-capital line and the ranked next moves, per group and month.
 - `companies`: the companies inside each group.
@@ -284,21 +306,32 @@ does not hold the answer, say so. Plain text, in the language of the ask."""
 WRITER_PROMPT = """You are Lighthouse, the analyst inside a financial health monitor over a
 portfolio of business groups. The person asking is read as: {lens}. Answer the question using
 only the results below: queries over the data and agent reports. Lead with the answer in one
-sentence. Then the evidence, with the numbers from the results. When the question is about what
-to do, end with the ranked moves. Say plainly when the results do not hold the answer.
+sentence. Then the evidence, with the numbers from the results. End with ranked moves only when
+the question asks what to do.
 
 Every figure you write is checked against the results after you finish: copy figures exactly as
-they are written there, and never compute, convert or round a new one.
+they are written there, and never compute, convert or round a new one. Do not add, average,
+count or subtract figures: when a total is not in the results, give the parts. State only what
+the results say: no distribution, streak, cause or intent they do not spell out.
+
+A line starting with "failed:" is a call that did not run, not a fact about the group: never
+quote it. When the results do not hold the answer, say so in one or two sentences and stop: no
+evidence section, no instructions on what to run or check. Two exceptions: when the results
+answer the question as it applies to the group (its own country when another was asked about),
+give that and say so; when a group has results at an earlier month than the one on screen,
+answer from that month and name it.
 
 How the score works, for questions about it: a 0-100 level per group and month, from five
 pillars (liquidity, cash generation, payment discipline, collections, debt burden), never fitted
 to the portfolio. States: a bump is one bad month that recovers; bending is a sustained early
 decline while the level still looks fine; falling is structural decline; improving is a
-sustained rise. A draft suggestion, when present, is shown to the user under your answer: refer
-to it, do not repeat it.
+sustained rise. Alert urgency: critical is a group entering falling, warning any other move down,
+info a move up or a bump that reverted: a rule for critical alerts is a rule for groups starting
+to fall. A draft suggestion, when present, is shown to the user under your answer: refer to it,
+do not repeat it.
 
-Plain text, short paragraphs, no markdown, no headings. A list goes one item per line.
-At most 180 words. Answer in the language of the question."""
+Plain text, short paragraphs, no markdown, no headings, no em dashes. A list goes one item per
+line. At most 180 words. Answer in the language of the question."""
 
 PILLAR_LABELS = {
     "liquidity": "liquidity",
@@ -310,8 +343,12 @@ PILLAR_LABELS = {
 ACTION_WORDS = re.compile(r"\b(do|should|chase|hacer|hacemos|hago|cobr|reclam|priorit)", re.I)
 # Group ids carry a digit: only those words are looked up.
 MENTION = re.compile(r"\b\w*\d\w*\b")
+# A month the director wrote starts with its year and month; anything else is dropped.
+MONTH_SPELLING = re.compile(r"\d{4}-\d{2}")
 # Digits inside an id (GROUP_0220) are a name, not a figure.
 FIGURE = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
+# A month or a date (2026-06, 2026-06-01) is a name too.
+DATE = re.compile(r"\b\d{4}-\d{2}(?:-\d{2})?\b")
 # The director's fallback when there is no model: purpose, pattern, lens, agent to its tools.
 PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
     (
@@ -382,6 +419,17 @@ class Call(BaseModel):
     compare: str | None = None
     company: str | None = None
     what_if: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("what_if", mode="before")
+    @classmethod
+    def _pillar_to_points(cls, value: Any) -> Any:
+        """Models also write {"pillar": "collections", "points": 10}, alone or in a list."""
+        if value is None:
+            return {}
+        moves = value if isinstance(value, list) else [value]
+        if moves and all(isinstance(m, dict) and "pillar" in m for m in moves):
+            return {m["pillar"]: m.get("points", m.get("delta", 0)) for m in moves}
+        return value
 
 
 class Move(BaseModel):
@@ -481,9 +529,9 @@ def run_chat(
     facts: dict[str, Any] = {}
     lens: Lens = "cfo"
     with ThreadPoolExecutor(max_workers=MAX_CALLS_PER_ROUND) as pool:
-        for _ in range(MAX_ROUNDS):
+        for round_no in range(1, MAX_ROUNDS + 1):
             yield {"type": "planning"}
-            move = direct(request, schema, results, llm, db.cursor())
+            move = direct(request, schema, results, llm, db.cursor(), round_no)
             if not move.calls:
                 break
             lens = move.lens
@@ -498,6 +546,7 @@ def run_chat(
                 ],
             }
             running: dict[Future, str] = {}
+            failed = False
             for run_id, call in runs.items():
                 cursor = db.cursor()
                 snapshot, has_erp = load_snapshot(cursor, call)
@@ -517,9 +566,11 @@ def run_chat(
                     yield from _drain(events)
                     outcome = _outcome(run_id, runs[run_id].tool, future)
                     results.append((runs[run_id], _result_text(outcome)))
+                    failed |= outcome["status"] == "failed"
                     yield outcome
                 time.sleep(0.02)
-            if move.final:
+            # A final round with a failed call gets one more: the director corrects it.
+            if move.final and not failed:
                 break
 
     suggestion = draft_suggestion(request, facts)
@@ -557,16 +608,20 @@ def describe_tables(cursor: duckdb.DuckDBPyConnection) -> str:
     return "\n".join(f"- {table}: {columns}" for table, columns in rows)
 
 
-def mentioned_groups(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> list[str]:
-    """The groups the question names by id that have a score that month, in order."""
+def mentioned_groups(
+    request: ChatRequest, cursor: duckdb.DuckDBPyConnection
+) -> list[tuple[str, str]]:
+    """The groups the question names by id, as the tables spell them, each with its last scored
+    month at or before the month on screen. In the order named."""
     found = []
-    for group_id in dict.fromkeys(MENTION.findall(request.message)):
-        scored = cursor.execute(
-            "select 1 from scores where group_id = ? and month = cast(? as timestamp)",
-            [group_id, request.month],
+    for word in dict.fromkeys(MENTION.findall(request.message)):
+        row = cursor.execute(
+            """select group_id, max(month) from scores
+            where lower(group_id) = lower(?) and month <= cast(? as timestamp) group by 1""",
+            [word, request.month],
         ).fetchone()
-        if scored:
-            found.append(group_id)
+        if row:
+            found.append((row[0], f"{row[1]:%Y-%m-%d}"))
     return found
 
 
@@ -576,12 +631,18 @@ def direct(
     results: list[tuple[Call, str]],
     llm: LLM | None,
     cursor: duckdb.DuckDBPyConnection,
+    round_no: int = 1,
 ) -> Move:
-    """Ask the model what to run next. Without it, or if it fails on the first round, rules."""
+    """Ask the model what to run next. Without it, or if it fails on the first round, rules.
+
+    An answer that is not a valid move is sent back once with its error before giving up.
+    """
     move = None
     if llm:
         roster = "\n".join(
-            f"  - {m.id}: {m.purpose} Tools: " + "; ".join(f"{t.name} ({t.does})" for t in m.tools)
+            f"  - {m.id}: {m.purpose} Tools: "
+            + "; ".join(f"{t.name} ({t.does})" for t in m.tools)
+            + "".join(f"\n    Rule: {rule}" for rule in m.rules)
             for m in ROSTER
             if m.id != "query"
         )
@@ -592,41 +653,67 @@ def direct(
             notes=TABLE_NOTES,
             month=request.month,
             calls=MAX_CALLS_PER_ROUND,
+            rounds=MAX_ROUNDS,
         )
         history = "\n".join(f"{turn.role}: {turn.content}" for turn in request.history)
         user = (
             (f"Earlier in this conversation:\n{history}\n\n" if history else "")
             + f"Question: {request.message}"
             + ("\n\nWhat has come back so far:\n\n" + _transcript(results) if results else "")
+            + f"\n\nRound {round_no} of {MAX_ROUNDS}."
         )
-        try:
-            move = complete_json(llm, system, user, Move)
-        except Exception as e:  # a bad move must not cost the answer
-            logger.warning("Director failed: %s", e)
+        for _ in range(2):
+            try:
+                move = complete_json(llm, system, user, Move)
+                break
+            except ValueError as e:  # not a move: the model gets its error back, once
+                logger.warning("Director failed on round %s: %s", round_no, e)
+                user += (
+                    f"\n\nYour previous answer could not be read as a move: {str(e)[:300]}\n"
+                    "Answer again with one JSON object of the shape given, and nothing else."
+                )
+            except Exception as e:  # the model is down: a bad move must not cost the answer
+                logger.warning("Director failed on round %s: %s", round_no, e)
+                break
     if move is None:
         move = Move() if results else fallback_move(request, cursor)
-    calls = [_checked(call, request) for call in move.calls]
+    calls = [_checked(call, request, cursor) for call in move.calls]
     known = [call for call in calls if call is not None][:MAX_CALLS_PER_ROUND]
     return move.model_copy(update={"calls": known})
 
 
-def _checked(call: Call, request: ChatRequest) -> Call | None:
-    """A call the fleet can run, with its month normalised, or None."""
+def _checked(call: Call, request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> Call | None:
+    """A call the fleet can run, or None. The month is normalised and never later than the one
+    on screen; group ids are spelled as the tables spell them."""
     if call.tool not in AGENTS:
         return None
     if call.tool == "query":
         return call if call.query else None
     if call.tool == "market" and not call.company:
         return None
+    on_screen = _month(request.month)
+    month = _month(call.month) if call.month and MONTH_SPELLING.match(call.month) else on_screen
     tools = [t for t in call.tools if t in {tool.name for tool in MEMBERS[call.tool].tools}]
     what_if = {p: points for p, points in call.what_if.items() if p in PILLAR_LABELS}
     return call.model_copy(
         update={
-            "month": _month(call.month or request.month),
+            "group_id": _spelled(cursor, call.group_id),
+            "compare": _spelled(cursor, call.compare),
+            "month": min(month, on_screen),
             "tools": tools,
             "what_if": what_if,
         }
     )
+
+
+def _spelled(cursor: duckdb.DuckDBPyConnection, group_id: str | None) -> str | None:
+    """The id as the tables spell it (GROUP_0130 for group_0130), or as given when unknown."""
+    if not group_id:
+        return group_id
+    row = cursor.execute(
+        "select group_id from groups where lower(group_id) = lower(?)", [group_id.strip()]
+    ).fetchone()
+    return row[0] if row else group_id
 
 
 def fallback_move(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> Move:
@@ -645,11 +732,12 @@ def fallback_move(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> Mo
             move.purpose = "the portfolio this month"
             move.calls = [Call(tool="query", why="the portfolio by state", query=query)]
         return move
-    compare = groups[1] if len(groups) > 1 else None
+    (group_id, month), *others = groups
+    compare = others[0][0] if others else None
     if compare:
         picked["peers"] = list(dict.fromkeys([*picked.get("peers", ["standing"]), "compare"]))
     move.calls = [
-        Call(tool=agent, group_id=groups[0], tools=tools, compare=compare)
+        Call(tool=agent, group_id=group_id, month=month, tools=tools, compare=compare)
         for agent, tools in ({"scorecard": []} | picked).items()
     ]
     return move
@@ -773,9 +861,9 @@ def write(
 
 
 def _figures(text: str) -> list[tuple[str, float, int]]:
-    """Every figure that is not a small count: as written, its value, its decimals."""
+    """Every figure that is not a small count or a date: as written, its value, its decimals."""
     found = []
-    for raw in FIGURE.findall(text):
+    for raw in FIGURE.findall(DATE.sub(" ", text)):
         clean = raw.replace(",", "")
         decimals = len(clean.partition(".")[2])
         if decimals or float(clean) > FREE_FIGURE_MAX:
@@ -949,8 +1037,14 @@ def scorecard(ctx: AgentContext) -> AgentReport:
 
 def ledger(ctx: AgentContext) -> AgentReport:
     summary, findings = [], []
-    if ctx.has_erp and any(ctx.wants(tool) for tool in INVOICE_TOOLS):
-        _customers(ctx, summary, findings)
+    if any(ctx.wants(tool) for tool in INVOICE_TOOLS):
+        if ctx.has_erp:
+            _customers(ctx, summary, findings)
+        else:
+            summary.append(
+                f"{ctx.call.group_id} has no ERP connected, so there are no invoices: "
+                "its customers, their lateness and what is overdue cannot be read."
+            )
     if any(ctx.wants(tool) for tool in CASH_TOOLS):
         _cash(ctx, summary, findings)
     report = AgentReport(
@@ -1157,11 +1251,14 @@ def peers(ctx: AgentContext) -> AgentReport:
 
 def _compare(ctx: AgentContext, other: str, summary: list[str]) -> list[str]:
     with ctx.tool("compare", group=other) as step:
-        level, trend, state = ctx.query(
+        scored = ctx.query(
             """select level, trend, state from scores
             where group_id = ? and month = cast(? as timestamp)""",
             [other, ctx.call.month],
-        )[0]
+        )
+        if not scored:
+            raise ValueError(f"No score for group {other} in {ctx.snapshot.month} to compare with.")
+        level, trend, state = scored[0]
         theirs = dict(
             ctx.query(
                 """select pillar, score from drivers where group_id = ?
@@ -1194,12 +1291,15 @@ def _screen(ctx: AgentContext, summary: list[str]) -> str:
             where s.group_id = ? and s.month = cast(? as timestamp)
             group by all"""
         )[0]
+        # Each test named by what is wrong when it fails, so "fails it on: ..." reads straight.
         tests = {
-            "one company": n_companies == 1,
-            f"margin {SEARCH_FUND_MARGIN:.0%} or more": (margin or 0) >= SEARCH_FUND_MARGIN,
-            "margin steady for a year": steadiness is not None and steadiness < MARGIN_STEADY,
-            f"level {SEARCH_FUND_LEVEL} or higher": level >= SEARCH_FUND_LEVEL,
-            "not bending or falling": state not in ("bending", "falling"),
+            f"{n_companies} companies, not one": n_companies == 1,
+            f"margin {margin or 0:.0%}, under {SEARCH_FUND_MARGIN:.0%}": (margin or 0)
+            >= SEARCH_FUND_MARGIN,
+            "margin not steady over the year": steadiness is not None
+            and steadiness < MARGIN_STEADY,
+            f"level {level:.0f}, under {SEARCH_FUND_LEVEL}": level >= SEARCH_FUND_LEVEL,
+            f"state {state}": state not in ("bending", "falling"),
         }
         scored, passing = ctx.query(
             f"""with m as (select group_id, avg(operating_margin) mu, stddev(operating_margin) sd
@@ -1284,6 +1384,10 @@ def notifier(ctx: AgentContext) -> AgentReport:
         step.output = "; ".join(r.describe() for r in asked) or "no delivery asked for"
     saved = []
     for rule in asked:
+        # The director may ask twice for the same thing: the book keeps one copy.
+        if same := next((r for r in rules if r.describe() == rule.describe()), None):
+            saved.append(f"Already in force as rule {same.id}: {same.describe()}. Nothing added.")
+            continue
         with ctx.tool("rules.add", channel=rule.channel) as step:
             rule = add_rule(path, rule)
             step.output = f"rule {rule.id} saved"
@@ -1314,9 +1418,23 @@ AGENTS: dict[str, Callable[[AgentContext], AgentReport]] = {
 
 
 def _no_score(ctx: AgentContext) -> AgentReport:
-    raise ValueError(
-        f"No score for group {ctx.call.group_id} in {ctx.snapshot.month}: check the id and month."
+    """The error the director reads to re-point the call: the month the group was last scored."""
+    group_id, month = ctx.call.group_id, ctx.snapshot.month
+    if not group_id:
+        raise ValueError(f"{ctx.call.tool} needs a group_id and a month: none was given.")
+    before, first = ctx.db.execute(
+        """select max(month) filter (where month <= cast(? as timestamp)), min(month)
+        from scores where group_id = ?""",
+        [ctx.call.month, group_id],
+    ).fetchone()
+    if first is None:
+        raise ValueError(f"No group {group_id} in the portfolio: check the id.")
+    when = (
+        f"its last scored month before that is {before:%Y-%m}"
+        if before
+        else f"its first scored month is {first:%Y-%m}, after the month on screen"
     )
+    raise ValueError(f"No score for group {group_id} in {month}: {when}.")
 
 
 def _timed(
