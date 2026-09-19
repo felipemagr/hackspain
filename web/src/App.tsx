@@ -43,11 +43,12 @@ export default function App() {
   useDisplayCurrency(month);
 
   // Held for a moment so a sync that finds nothing new is still seen to have happened.
+  // A sync that fails keeps the data already on screen.
   const sync = () => {
     setSyncing(true);
     Promise.all([loadStore(), new Promise((done) => setTimeout(done, 700))])
       .then(([s]) => setStore(s))
-      .catch((e: Error) => setError(e.message))
+      .catch((e: Error) => console.warn("sync failed", e))
       .finally(() => setSyncing(false));
   };
 
