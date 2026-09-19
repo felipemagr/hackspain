@@ -50,6 +50,7 @@ The contract between the two halves is **one folder**: `data/serving/*.parquet`.
 | Pipeline (clean, panel, then score) | laptop with `uv`, or Docker | `make panel`, `make pipeline`, `make docker-pipeline` | `pipeline` dependency group (pandas, pyarrow, scikit-learn) |
 | Score, alerts, serving tables | laptop with `uv`, or Docker | `make score`, `make monitor`, `make serve` | same |
 | Hidden-test submission | laptop with `uv`, or Docker | `make submit RAW=path/to/csvs` | same |
+| Live replay, month by month | laptop with `uv`, or Docker | `make replay [FROM=] [PAUSE=] [CHANNEL=]` | same, plus a running API for the web to follow |
 | API, dev mode | laptop, `uv` | `make api` (auto-reload, docs at `/docs`) | core dependencies only |
 | API, container | Docker, target `api` | `make api-up` / `make api-down` | Docker |
 | Alerts | wherever the pipeline runs | `make slack-test` to try it | `XRAY_SLACK_WEBHOOK_URL` |
@@ -147,4 +148,16 @@ screen leaves no trace. If the API is asleep the report is lost, which is accept
 ## Serving schema
 
 `docs/serving-contract.md`. Written by `make serve` from the real score; `make web-data` re-exports it as JSON for the static front end.
+
+## Running the demo live
+
+The front end reads the API when one answers `/api/v1/version` and falls back to its baked JSON otherwise, so the deployed site works with no API and the same build goes live the moment an API is reachable. On stage, everything runs on the laptop:
+
+```bash
+make api                                   # or make api-up; serves data/serving, views follow the files
+make web                                   # http://localhost:5173, shows a pulsing "live" badge
+make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # a month lands every 8 s, alerts go to Slack
+```
+
+Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `xray-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
 

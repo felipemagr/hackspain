@@ -305,6 +305,31 @@ This has a useful consequence. Once a month is closed, its as-of features can ne
 daily job would only ever recompute the open month, about 250 rows. At this size, rebuild
 everything anyway.
 
+### The live loop
+
+That is exactly what `xray.pipeline.replay` does, and it is how the demo runs. New data is never
+merged into anything: it lands, everything is recomputed from the lake as of that date, and the
+result is swapped in.
+
+```
+extract for month t ──> lake.land()              append, dated t
+                    ──> clean, cash, panel, score, monitor over read_as_of(t)     ~2 s
+                    ──> serve.publish()          .next/ -> os.replace per file -> _version.json
+                    ──> notify --month t         only the alerts of t leave, the ledger keeps it idempotent
+API  GET /api/v1/version   changes build_id; its DuckDB views re-read the parquet on every query
+web  polls /version every 3 s, refetches /api/v1/tables/*, tweens the cards, follows the latest month
+```
+
+`make replay FROM=2025-01 PAUSE=8 CHANNEL=slack` cuts the challenge dump into the extracts each
+month would have delivered and feeds them through that loop. The cut is honest: transactions of
+the month; an invoice landing as pending in its issuance month and again as paid, under the same
+`operation_id`, in its payment month; and a balance snapshot per month, the final balance minus
+the booked flows after that month end, because landing the 2026-09 snapshot early would make
+every earlier cash figure equal to the final one. Nothing in the score is fitted or
+cross-sectional, so the tables published for month `t` during the replay equal the rows for `t`
+in the full run (`make replay CHECK=1` asserts it on the real data, month by month; the only
+skips are groups holding an account whose rolled-back balance crosses the placeholder threshold).
+
 ## 8. Agents: public context around the score
 
 The score is computed from the group's own money trail. The agents add what the money trail
@@ -370,11 +395,13 @@ about 250 uncached companies a month.
 ## 9. API
 
 `xray.api` is a FastAPI app that serves what is already in `data/serving`. At start-up it opens
-an in-memory DuckDB and creates one view per parquet file it finds; with no files it still
-starts, so the container can come up before the pipeline has run. One router per resource under
-`api/routers/`, registered in `api/main.py`; `health` is the only one so far. A global handler
-turns any unexpected error into a plain 500: a demo must not show a stack trace. Conventions are
-in `.claude/rules/api-design.md`.
+an in-memory DuckDB and creates one view per parquet file it finds (`api/db.py`); with no files
+it still starts, so the container can come up before the pipeline has run. A view over a parquet
+path re-reads the file on every query, so a publish is visible without a restart. One router per
+resource under `api/routers/`, registered in `api/main.py`: `health`, `version` (the live
+build, re-registers views when a file appears), `tables` (whole tables as JSON, what the front
+end reads), `alerts`, `chat`. A global handler turns any unexpected error into a plain 500: a
+demo must not show a stack trace. Conventions are in `.claude/rules/api-design.md`.
 
 ## 10. Docker
 

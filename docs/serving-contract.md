@@ -32,6 +32,15 @@ burden 10 (`src/xray/scoring/anchors.py`). Groups without ERP have no payment di
 collections pillar; weights renormalise and `coverage` says how much of the full weight was
 available.
 
+## Publishing
+
+`serve.publish` writes the tables to `.next/`, moves them over the live ones file by file and
+writes `_version.json` last: `build_id`, `built_at`, `as_of` (last month of data the build saw),
+`latest_month`, `n_groups`, `n_alerts`, `tables`. The API exposes it as `GET /api/v1/version`
+and every table as `GET /api/v1/tables/{name}`, rows as JSON objects with `null` for missing
+values and timestamps as ISO strings. The front end polls the version and refetches the tables
+when `build_id` changes; without an API it reads the same tables from `web/public/data/*.json`.
+
 ## Tables
 
 `groups`: one row per group.
