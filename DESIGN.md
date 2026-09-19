@@ -84,6 +84,13 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
   under, every tool call with input, output and time, findings and sources. Tool calls are the
   one place monospace is used, because they are code. No bubbles, no avatars, no modal.
+- **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
+  the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
+  button on hover. "New conversation" is a text link in the section head. Five are shown, the rest
+  behind "Show all N". Kept in localStorage (`xray.chats`, last 30); opening one selects its group.
+- **Data sync** (`GroupDetail.tsx`): a borderless refresh icon beside the favorite star, same size
+  and ink. It turns while the tables refetch, and only then. The meta line ends with when the data
+  was last updated (the tables' Last-Modified); the icon's tooltip says when this browser synced.
 - **Draft suggestion**: between two strong hairlines under the answer, with the only filled
   button on the tab, "Sign". Anything that moves money is a draft until a person signs it.
 - **Agent dot**: hollow at rest, blue and pulsing while working, ink once it reported, red when

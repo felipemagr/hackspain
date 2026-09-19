@@ -27,6 +27,10 @@ export interface Version {
 export interface Store {
   /** Which build the tables came from; null when read from the static copy. */
   version: Version | null;
+  /** When the data was last built, or when the static copy last changed. */
+  updatedAt: Date | null;
+  /** When this browser last fetched the tables. */
+  syncedAt: Date;
   groups: GroupRow[];
   groupById: Map<string, GroupRow>;
   months: string[];
@@ -53,10 +57,14 @@ export async function fetchVersion(): Promise<Version | null> {
   }
 }
 
+let modified = 0;
+
 async function fetchTable<T>(name: string, live: boolean): Promise<T[]> {
   const url = live ? `${API_URL}/api/v1/tables/${name}` : `/data/${name}.json`;
-  const res = await fetch(url);
+  // Revalidate, so a sync never settles for the browser's copy.
+  const res = await fetch(url, { cache: "no-cache" });
   if (!res.ok) throw new Error(`table ${name}: ${res.status}`);
+  modified = Math.max(modified, Date.parse(res.headers.get("last-modified") ?? "") || 0);
   return res.json() as Promise<T[]>;
 }
 
@@ -66,6 +74,7 @@ function byMonth<T extends { month: string }>(rows: T[]): Map<string, T> {
 
 export async function loadStore(version?: Version | null): Promise<Store> {
   const live = version === undefined ? await fetchVersion() : version;
+  modified = 0;
   const [groups, scores, alerts, offers, actions, companies, drivers] = await Promise.all([
     fetchTable<GroupRow>("groups", !!live),
     fetchTable<ScoreRow>("scores", !!live),
@@ -155,6 +164,8 @@ export async function loadStore(version?: Version | null): Promise<Store> {
 
   return {
     version: live,
+    updatedAt: live ? new Date(live.built_at) : modified ? new Date(modified) : null,
+    syncedAt: new Date(),
     groups,
     groupById,
     months,

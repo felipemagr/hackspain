@@ -38,8 +38,18 @@ export default function App() {
   const [tab, setTab] = useState<"groups" | "alerts" | "agents">(
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
+  const [syncing, setSyncing] = useState(false);
   const chat = useChat();
   useDisplayCurrency(month);
+
+  // Held for a moment so a sync that finds nothing new is still seen to have happened.
+  const sync = () => {
+    setSyncing(true);
+    Promise.all([loadStore(), new Promise((done) => setTimeout(done, 700))])
+      .then(([s]) => setStore(s))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setSyncing(false));
+  };
 
   useEffect(() => {
     loadStore()
@@ -149,15 +159,6 @@ export default function App() {
               <path fill="url(#brand-inside)" d="M9.4 12l3.7-5.2v10.4z" />
             </svg>
             Lighthouse
-            {store.version && (
-              <span
-                className="live"
-                title={`Live from the API. Build ${store.version.build_id}, data to ${store.version.as_of ?? "?"}.`}
-              >
-                <span className="live__dot" />
-                live
-              </span>
-            )}
           </span>
           <div className="stepper">
             <button onClick={() => stepMonth(-1)} disabled={i <= 0} aria-label="Previous month">
@@ -195,6 +196,14 @@ export default function App() {
               fleet={chat.fleet}
               turn={chat.turns[chat.turns.length - 1]}
               onRetry={chat.wake}
+              chats={chat.chats}
+              activeId={chat.activeId}
+              onOpen={(c) => {
+                chat.open(c.id);
+                select(c.turns[c.turns.length - 1].groupId);
+              }}
+              onNew={() => chat.open(null)}
+              onRemove={chat.remove}
             />
           ) : tab === "groups" ? (
             <GroupList
@@ -249,6 +258,8 @@ export default function App() {
             onClearCompare={() => setCompareSlots((slots) => slots.map(() => ""))}
             favorite={favorites.has(selectedId)}
             onFavorite={() => toggleFavorite(selectedId)}
+            syncing={syncing}
+            onSync={sync}
           />
         )}
       </main>

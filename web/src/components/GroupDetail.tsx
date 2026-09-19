@@ -24,7 +24,13 @@ interface GroupDetailProps {
   onClearCompare: () => void;
   favorite: boolean;
   onFavorite: () => void;
+  syncing: boolean;
+  onSync: () => void;
 }
+
+const clock = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const stamp = (d: Date) =>
+  `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${clock(d)}`;
 
 function heading(score: ScoreRow, prevLevel: number | null): string {
   const parts: string[] = [];
@@ -50,6 +56,8 @@ export function GroupDetail({
   onClearCompare,
   favorite,
   onFavorite,
+  syncing,
+  onSync,
 }: GroupDetailProps) {
   const [query, setQuery] = useState("");
   const group = store.groupById.get(groupId);
@@ -86,6 +94,23 @@ export function GroupDetail({
             >
               <Star filled={favorite} />
             </button>
+            <button
+              className="fav"
+              onClick={onSync}
+              disabled={syncing}
+              aria-label="Sync the data"
+              title={`Synced ${clock(store.syncedAt)}`}
+            >
+              <svg
+                className={syncing ? "sync is-spinning" : "sync"}
+                width="15"
+                height="15"
+                viewBox="0 0 14 14"
+                aria-hidden
+              >
+                <path d="M12 7a5 5 0 1 1-1.6-3.7M12 1.5V4H9.5" />
+              </svg>
+            </button>
           </h1>
           <p className="detail__meta">
             {[
@@ -93,6 +118,7 @@ export function GroupDetail({
               group.country,
               `${group.n_companies} ${group.n_companies === 1 ? "company" : "companies"}`,
               `${fmtEur(group.annual_revenue_eur)} revenue`,
+              store.updatedAt && `updated ${stamp(store.updatedAt)}`,
             ]
               .filter(Boolean)
               .join(" · ")}
