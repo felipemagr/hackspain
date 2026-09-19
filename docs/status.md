@@ -5,7 +5,7 @@ What is built, what is broken, what is next. Nothing else lives here: design is 
 
 | | |
 |---|---|
-| As of | 2026-09-19, commit `5a13f0b` |
+| As of | 2026-09-19, commit `f08d7ec` |
 | Verified by | `make validate` and `make test` on that commit. Every number below comes from their output. |
 | Re-verify | `make validate` (rebuilds `data/marts/` from `data/raw/`, about 1 minute) and `make ci` |
 | Update rule | Change a row when its state changes. Keep the IDs (`P1`, `N1`, `Q1`) stable: commits and chats refer to them. |
