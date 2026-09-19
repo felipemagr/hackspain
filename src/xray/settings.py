@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     tavily_api_key: str | None = Field(
         default=None, validation_alias=AliasChoices("XRAY_TAVILY_API_KEY", "TAVILY_API_KEY")
     )
+    exa_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("XRAY_EXA_API_KEY", "EXA_API_KEY")
+    )
     helmcode_api_key: str | None = Field(
         default=None, validation_alias=AliasChoices("XRAY_HELMCODE_API_KEY", "HELMCODE_API_KEY")
     )

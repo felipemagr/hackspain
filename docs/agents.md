@@ -6,6 +6,7 @@ The score engine produces a number and its pillar decomposition. The agents in
 | Agent | Module | Reads | Produces |
 |---|---|---|---|
 | Context retrieval | `context_retrieval.py` | group name, Tavily web search, model | financial facts that could move the score, with fiscal period, publication date, direction and source URL |
+| Peers | `peers.py` | group name, Exa semantic search, model | whether the score is moving with the sector or alone: competitors found by Exa (`category=company`), their recent news, a sector direction and dated facts per peer |
 | Macro | `macro.py` | country, month | conditions that help or hurt liquidity and collections |
 | Narrator | `narrator.py` | level, pillars, month-on-month deltas | which pillars drag the score, what moved and since when |
 
@@ -21,7 +22,8 @@ is one summary, a list of findings and a list of sources, ready for the API and 
 ## Tools
 
 One module per external service under `tools/`. `tavily.py` wraps the Tavily search
-endpoint over `httpx`, keyed by `TAVILY_API_KEY`. `sources.py` ranks domains by trust and reads
+endpoint over `httpx`, keyed by `TAVILY_API_KEY`. `exa.py` does the same for Exa semantic
+search, keyed by `EXA_API_KEY`: `category="company"` is what finds a company's competitors. `sources.py` ranks domains by trust and reads
 publication dates; `cache.py` is the JSON cache with a TTL.
 
 ## Model

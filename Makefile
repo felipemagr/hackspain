@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score validate api api-up api-down slack-test context test test-quick lint \
+        events score validate api api-up api-down slack-test context peers test test-quick lint \
         format quality ci clean web-install web-data web web-build
 
 RAW_DIR ?= data/raw
@@ -107,6 +107,9 @@ web-build: web-data ## Build the demo front end into web/dist
 # Agents
 context: ## Public context for one company, cached in data/serving/context: make context NAME="Cabify" [REFRESH=1]
 	uv run python -m xray.agents.context_retrieval $(if $(REFRESH),--refresh) "$(NAME)"
+
+peers: ## Sector read from a company's competitors, cached in data/serving/context: make peers NAME="Cabify" [REFRESH=1]
+	uv run python -m xray.agents.peers $(if $(REFRESH),--refresh) "$(NAME)"
 
 # Tests
 test: ## Run all tests
