@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  WRITER_RULES,
+  checkNote,
   runNote,
   secs,
+  writerStatus,
   type AgentRun,
   type FleetMember,
   type FleetState,
@@ -12,13 +15,22 @@ import { monthLong } from "../lib/format";
 import type { Store } from "../lib/load";
 import { StateTag } from "./StateTag";
 
+// The first question depends on where the group stands. The rest show the range of people who
+// ask: the CFO, a lender, an investor.
+const OPENERS: Record<string, string> = {
+  healthy: "What keeps this group healthy, and what would break it?",
+  stable: "What keeps this group where it is?",
+  improving: "What is driving the improvement, and will it hold?",
+  bending: "What started to bend, and when was it first visible?",
+  falling: "What is pulling the level down, and since when?",
+  bump: "Is this month a bump or the start of a fall?",
+  weak: "What holds the level down, and what lifts it fastest?",
+};
 const STARTERS = [
-  "Why did the score change, and is it a bump or a fall?",
-  "When was this first visible?",
-  "Which customers will pay us late, and who do we chase this week?",
-  "What does our credit line look like, and what raises it?",
-  "Would this be a good acquisition for a search fund?",
-  "Is it us, or is the market moving too?",
+  "Who do we chase this week, and how much rides on them?",
+  "What if we lift collections 10 points?",
+  "Would a lender renew our credit line?",
+  "Is it us, or is the country moving too?",
 ];
 
 const host = (url: string) => {
@@ -124,6 +136,49 @@ function Draft({ suggestion, by }: { suggestion: Suggestion; by: string }) {
   );
 }
 
+function WriterLine({ turn }: { turn: Turn }) {
+  const [open, setOpen] = useState(false);
+  const note = turn.check ? checkNote(turn.check) : "Writing from the agent reports";
+  return (
+    <li className="trace__item">
+      <button className="trace__row" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="agent__dot" data-status={writerStatus(turn)} />
+        <span className="trace__label">Writer</span>
+        <span className={turn.check ? "trace__text" : "trace__text is-pending"}>{note}</span>
+        <span className="row__when">{turn.check ? "" : "writing"}</span>
+      </button>
+      {open && (
+        <div className="trace__detail">
+          <p className="inspect__purpose">Writes the answer. Every figure is checked.</p>
+          <h3>Rules it works under</h3>
+          <ul>
+            {WRITER_RULES.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+          {turn.check && (
+            <>
+              <h3>What it did</h3>
+              <ol className="steps">
+                <li>
+                  <span className="agent__dot" data-status={writerStatus(turn)} />
+                  <code>figures.check(answer, reports)</code>
+                  <span className="steps__out">
+                    {turn.check.untraced.length
+                      ? `not in the reports: ${turn.check.untraced.join(", ")}`
+                      : checkNote(turn.check)}
+                  </span>
+                  <span className="row__when" />
+                </li>
+              </ol>
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMember> }) {
   const working = ["planning", "agents", "writing"].includes(turn.phase);
   const total = turn.ms ? `${(turn.ms / 1000).toFixed(1)} s` : "";
@@ -146,6 +201,7 @@ function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMem
         {turn.agents.map((run) => (
           <AgentLine key={run.id} run={run} member={members.get(run.id)} />
         ))}
+        {(turn.phase === "writing" || turn.check) && <WriterLine turn={turn} />}
       </ol>
       {(turn.answer || turn.phase === "writing") && (
         <div className={working ? "answer is-streaming" : "answer"} aria-live="polite">
@@ -198,6 +254,9 @@ export function Chat({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
   }, [turns]);
 
+  const opener = score && OPENERS[score.state];
+  const starters = opener ? [opener, ...STARTERS] : STARTERS;
+
   const send = (question: string) => {
     const text = question.trim();
     if (!text || busy || !ready) return;
@@ -238,11 +297,11 @@ export function Chat({
           {turns.length === 0 ? (
             <div className="starters">
               <p className="starters__lead">
-                Ask anything about this group. The planner reads what the question is for,
-                dispatches the agents it needs and follows up on what they find. Open any agent to
-                see its rules and every step it took.
+                Ask anything about this group, as its CFO, a lender or an investor. The planner
+                works out who is asking and guides the agents. Name another group to compare.
+                Open any agent to see its rules and every step it took.
               </p>
-              {STARTERS.map((question) => (
+              {starters.map((question) => (
                 <button key={question} onClick={() => send(question)} disabled={!ready}>
                   {question}
                 </button>

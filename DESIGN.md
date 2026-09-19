@@ -50,7 +50,10 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 
 ## Components
 
-- **Brand mark** (`App.tsx`, `public/favicon.svg`): three ink facets in the angular language of
+- **Lockup** (`App.tsx`): the rail header is `docs/brand/lockup-embat-lighthouse.svg` in markup:
+  Embat's logo in ink, a 22px hairline, then "Lighthouse" in the brand type. The Lighthouse mark
+  below lives on in the favicon only.
+- **Brand mark** (`public/favicon.svg`): three ink facets in the angular language of
   Embat's isotype, opened to show a facet inside in Embat's blue to purple gradient: the lit
   lantern of the lighthouse. The favicon is the same mark with no tile: ink facets, white in a dark browser. Sources and rejected
   options in `docs/brand/`.
@@ -70,8 +73,8 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   toggle. Any active filter shows "N of M groups" and a Clear filters link.
 - **Favorite star**: ink outline, filled when on, never a state color. On a row it appears on
   hover and stays once on; it also sits beside the group name. Kept in localStorage.
-- **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all, a clear button on row hover, and
-  "Restore N cleared" so nothing is lost. Clearing empties the rail and its count; the rings on
+- **Alerts inbox** (`AlertList.tsx`): "N open" with Clear all and a clear button on row hover.
+  Clearing empties the rail and its count; the rings on
   the chart stay, because they are history.
 - **Pillar table** (`Pillars.tsx`): the five pillars as rows, headers in sentence case. Pillar and
   the indicator behind it on the left, then what it weighs (its base weight when coverage spreads
@@ -85,10 +88,14 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 - **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
   and the writer, each with its live state and the tool it is running. The detail pane holds the
   conversation. A turn is the question at 22px, a line saying what the planner read it as, a
-  trace of the agents dispatched (dot, name, one-line report, time), then the answer as prose at
+  trace of the agents dispatched (dot, name, one-line report, time) closed by the writer's own
+  row, which ends on its figure check ("32 figures, all traced"), then the answer as prose at
   15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
   under, every tool call with input, output and time, findings and sources. Tool calls are the
   one place monospace is used, because they are code. No bubbles, no avatars, no modal.
+- **Starter questions** (`Chat.tsx`): the first one is chosen by the group's state, the rest
+  show who may be asking (CFO, lender, a what-if, the country). The group is changed with the
+  "Ask about" select in the chat header; naming another group's id in a question compares it.
 - **Conversations** (`FleetRail.tsx`): past conversations sit at the top of the Agents rail, above
   the fleet, as alert-style rows: first question, group and question count, how long ago, a delete
   button on hover. "New conversation" is a text link in the section head. The section is sticky at

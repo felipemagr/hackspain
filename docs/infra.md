@@ -122,12 +122,12 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 | Service | What | Sleeps |
 |---|---|---|
 | `lighthouse` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
-| `xray-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
+| `lighthouse-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
 
 - The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables or the agent cache change, run `make publish` (re-exports the JSON and stages what Render serves), then commit and push.
 - `data/serving/context/*.json` (agent context cache) is in git for the same reason: a git build has no other way to get it.
 - Only the Agents chat needs secrets: set `HELMCODE_API_KEY`, `EXA_API_KEY` and `TAVILY_API_KEY` on
-  `xray-api` in the Render dashboard (`sync: false` in `render.yaml`). The static site gets the
+  `lighthouse-api` in the Render dashboard (`sync: false` in `render.yaml`). The static site gets the
   API address at build time through `VITE_API_URL`; locally it defaults to `http://localhost:8000`.
 - Nothing else on the API needs secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
 - Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
@@ -137,7 +137,7 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 
 | What | Where to look |
 |---|---|
-| API errors, agent warnings, each chat request | Render, `xray-api`, **Logs** |
+| API errors, agent warnings, each chat request | Render, `lighthouse-api`, **Logs** |
 | A screen that broke in someone's browser | the same log: the page posts render errors, uncaught errors and rejected promises to `POST /api/v1/client-errors`, logged as `xray.client` with the URL and the component stack |
 | What an agent did on a question | the Agents tab itself: every tool call is a step with input, output and time |
 | Deploys | Render, each service, **Events**; CI in GitHub Actions |
@@ -160,7 +160,7 @@ make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # second terminal: a month land
 
 `make lighthouse` is `install`, `npm install` when `web/node_modules` is missing or stale, the pipeline up to the serving tables (skipping what is already built), the JSON export, then `make -j2 api web`: both processes in one terminal, Ctrl-C stops both. A server already answering on its port is reused rather than fought over (an API started with `make api` elsewhere re-reads the published tables on its own); a port held by something else fails fast with the process named, and `API_PORT=` / `WEB_PORT=` move either. `make lighthouse-down` stops whatever listens on both ports. Separately: `make api` (or `make api-up` in Docker) and `make web`.
 
-Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `xray-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
+Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `lighthouse-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
 
 ### With names the room knows: `make demo`
 

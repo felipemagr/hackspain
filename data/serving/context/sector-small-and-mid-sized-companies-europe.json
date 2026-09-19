@@ -1,0 +1,30 @@
+{
+  "key": "sector Small and mid-sized companies Europe",
+  "stored_at": "2026-09-19T14:56:36.776430+00:00",
+  "payload": {
+    "report": {
+      "agent": "sector",
+      "summary": "Small and mid-sized companies in Europe, deteriorating. European SME peers face tightening bank finance, rising bankruptcies, weakening B2B payment behaviour and late payments above sustainable levels, with German SMEs showing rising cash conversion cycles. The sector-wide picture is one of liquidity and payment pressure. The target's score improvement in cash generation and collections therefore looks company-specific rather than a sector-wide move, though the small liquidity decline is consistent with sector trends.",
+      "findings": [
+        "A benchmarking study found German SME median debt ratios fell from 187% in 2022 to 154% in 2025, while the cash conversion cycle rose from 54 to 61 days, signalling rising liquidity management pressure. [seen 2026-06-22, hurts]",
+        "An ECB analysis in May 2026 found rising bankruptcies in the euro area even as bank loan books remained resilient. [seen 2026-05-27, hurts]",
+        "Atradius reported that liquidity pressure is higher in Germany than in Western Europe due to tight bank lending, trade shocks and rising costs, making payment risk management critical. [seen 2026-05-27, hurts]",
+        "The Atradius Barometer found four in five companies in Western Europe face late payments, with trade credit rising to 52% of B2B transactions as bank finance access is restricted and payment behaviour deteriorates. [seen 2026-05-20, hurts]",
+        "Atradius reported that tighter access to finance, uncertainty and geopolitical turmoil are shifting Western European firms' focus from growth to cash flow protection, pushing more payment risk onto suppliers. [seen 2026-05-19, hurts]",
+        "Intrum's European Payment Report 2026 found the share of revenues paid late now exceeds sustainable levels, putting pressure on European businesses' cash flow and holding back growth. [seen 2026-04-21, hurts]",
+        "The ECB's SAFE survey for Q2 2026 covers access to finance for euro area enterprises, providing the reference point for financing conditions in the sector. [seen 2026-07-20, neutral]",
+        "The HLB Survey of Business Leaders 2026 found European leaders enter 2026 with measured optimism, with only 40% expecting global growth to increase, around 1.5 times lower than the global average. [seen 2026-01-20, hurts]"
+      ],
+      "sources": [
+        "https://atradius.ca/en_CA/Knowledge-and-research/reports/b2b-payment-practices-trends-in-western-europe-2026",
+        "https://atradiuscollections.com/nl/knowledge-and-research/reports/b2b-payment-practices-trends-in-germany-2026",
+        "https://group.atradius.com/knowledge-and-research/news/four-in-five-companies-in-western-europe-faced-with-late-payments",
+        "https://www.ebnerstolz.de/en/what-we-offer/services/consulting/transaction-advisory-services/benchmarking-study-german-smes-under-pressure-108365.html",
+        "https://www.ecb.europa.eu/press/financial-stability-publications/fsr/special/html/ecb.fsrart202605_02~0fd2f6b569.da.html",
+        "https://www.ecb.europa.eu/stats/ecb_surveys/safe/html/ecb.safe202607.en.html",
+        "https://www.hlb.global/survey-of-business-leaders/2026/european-outlook-competing-under-pressure/",
+        "https://www.tradingview.com/news/modular_finance:3f59b668090ea:0-intrum-s-european-payment-report-2026-late-payments-are-holding-back-european-growth/"
+      ]
+    }
+  }
+}

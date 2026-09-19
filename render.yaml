@@ -11,7 +11,7 @@ services:
     envVars:
       # Vite bakes it in at build time: the Agents tab calls the API, nothing else does.
       - key: VITE_API_URL
-        value: https://xray-api-w2uy.onrender.com
+        value: https://lighthouse-api-sku5.onrender.com
     routes:
       - type: rewrite
         source: /*
@@ -19,7 +19,7 @@ services:
 
   # The API. Free instances sleep after 15 min idle and take about a minute to wake.
   - type: web
-    name: xray-api
+    name: lighthouse-api
     runtime: docker
     plan: free
     region: frankfurt

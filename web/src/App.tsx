@@ -137,16 +137,10 @@ export default function App() {
       <aside className="side">
         <div className="side__top">
           <span className="brand">
-            <svg width="20" height="20" viewBox="2 2 20 20" aria-hidden>
-              <defs>
-                <linearGradient id="brand-inside" x1="9.4" y1="17.2" x2="13.1" y2="6.8" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#415de6" />
-                  <stop offset="1" stopColor="#c357ec" />
-                </linearGradient>
-              </defs>
-              <path fill="currentColor" d="M14 3l6 9-6 9zM4 6.3 14 3 7.6 12zM4 17.7 7.6 12 14 21z" />
-              <path fill="url(#brand-inside)" d="M9.4 12l3.7-5.2v10.4z" />
+            <svg className="brand__embat" height="20" viewBox="0 0 96 20" role="img" aria-label="Embat">
+              <path fill="currentColor" fillRule="evenodd" clipRule="evenodd" d="m0 3.82 4.49 6.178L11.754.001v19.996l7.264-9.999L11.754 0zm0 12.36L11.755 20 4.49 10zM29.866 2.352h10.687v2.337h-7.946v3.865h7.204v2.337h-7.204v4.396h8.027v2.337H29.866zm29.77 7.935v7.335h-2.68v-6.67c0-1.39-.745-2.298-1.994-2.298-1.633 0-2.62 1.492-2.62 4.07v4.897h-2.68v-6.67c0-1.39-.726-2.297-1.996-2.297-1.612 0-2.599 1.471-2.599 4.07v4.897h-2.68V6.458h2.68V7.97c.524-.886 1.814-1.672 3.366-1.672s2.861.766 3.426 2.076c.967-1.41 2.418-2.076 3.869-2.076 2.277 0 3.909 1.592 3.909 3.99Zm4.979 5.904v1.429h-2.68V3.275l2.68-.884v5.495c.685-.967 2.035-1.591 3.526-1.591 3.164 0 5.34 2.236 5.34 5.743s-2.176 5.744-5.38 5.744c-1.471 0-2.8-.624-3.486-1.59Zm6.167-4.154c0 2.056-1.27 3.446-3.084 3.446s-3.083-1.391-3.083-3.447 1.27-3.465 3.083-3.465 3.084 1.41 3.084 3.466m4.127 2.524c0-2.075 1.45-3.324 4.736-3.667l2.499-.282v-.221c0-1.27-.927-2.015-2.277-2.015s-2.237.725-2.378 1.974h-2.58c.283-2.337 2.278-4.05 4.958-4.05 2.881 0 4.937 1.572 4.937 4.393v6.932h-2.66v-1.471c-.523.988-1.854 1.633-3.365 1.633-2.399 0-3.87-1.27-3.87-3.225Zm4.333 1.17c1.713 0 2.902-1.17 2.902-3.144l-2.459.261c-1.431.161-2.096.746-2.096 1.612 0 .745.666 1.27 1.653 1.27Zm8.364-7.091v5.46c0 2.378 1.612 3.668 3.728 3.668.564 0 1.028-.102 1.491-.263V15.25c-.342.12-.785.221-1.128.221-.846 0-1.41-.564-1.41-1.612V8.64h2.398V6.463h-2.399V3.084l-2.68.884v2.495h-1.612V8.64z" />
             </svg>
+            <span className="brand__rule" aria-hidden />
             Lighthouse
           </span>
         </div>
@@ -199,7 +193,6 @@ export default function App() {
               }}
               cleared={cleared}
               onClear={(keys) => updateCleared((next) => keys.forEach((k) => next.add(k)))}
-              onRestore={() => updateCleared((next) => next.clear())}
             />
           )}
         </div>

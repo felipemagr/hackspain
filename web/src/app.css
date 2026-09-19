@@ -103,10 +103,20 @@ ol {
 .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   font-size: 17px;
   font-weight: 650;
   letter-spacing: -0.02em;
+}
+
+.brand__embat {
+  flex: none;
+}
+
+.brand__rule {
+  width: 1px;
+  height: 22px;
+  background: var(--line-strong);
 }
 
 .tabs {
