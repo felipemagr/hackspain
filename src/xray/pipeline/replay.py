@@ -248,7 +248,7 @@ def main() -> None:
     parser.add_argument("--from", dest="first", default=WINDOW_FIRST_MONTH[:7], help="YYYY-MM")
     parser.add_argument("--to", dest="last", default=WINDOW_LAST_MONTH[:7], help="YYYY-MM")
     parser.add_argument("--pause", type=float, default=8.0, help="seconds between months")
-    parser.add_argument("--channel", choices=["slack", "email", "none"], default=None)
+    parser.add_argument("--channel", choices=["slack", "email", "rules", "none"], default=None)
     parser.add_argument("--lake-dir", type=Path, default=LAKE_DIR)
     parser.add_argument("--reset", action="store_true", help="empty the lake and the ledger first")
     parser.add_argument("--check", action="store_true", help="assert against data/marts/scores")

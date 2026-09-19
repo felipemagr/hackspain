@@ -36,8 +36,10 @@ from xray.agents.base import AgentReport, ScoreSnapshot
 from xray.agents.cache import JsonCache
 from xray.agents.context_retrieval import ContextRetrievalAgent
 from xray.agents.llm import LLM, build_llm, complete_json
+from xray.agents.notifier import parse_rules
 from xray.agents.peers import PeersAgent, SectorAgent
 from xray.scoring.anchors import CAP_LEVEL, CAP_PILLAR_SCORE, CAP_PILLARS, PILLAR_WEIGHTS
+from xray.scoring.rules import RULES_FILE, add_rule, load_rules
 from xray.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -184,6 +186,23 @@ ROSTER: tuple[FleetMember, ...] = (
             Tool(name="model.read", does="extracts dated facts from the pages found"),
         ],
     ),
+    FleetMember(
+        id="notifier",
+        label="Notifier",
+        purpose="Who is told, and where, when the monitor fires.",
+        rules=[
+            "A request becomes a rule: channel, least urgency, groups. The rule is what runs, "
+            "never the sentence.",
+            "Urgency is read off the alert: critical is a group entering falling, warning any "
+            "other move down, info a move up or a bump that reverted.",
+            "Nothing is sent from here. The notifier delivers when a month lands.",
+        ],
+        tools=[
+            Tool(name="rules.list", does="the rules in force"),
+            Tool(name="rules.parse", does="the request as a rule: channel, urgency, groups"),
+            Tool(name="rules.add", does="saves the rule to the book"),
+        ],
+    ),
 )
 MEMBERS = {member.id: member for member in ROSTER}
 INVOICE_TOOLS = ("concentration", "payer_scores", "overdue_ranked")
@@ -204,6 +223,8 @@ Groups are anonymous ids. Set `company` only when the user names a real-world co
 Set `what_if` when the user asks what a change would do: pillar to points moved, pillars are
 liquidity, cash_generation, payment_discipline, collections, debt_burden.
 Set `wants_action` when the user asks what to do, who to chase or what to change.
+Dispatch `notifier` when the user wants to be told on Slack or by email when a group moves, or
+asks which alert rules exist.
 
 Answer with JSON only:
 {{"lens": "cfo", "purpose": "three to six words on what the question is for",
@@ -248,6 +269,12 @@ MENTION = re.compile(r"\b\w*\d\w*\b")
 FIGURE = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
 # The planner's fallback when there is no model: purpose, pattern, lens, agent to its tools.
 PURPOSE_RULES: tuple[tuple[str, str, Lens, dict[str, list[str]]], ...] = (
+    (
+        "setting up alerts",
+        r"slack|e-?mail|correo|notify|av[ií]s|alert me|tell me|let me know|ping me|alert rules",
+        "cfo",
+        {"notifier": []},
+    ),
     (
         "screening a target",
         r"invest|buy|acqui|search fund|roll.?up|leverage|comprar|inver",
@@ -1092,6 +1119,34 @@ def market(ctx: AgentContext) -> AgentReport:
     )
 
 
+def notifier(ctx: AgentContext) -> AgentReport:
+    """Who is told when the monitor fires. Reads the rule book, and adds to it when asked."""
+    path = ctx.settings.serving_dir / RULES_FILE
+    with ctx.tool("rules.list") as step:
+        rules = load_rules(path)
+        step.output = f"{len(rules)} rules in force"
+    with ctx.tool("rules.parse", by="model" if ctx.llm else "patterns") as step, SerialLLM._lock:
+        asked = parse_rules(ctx.request.message, ctx.request.group_id, ctx.llm)
+        step.output = "; ".join(r.describe() for r in asked) or "no delivery asked for"
+    saved = []
+    for rule in asked:
+        with ctx.tool("rules.add", channel=rule.channel) as step:
+            rule = add_rule(path, rule)
+            step.output = f"rule {rule.id} saved"
+        saved.append(f"Saved rule {rule.id}: {rule.describe()}.")
+        rules.append(rule)
+    standing = (
+        f"{len(rules)} rule{'s' if len(rules) != 1 else ''} in force."
+        if rules
+        else "No alert rules yet: nothing leaves the monitor until one is set."
+    )
+    return AgentReport(
+        agent="notifier",
+        summary=" ".join([*saved, standing]),
+        findings=[f"Rule {r.id}: {r.describe()}." for r in rules],
+    )
+
+
 AGENTS: dict[str, Callable[[AgentContext], AgentReport]] = {
     "scorecard": scorecard,
     "ledger": ledger,
@@ -1099,6 +1154,7 @@ AGENTS: dict[str, Callable[[AgentContext], AgentReport]] = {
     "peers": peers,
     "macro": macro,
     "market": market,
+    "notifier": notifier,
 }
 
 

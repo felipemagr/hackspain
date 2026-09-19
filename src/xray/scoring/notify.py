@@ -10,6 +10,10 @@ invent a number, and it reads the same on stage as it did in rehearsal.
 Only what was knowable at the time goes into a message. `anticipation_months` and
 `tier_change_month` are measured after the fact and stay in the table for the validation view.
 
+Who gets what is either one channel for everything (`--channel slack`) or the rule book
+(`--channel rules`): the rules the chat wrote to `data/serving/alert_rules.json`, each naming a
+channel, the least urgent alert it wants and the groups it watches. See `xray.scoring.rules`.
+
 Replay for the demo: the detector is causal, so the alerts dated a month are exactly what the
 system would have raised then. Walking the months forward fills a Slack channel live:
 
@@ -27,6 +31,8 @@ import pandas as pd
 from xray.config import MARTS_DIR
 from xray.integrations.email import send_email
 from xray.integrations.slack import send_slack
+from xray.scoring.rules import RULES_FILE, Rule, load_rules, urgency_of
+from xray.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +130,9 @@ def messages(alerts: pd.DataFrame, names: dict[str, str] | None = None) -> pd.Da
         rows.append(
             {
                 "key": f"{alert['group_id']}|{alert['month']:%Y-%m}|{alert['kind']}|alert",
+                "group_id": alert["group_id"],
                 "month": alert["month"],
+                "urgency": urgency_of(alert["direction"], alert["state_to"]),
                 "severity": alert["severity"],
                 "subject": subject,
                 "body": body,
@@ -136,13 +144,26 @@ def messages(alerts: pd.DataFrame, names: dict[str, str] | None = None) -> pd.Da
         rows.append(
             {
                 "key": f"{alert['group_id']}|{alert['month']:%Y-%m}|{alert['kind']}|reverted",
+                "group_id": alert["group_id"],
                 "month": alert["resolution_month"],
+                "urgency": "info",
                 "severity": alert["severity"],
                 "subject": subject,
                 "body": body,
             }
         )
     return pd.DataFrame(rows).sort_values(["month", "severity"], ascending=[True, False])
+
+
+def _route(message: pd.Series, rules: list[Rule]) -> list[str]:
+    """The channels whose rules want this message, each once."""
+    return sorted(
+        {
+            rule.channel
+            for rule in rules
+            if rule.matches(message["urgency"], message["severity"], message["group_id"])
+        }
+    )
 
 
 def dispatch(
@@ -154,23 +175,27 @@ def dispatch(
     limit: int | None = None,
     dry_run: bool = False,
     ledger_path: Path = MARTS_DIR / LEDGER_NAME,
+    rules: list[Rule] | None = None,
 ) -> pd.DataFrame:
     """Send every message in the window that the ledger has not seen.
 
     Args:
         alerts: The ``alerts`` table.
-        channel: ``slack``, ``email``, or ``none``. ``none`` records the messages as delivered
-            without sending them, which is how a backlog is written off before going live. Use
-            ``dry_run`` to record nothing.
+        channel: ``slack``, ``email``, ``rules`` or ``none``. ``rules`` sends each message to the
+            channels of the rules it matches; a message no rule wants is left unsent, for a rule
+            added later. ``none`` records the messages as delivered without sending them, which
+            is how a backlog is written off before going live. Use ``dry_run`` to record nothing.
         names: Group trading names, when the portfolio has them.
         since: First month to send, ``YYYY-MM``. Open-ended when omitted.
         until: Last month to send, ``YYYY-MM``. Open-ended when omitted.
         limit: Send at most this many, highest severity first.
         dry_run: Render and log, send nothing, leave the ledger alone.
         ledger_path: Where the keys already sent are stored.
+        rules: The rule book, for ``channel="rules"``. Read from the serving directory when
+            omitted.
 
     Returns:
-        The messages that went out, in the order they were sent.
+        The messages that went out, in the order they were sent, with the ``channels`` each took.
     """
     sent = set(json.loads(ledger_path.read_text())) if ledger_path.exists() else set()
     pending = messages(alerts, names)
@@ -179,15 +204,28 @@ def dispatch(
     if until:
         pending = pending[pending["month"] <= pd.Timestamp(until)]
     pending = pending[~pending["key"].isin(sent)]
+    if channel == "rules":
+        if rules is None:
+            rules = load_rules(get_settings().serving_dir / RULES_FILE)
+        pending = pending.assign(channels=[_route(m, rules) for _, m in pending.iterrows()])
+        pending = pending[pending["channels"].str.len() > 0]
+    else:
+        pending = pending.assign(channels=[[channel]] * len(pending))
     if limit:
         pending = pending.nlargest(limit, "severity")
 
-    send = _channels()[channel]
+    send = _channels()
     for _, message in pending.iterrows():
-        logger.info("%s | %s", message["month"].strftime("%Y-%m"), message["subject"])
+        logger.info(
+            "%s | %s | %s",
+            message["month"].strftime("%Y-%m"),
+            "+".join(message["channels"]),
+            message["subject"],
+        )
         if dry_run:
             continue
-        send(message["subject"], message["body"])
+        for target in message["channels"]:
+            send[target](message["subject"], message["body"])
         sent.add(message["key"])
 
     if not dry_run and len(pending):
@@ -202,8 +240,9 @@ def main() -> None:
     parser.add_argument(
         "--channel",
         default="slack",
-        choices=["slack", "email", "none"],
-        help="none marks the messages as delivered without sending them",
+        choices=["slack", "email", "rules", "none"],
+        help="rules routes by the rule book; none marks the messages as delivered without "
+        "sending them",
     )
     parser.add_argument("--since", help="first month to send, YYYY-MM")
     parser.add_argument("--until", help="last month to send, YYYY-MM")

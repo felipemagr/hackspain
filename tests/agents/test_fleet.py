@@ -16,6 +16,7 @@ from xray.agents.fleet import (
     untraced_figures,
 )
 from xray.scoring import offer
+from xray.scoring.rules import RULES_FILE, load_rules
 from xray.settings import Settings
 
 MONTH = "2026-03-01 00:00:00"
@@ -184,6 +185,37 @@ def test_a_group_named_in_the_question_is_compared_at_the_same_month(db, tmp_pat
     peers = done(events)["peers"]
     assert "g2 is at level 80, healthy, +1.0 points a month, against 68 here." in peers["summary"]
     assert "collections: 41 here, 75 at g2" in peers["findings"]
+
+
+def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
+    events = run(
+        db,
+        tmp_path,
+        "Email me when this group starts falling, severity 20 or more, and slack me every move",
+    )
+
+    assert [a["id"] for a in events[1]["agents"]] == ["scorecard", "notifier"]
+    steps = [e for e in events if e["type"] == "step" and e["agent"] == "notifier"]
+    assert [s["tool"] for s in steps if s["status"] == "done"] == [
+        "rules.list",
+        "rules.parse",
+        "rules.add",
+        "rules.add",
+    ]
+    assert done(events)["notifier"]["summary"] == (
+        "Saved rule 1: Email gets critical alerts on g1, severity 20 or more. "
+        "Saved rule 2: Slack gets every alert on any group. 2 rules in force."
+    )
+    saved = load_rules(tmp_path / RULES_FILE)
+    assert [(r.channel, r.min_urgency, r.min_severity, r.groups) for r in saved] == [
+        ("email", "critical", 20.0, ["g1"]),
+        ("slack", "info", None, []),
+    ]
+
+    # Asking what is set lists the book and adds nothing.
+    events = run(db, tmp_path, "which alert rules are in place?")
+    assert done(events)["notifier"]["summary"] == "2 rules in force."
+    assert len(load_rules(tmp_path / RULES_FILE)) == 2
 
 
 def test_chat_reports_an_unknown_group(db, tmp_path):

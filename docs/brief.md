@@ -191,7 +191,10 @@ arrivals, scored the second they land, with a Slack message naming each newcomer
 `make replay FROM=2025-01 PAUSE=8 CHANNEL=slack`, started before walking on:
 every eight seconds a month of data lands, the score is recomputed from what was known by then,
 the web refreshes on its own and the month's alerts arrive in the Slack channel on the projector.
-Nobody clicks anything to make the portfolio move.
+Nobody clicks anything to make the portfolio move. With `CHANNEL=rules` only what was asked for
+in the chat leaves ("Slack me when a group starts falling, email me everything on Velasco"): each
+alert is `info`, `warning` or `critical`; a rule names a channel, the least urgency it wants, an
+optional severity floor and the groups it watches.
 
 1. Open on Northbrook (45 -> 65) and Velasco (82 -> 68) side by side at month 24. Three points
    apart, opposite bets.
@@ -231,6 +234,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Named driver decomposition | `src/xray/scoring/explain.py` |
 | Bump vs fall, alerting | `src/xray/scoring/monitor.py` |
 | Alert delivery to Slack or email | `src/xray/scoring/notify.py`, `src/xray/integrations/` |
+| Who is told, where, from which urgency: the rule book, written in plain words through the chat | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py`, `make replay CHANNEL=rules` |
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |

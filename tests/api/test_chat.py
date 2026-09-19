@@ -9,7 +9,15 @@ def test_agents_lists_the_fleet_the_chat_can_dispatch():
 
     assert response.status_code == 200
     agents = {agent["id"]: agent for agent in response.json()["agents"]}
-    assert list(agents) == ["scorecard", "ledger", "simulator", "peers", "macro", "market"]
+    assert list(agents) == [
+        "scorecard",
+        "ledger",
+        "simulator",
+        "peers",
+        "macro",
+        "market",
+        "notifier",
+    ]
     assert all(agent["rules"] and agent["tools"] for agent in agents.values())
 
 
