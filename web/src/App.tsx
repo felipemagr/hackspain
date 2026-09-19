@@ -8,14 +8,16 @@ import { useChat } from "./lib/chat";
 import { monthLong } from "./lib/format";
 import { loadStore, type Store } from "./lib/load";
 
-// Deep links for the demo: ?group=DEMO_002&compare=DEMO_001&month=2026-08-01&tab=alerts|agents
+// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043&month=2026-08-01&tab=alerts|agents
 const params = new URLSearchParams(window.location.search);
+// The brief's Velasco: healthy at 94, bending alarm at 82, tier crossed four months later.
+const DEFAULT_GROUP = "GROUP_0220";
 
 export default function App() {
   const [store, setStore] = useState<Store | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
-  const [selectedId, setSelectedId] = useState(params.get("group") ?? "DEMO_001");
+  const [selectedId, setSelectedId] = useState(params.get("group") ?? DEFAULT_GROUP);
   const [compareId, setCompareId] = useState(params.get("compare") ?? "");
   const askedTab = params.get("tab");
   const [tab, setTab] = useState<"groups" | "alerts" | "agents">(
