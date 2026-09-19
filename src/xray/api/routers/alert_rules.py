@@ -1,10 +1,13 @@
 """The alert rule book: who is told, and where, when the monitor fires."""
 
+import httpx
 from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel
 
 from xray.agents.llm import build_llm
 from xray.agents.notifier import parse_rules
+from xray.integrations.email import send_email
+from xray.integrations.slack import send_slack
 from xray.scoring.rules import RULES_FILE, Rule, add_rule, load_rules, remove_rule
 from xray.settings import get_settings
 
@@ -43,4 +46,31 @@ async def delete_alert_rule(rule_id: int) -> Response:
     """Drop one rule."""
     if not remove_rule(get_settings().serving_dir / RULES_FILE, rule_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/alert-rules/{rule_id}/test", status_code=status.HTTP_204_NO_CONTENT)
+def test_alert_rule(rule_id: int) -> Response:
+    """Send a test message down the rule's channel, so the user sees where alerts will land."""
+    rules = load_rules(get_settings().serving_dir / RULES_FILE)
+    rule = next((r for r in rules if r.id == rule_id), None)
+    if rule is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rule not found")
+    subject = "Lighthouse: test alert"
+    body = f"{rule.describe()}. Alerts for this rule will arrive here."
+    try:
+        if rule.channel == "slack":
+            sent = send_slack(f"{subject}\n{body}")
+        else:
+            sent = send_email(subject, body)
+    except (httpx.HTTPError, OSError) as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"The {rule.channel} channel refused the test",
+        ) from e
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"The {rule.channel} channel is not configured on the server",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
