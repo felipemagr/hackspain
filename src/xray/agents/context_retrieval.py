@@ -79,6 +79,7 @@ class ContextRetrievalAgent:
         self.tavily_api_key = tavily_api_key
         self.llm = llm
         self.cache = cache
+        self.search = tavily.search
 
     def retrieve(self, name: str) -> list[SearchResult]:
         """Every query in QUERIES at once, deduplicated by URL, best score first."""
@@ -86,7 +87,7 @@ class ContextRetrievalAgent:
 
         def one(query: tuple[str, Topic, Depth]) -> list[SearchResult]:
             template, topic, depth = query
-            return tavily.search(
+            return self.search(
                 template.format(name=name),
                 self.tavily_api_key,
                 max_results=MAX_RESULTS_PER_QUERY,

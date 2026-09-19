@@ -61,12 +61,15 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   "seen N months early", crosshair tooltip, click to move the month. Comparison adds one purple
   series, a legend and end labels; the wash is dropped.
 - **Pillar row**: label with its evidence in plain words, 4px ink bar, score, signed delta.
-- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the fleet (planner, agents that read
-  the score, agents that read the outside, writer) and the detail pane holds the conversation.
-  A turn is the question at 22px, a trace of the agents dispatched (dot, name, one-line report,
-  time or "from cache"; a row opens to its findings and sources), then the answer as prose at
-  15px, 68ch. No bubbles, no avatars. The composer is the one bordered field, with an ink send
-  button that becomes stop while a turn runs.
+- **Agents tab** (`Chat.tsx`, `FleetRail.tsx`): the rail lists the director (planner), the agents
+  and the writer, each with its live state and the tool it is running. The detail pane holds the
+  conversation. A turn is the question at 22px, a line saying what the planner read it as, a
+  trace of the agents dispatched (dot, name, one-line report, time), then the answer as prose at
+  15px, 68ch. A trace row opens in place to the agent's inspector: purpose, the rules it works
+  under, every tool call with input, output and time, findings and sources. Tool calls are the
+  one place monospace is used, because they are code. No bubbles, no avatars, no modal.
+- **Draft suggestion**: between two strong hairlines under the answer, with the only filled
+  button on the tab, "Sign". Anything that moves money is a draft until a person signs it.
 - **Agent dot**: hollow at rest, blue and pulsing while working, ink once it reported, red when
   it failed. The only motion on the tab besides the streaming caret.
 - **Controls**: borderless icon buttons for the stepper, underline tabs, one bordered select.

@@ -91,12 +91,13 @@ class PeersAgent:
         self.exa_api_key = exa_api_key
         self.llm = llm
         self.cache = cache
+        self.search = exa.search
 
     def find_peers(self, snapshot: ScoreSnapshot) -> PeerSet:
         assert self.exa_api_key and self.llm and snapshot.name
         # Exa's `company` category returns look-alike home pages and misses the obvious rivals.
         # Plain search returns the articles that compare the company with them.
-        hits = exa.search(
+        hits = self.search(
             f"{snapshot.name} competidores principales: empresas rivales en sus mercados",
             self.exa_api_key,
             num_results=PEER_CANDIDATES,
@@ -113,7 +114,7 @@ class PeersAgent:
         since = date.today() - timedelta(days=NEWS_WINDOW_DAYS)
 
         def one(peer: str) -> list[ExaResult]:
-            hits = exa.search(
+            hits = self.search(
                 # The sector keeps a common name on the right company: Bolt the ride-hailing
                 # firm, not Bolt the checkout fintech.
                 f"{peer} ({peer_set.sector}) financial results, debt, layoffs, regulation",
@@ -180,16 +181,19 @@ class SectorAgent:
         self.exa_api_key = exa_api_key
         self.llm = llm
         self.cache = cache
+        self.search = exa.search
 
     def run(self, snapshot: ScoreSnapshot, refresh: bool = False) -> AgentReport:
-        if not self.exa_api_key or not self.llm or not snapshot.sector:
-            return AgentReport(agent=self.name, summary="No sector read available.")
+        if not self.exa_api_key or not self.llm:
+            return AgentReport(agent=self.name, summary="No market read available.")
+        # The real dataset carries no sector: then the read is about companies in the country.
+        sector = snapshot.sector or "Small and mid-sized companies"
         country = COUNTRY_NAMES.get(snapshot.country or "", snapshot.country or "Europe")
-        key = f"sector {snapshot.sector} {country}"
+        key = f"sector {sector} {country}"
         if self.cache and not refresh and (cached := self.cache.get(key)):
             return AgentReport.model_validate(cached["report"])
-        hits = exa.search(
-            f"{snapshot.sector} sector in {country}: demand, costs, margins, financing, defaults",
+        hits = self.search(
+            f"{sector} in {country}: demand, costs, margins, financing, late payments, defaults",
             self.exa_api_key,
             num_results=SECTOR_NEWS,
             category="news",
@@ -198,10 +202,10 @@ class SectorAgent:
         )
         hits = [hit for hit in hits if not is_social(hit.url)]
         if not hits:
-            return AgentReport(agent=self.name, summary=f"No recent news on {snapshot.sector}.")
+            return AgentReport(agent=self.name, summary=f"No recent news on {sector}.")
         moves = ", ".join(f"{pillar} {delta:+.0f}" for pillar, delta in snapshot.deltas.items())
         user = (
-            f"Target: {snapshot.name}, sector: {snapshot.sector} in {country}\n"
+            f"Target: {snapshot.name}, sector: {sector} in {country}\n"
             f"Score {snapshot.level:.0f}/100 in {snapshot.month}, "
             f"moves since last month: {moves or 'none reported'}\n"
             "The sources are about the sector, not about named peers: use 'sector' as the peer.\n\n"
@@ -210,7 +214,7 @@ class SectorAgent:
         read = complete_json(self.llm, SECTOR_PROMPT, user, SectorRead)
         report = AgentReport(
             agent=self.name,
-            summary=f"{snapshot.sector} in {country}, {read.sector_direction}. {read.summary}",
+            summary=f"{sector} in {country}, {read.sector_direction}. {read.summary}",
             findings=[_line(f) for f in read.findings],
             sources=sorted({f.source for f in read.findings if f.source}),
         )

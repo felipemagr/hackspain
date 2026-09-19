@@ -8,6 +8,13 @@ def test_agents_lists_the_fleet_the_chat_can_dispatch():
         response = client.get("/api/v1/agents")
 
     assert response.status_code == 200
-    kinds = {agent["id"]: agent["kind"] for agent in response.json()["agents"]}
-    assert kinds["score"] == "data"
-    assert kinds["sector"] == "web"
+    agents = {agent["id"]: agent for agent in response.json()["agents"]}
+    assert list(agents) == [
+        "diagnosis",
+        "monitor",
+        "working_capital",
+        "customers",
+        "investor",
+        "market",
+    ]
+    assert all(agent["rules"] and agent["tools"] for agent in agents.values())

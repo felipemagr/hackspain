@@ -6,21 +6,41 @@ const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://
 export interface FleetMember {
   id: string;
   label: string;
-  reads: string;
-  kind: "data" | "web";
+  purpose: string;
+  rules: string[];
+  tools: { name: string; does: string }[];
 }
 
-export type AgentStatus = "queued" | "running" | "done" | "failed";
+export type AgentStatus = "running" | "done" | "failed";
 
-export interface AgentRun extends FleetMember {
-  reason: string;
+// One tool call by one agent: what it asked, what came back, how long it took.
+export interface Step {
+  n: number;
+  tool: string;
+  input: string;
   status: AgentStatus;
+  output?: string;
+  ms?: number;
+}
+
+export interface AgentRun {
+  id: string;
+  reason: string;
+  // Dispatched by the planner after it read the first reports, not in the opening plan.
+  followUp: boolean;
+  status: AgentStatus;
+  steps: Step[];
   summary?: string;
   findings?: string[];
   sources?: string[];
   ms?: number;
-  cached?: boolean;
   error?: string;
+}
+
+export interface Suggestion {
+  agent: string;
+  title: string;
+  detail: string;
 }
 
 export type Phase = "planning" | "agents" | "writing" | "done" | "stopped" | "error";
@@ -31,8 +51,10 @@ export interface Turn {
   groupName: string;
   month: string;
   phase: Phase;
+  purpose: string | null;
   company: string | null;
   agents: AgentRun[];
+  suggestion: Suggestion | null;
   answer: string;
   ms?: number;
   error?: string;
@@ -43,22 +65,31 @@ export type FleetState =
   | { status: "down" }
   | { status: "ready"; agents: FleetMember[]; model: string | null };
 
+type Dispatched = { id: string; reason: string };
+
 type ChatEvent =
   | { type: "planning" | "writing" }
-  | { type: "plan"; company: string | null; agents: (FleetMember & { reason: string })[] }
+  | { type: "plan"; purpose: string; company: string | null; agents: Dispatched[] }
+  | { type: "dispatch"; agents: Dispatched[] }
   | ({ type: "agent"; id: string; status: AgentStatus } & Partial<AgentRun>)
+  | ({ type: "step"; agent: string } & Step)
+  | ({ type: "suggestion" } & Suggestion)
   | { type: "token"; text: string }
   | { type: "error"; message: string }
   | { type: "done"; ms: number };
 
-const secs = (ms: number) => (ms < 950 ? `${Math.max(ms, 1)} ms` : `${(ms / 1000).toFixed(1)} s`);
+export const secs = (ms: number) =>
+  ms < 950 ? `${Math.max(ms, 1)} ms` : `${(ms / 1000).toFixed(1)} s`;
 
+// What an agent is doing right now, in the words of its tool.
 export function runNote(run: AgentRun): string {
-  if (run.status === "running") return run.kind === "web" ? "searching" : "reading";
   if (run.status === "failed") return "failed";
-  if (run.status === "queued") return "queued";
-  return run.cached ? "from cache" : secs(run.ms ?? 0);
+  if (run.status === "done") return secs(run.ms ?? 0);
+  return run.steps.findLast((step) => step.status === "running")?.tool ?? "starting";
 }
+
+const queued = (agents: Dispatched[], followUp: boolean): AgentRun[] =>
+  agents.map((a) => ({ ...a, followUp, status: "running", steps: [] }));
 
 function apply(turn: Turn, event: ChatEvent): Turn {
   switch (event.type) {
@@ -68,15 +99,33 @@ function apply(turn: Turn, event: ChatEvent): Turn {
       return {
         ...turn,
         phase: "agents",
+        purpose: event.purpose,
         company: event.company,
-        agents: event.agents.map((a) => ({ ...a, status: "queued" })),
+        agents: queued(event.agents, false),
       };
+    case "dispatch":
+      return { ...turn, agents: [...turn.agents, ...queued(event.agents, true)] };
     case "agent": {
       const { type: _type, ...patch } = event;
       return {
         ...turn,
         agents: turn.agents.map((a) => (a.id === event.id ? { ...a, ...patch } : a)),
       };
+    }
+    case "step": {
+      const { type: _type, agent, ...step } = event;
+      return {
+        ...turn,
+        agents: turn.agents.map((a) =>
+          a.id === agent
+            ? { ...a, steps: [...a.steps.filter((known) => known.n !== step.n), step] }
+            : a,
+        ),
+      };
+    }
+    case "suggestion": {
+      const { type: _type, ...suggestion } = event;
+      return { ...turn, suggestion };
     }
     case "writing":
       return { ...turn, phase: "writing" };
@@ -141,7 +190,18 @@ export function useChat() {
         setTurns((all) => all.map((t) => (t.id === id ? fn(t) : t)));
       setTurns((all) => [
         ...all,
-        { id, question, groupName, month, phase: "planning", company: null, agents: [], answer: "" },
+        {
+          id,
+          question,
+          groupName,
+          month,
+          phase: "planning",
+          purpose: null,
+          company: null,
+          agents: [],
+          suggestion: null,
+          answer: "",
+        },
       ]);
       const controller = new AbortController();
       abort.current = controller;
