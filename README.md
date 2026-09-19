@@ -127,7 +127,8 @@ make lighthouse RAW_DIR=output   # same, with the CSVs somewhere else
 ```
 
 One command, a few minutes the first time (npm install and 615 MB of CSV), about fifteen seconds
-after that. Ctrl-C stops the API and the web together. With it running, a second terminal feeds
+after that. Ctrl-C stops the API and the web together; `make lighthouse-down` stops them from anywhere.
+An API or web already running on its port is reused, not fought over. With it running, a second terminal feeds
 the months in live: `make replay FROM=2025-01 PAUSE=8` on the challenge data, or
 `make demo FROM=2025-01 PAUSE=8` on a synthetic portfolio of named Spanish scale-ups.
 

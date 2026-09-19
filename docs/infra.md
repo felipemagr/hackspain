@@ -158,7 +158,7 @@ make lighthouse [RAW_DIR=path/to/csvs]           # load, score, publish, then AP
 make replay FROM=2025-01 PAUSE=8 CHANNEL=slack   # second terminal: a month lands every 8 s, alerts go to Slack
 ```
 
-`make lighthouse` is `install`, `npm install` when `web/node_modules` is missing or stale, the pipeline up to the serving tables (skipping what is already built), the JSON export, then `make -j2 api web`: both processes in one terminal, Ctrl-C stops both. Separately: `make api` (or `make api-up` in Docker) and `make web`.
+`make lighthouse` is `install`, `npm install` when `web/node_modules` is missing or stale, the pipeline up to the serving tables (skipping what is already built), the JSON export, then `make -j2 api web`: both processes in one terminal, Ctrl-C stops both. A server already answering on its port is reused rather than fought over (an API started with `make api` elsewhere re-reads the published tables on its own); a port held by something else fails fast with the process named, and `API_PORT=` / `WEB_PORT=` move either. `make lighthouse-down` stops whatever listens on both ports. Separately: `make api` (or `make api-up` in Docker) and `make web`.
 
 Each month takes about two seconds to land, rebuild and publish; the web notices within three. `RESET=1` empties the lake and the alert ledger first, `CHECK=1` asserts every published month against `data/marts/scores.parquet`. Deployed API: `xray-api` bakes its tables and has no pipeline dependencies, so a live replay there would need a token-protected publish endpoint receiving the parquet files. Not built; the laptop plus `cloudflared tunnel` is the fallback.
 
