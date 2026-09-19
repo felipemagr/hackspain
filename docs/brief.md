@@ -210,11 +210,13 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 |---|---|
 | Load and validate the nine CSVs | `src/xray/pipeline/data.py`, `src/xray/config.py` |
 | Clean the raw tables to parquet | `src/xray/pipeline/clean.py` |
+| Convert money columns to euros with annual rates | `src/xray/pipeline/fx.py`, `src/xray/pipeline/fx_rates.csv` |
 | Monthly panel per group, no look-ahead | `src/xray/pipeline/panel.py` |
 | Daily extracts, as-of reads | `src/xray/pipeline/lake.py` |
 | Whole pipeline end to end | `python -m xray.pipeline`, `make panel` |
 | Anchor table: raw ratio to 0-100, pillar weights | `src/xray/scoring/anchors.py` |
 | Level score, per group or per company | `src/xray/scoring/score.py` |
+| Provisional score and drivers for the local internal viewer | `src/xray/scoring/score_baseline.py`, `make score-baseline` |
 | Proxy distress labels for validation | `src/xray/scoring/events.py` |
 | Discrimination, trajectory, stability, ablation | `src/xray/scoring/validate.py` |
 | Smoothing, slope, state machine on the level series | `src/xray/scoring/trend.py` |
@@ -249,6 +251,8 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
   snapshot at 1 Sep 2026, so it is month-24 information only and cannot feed any earlier month.
 - **Debt fields are extraction-time too.** `debt_products.outstanding`, `granted` and `liquidity`
   describe 1 Sep 2026. For month `t` use the dated debt flows in transactions.
+- **Money columns are converted to euros at the average rate of their year.** Cash is
+  reconstructed in each account's currency before month-by-month conversion.
 - **Monthly balances are reconstructed backwards**: final balance minus the flows after `t`, per
   account.
 - **Invoices cover 167 of 250 groups.** Invoice pillars are optional and weights renormalise; the
@@ -312,21 +316,19 @@ guessing.
    the data" (Embat) and "the company that generates the data, which is the first one interested in
    knowing what it says about it" (the SME). Our answer covers both: Embat pays, the SME uses. Say
    it that way in the pitch.
-5. **Which way does `exchange_rate` convert?** Multiply or divide to reach the company currency.
-   Needed before summing a multi-currency group.
-6. **What does `accounting_status = DISCARDED` mean?** 308k transactions. If they are rejected
+5. **What does `accounting_status = DISCARDED` mean?** 308k transactions. If they are rejected
    movements they leave operating flow.
-7. **Per-month scores or only the final month?** Trajectory is mandatory, so we produce all 24
+6. **Per-month scores or only the final month?** Trajectory is mandatory, so we produce all 24
    either way, but the submission may only take one.
-8. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
+7. **Is invoice direction really the sign of `amount`?** There is no direction column. We read
    positive as receivable and negative as payable, which gives a plausible 13-day median DSO and
    21-day DPO, but confirm it before the score depends on it.
-9. **Group names for the demo.** The dataset has none, so `groups.name` is the `group_id`. The
+8. **Group names for the demo.** The dataset has none, so `groups.name` is the `group_id`. The
    brief's worked example maps onto real groups: `GROUP_0220` is Velasco (94 in Jan 2025,
    bending alarm in Jun 2025 at 82 while still healthy, tier crossed to coping in Oct 2025, 64 at
    month 24), `GROUP_0043` is Northbrook (41 to 81, improving). Decide whether to show ids or
    invent trading names.
-10. **The serving `alerts` table is the monitor's schema**, wider than the contract in
+9. **The serving `alerts` table is the monitor's schema**, wider than the contract in
     `docs/serving-contract.md` (kind, direction, sigmas, resolution, severity). Align the
     contract or the front end.
 

@@ -102,6 +102,10 @@ make slack-test  # send a test alert to the Slack webhook
 make notify MONTH=2026-05   # replay one month of alerts into Slack
 ```
 
+To inspect the provisional baseline scores locally, run `make score-baseline`, then `make api`, and open
+[the internal viewer](http://localhost:8000/viewer). It reads `data/marts/real_scores.parquet`
+and `real_drivers.parquet`; the invented `DEMO_*` serving data is not shown there.
+
 ## Repo layout
 
 ```

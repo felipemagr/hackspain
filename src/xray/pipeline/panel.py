@@ -61,6 +61,9 @@ _ADDITIVE = (
     "n_tx",
     "inflow",
     "outflow",
+    "operating_inflow",
+    "operating_outflow",
+    "uncategorized_amount",
     "inflow_op",
     "outflow_op",
     "salary_outflow",
@@ -105,7 +108,7 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         ))::date as month
     ),
     spine as (
-        select c.company_id, c.group_id, m.month, last_day(m.month) as month_end
+        select c.company_id, c.group_id, c.currency, m.month, last_day(m.month) as month_end
         from read_parquet('{companies_path}') c cross join months m
     ),
     tx as (select * from read_parquet('{tx_path}')),
@@ -119,6 +122,14 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
             count(distinct counterparty_id) as n_counterparties,
             sum(case when amount > 0 then amount else 0 end) as inflow,
             sum(case when amount < 0 then -amount else 0 end) as outflow,
+            sum(case when amount > 0 and category in
+                ('collection', 'bulk_collection', 'pos_settlement')
+                then amount else 0 end) as operating_inflow,
+            sum(case when amount < 0 and category in
+                ('payment', 'bulk_payment', 'utility', 'salary', 'social_security', 'tax')
+                then -amount else 0 end) as operating_outflow,
+            sum(case when category = 'uncategorized' then abs(amount) else 0 end)
+                as uncategorized_amount,
             sum(case when amount > 0 and category not in {ops} then amount else 0 end)
                 as inflow_op,
             sum(case when amount < 0 and category not in {ops} then -amount else 0 end)
@@ -194,13 +205,16 @@ def _base_sql(processed_dir: Path, marts_dir: Path) -> str:
         from inv where issuance_date is not null group by 1, 2
     )
     select
-        s.company_id, s.group_id, s.month,
+        s.company_id, s.group_id, s.currency, s.month,
         coalesce(e.first_invoice <= s.month_end, false) as has_erp,
         t.n_tx is not null as is_covered,
         coalesce(t.n_tx, 0) as n_tx,
         coalesce(t.n_counterparties, 0) as n_counterparties,
         coalesce(t.inflow, 0) as inflow,
         coalesce(t.outflow, 0) as outflow,
+        coalesce(t.operating_inflow, 0) as operating_inflow,
+        coalesce(t.operating_outflow, 0) as operating_outflow,
+        coalesce(t.uncategorized_amount, 0) as uncategorized_amount,
         coalesce(t.inflow_op, 0) as inflow_op,
         coalesce(t.outflow_op, 0) as outflow_op,
         coalesce(t.salary_outflow, 0) as salary_outflow,
@@ -298,6 +312,7 @@ def build(
     group_base = f"""
         select group_id, month,
             count(*) as n_companies,
+            count(distinct currency) as n_currencies,
             bool_or(has_erp) as has_erp,
             bool_or(is_covered) as is_covered,
             bool_and(has_cash) as has_cash,

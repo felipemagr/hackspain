@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
-        events score validate monitor alerts notify serve submit api api-up api-down slack-test email-test \
+        events score score-baseline validate monitor alerts notify serve submit api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
 
@@ -10,6 +10,7 @@ MARTS_DIR := data/marts
 CLEAN_STAMP := $(PROCESSED_DIR)/.clean.stamp
 CASH := $(MARTS_DIR)/cash_monthly.parquet
 PANEL := $(MARTS_DIR)/panel_group.parquet
+BASELINE_SCORE := $(MARTS_DIR)/real_scores.parquet
 IMAGE ?= xray:latest
 
 help: ## Show this help
@@ -33,6 +34,9 @@ $(CASH): $(CLEAN_STAMP) src/xray/pipeline/cash.py
 
 $(PANEL): $(CASH) src/xray/pipeline/panel.py
 	uv run python -m xray.pipeline.panel
+
+$(BASELINE_SCORE): $(PANEL) src/xray/scoring/score_baseline.py
+	uv run python -m xray.scoring.score_baseline
 
 clean-data: $(CLEAN_STAMP) ## Stage data/raw as parquet in data/processed
 
@@ -58,6 +62,8 @@ $(SCORES): $(PANEL) src/xray/scoring/score.py src/xray/scoring/anchors.py
 events: $(EVENTS) ## Build the proxy distress labels used to calibrate and validate the score
 
 score: $(SCORES) ## Score every group-month from the panel
+
+score-baseline: $(BASELINE_SCORE) ## Calculate provisional group scores for the internal viewer
 
 validate: $(SCORES) $(EVENTS) ## Discrimination, trajectory, stability and ablation, split by group
 	uv run python -m xray.scoring.validate

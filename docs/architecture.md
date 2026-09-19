@@ -161,6 +161,7 @@ knew at the end of that month.
 |---|---|---|
 | `group_id`, `month` | str, datetime | Keys |
 | `n_companies` | int | Companies in the group |
+| `n_currencies` | int | Distinct company currencies; totals mixing currencies need review |
 | `has_erp` | bool | The group had issued an invoice by this month |
 | `is_covered` | bool | At least one transaction this month |
 | `months_observed` | float | Covered months so far |
@@ -170,7 +171,9 @@ knew at the end of that month.
 | `runway_months` | float | `cash / outflow`. Negative when overdrawn, null when `has_cash` is false |
 | `cash_is_extrapolated` | bool | Month precedes the first cash-account movement, so cash is a flat estimate |
 | `inflow`, `outflow`, `net_flow` | float | Money in, out, and the difference |
+| `operating_inflow`, `operating_outflow`, `uncategorized_amount` | float | Flows from explicit operating categories, and unclassified volume kept separate |
 | `salary_outflow`, `tax_outflow`, `debt_repayment_outflow`, `fee_outflow` | float | Outflow by category |
+| `interest_outflow` | float | Interest charges from the explicit category |
 | `inflow_3m`, `net_flow_3m`, `inflow_mom` | float | Trend, not level |
 | `inflow_cover` | float | `inflow / outflow` |
 | `ar_open`, `ap_open` | float | Receivable and payable still open at month end |
@@ -180,6 +183,7 @@ knew at the end of that month.
 | `ar_late_days`, `ap_late_days` | float | Amount-weighted days beyond due on invoices settled that month, floored at zero per invoice |
 | `ar_days_late`, `ap_days_late` | float | `ar_late_days / ar_collected`, `ap_late_days / ap_paid` |
 | `ar_collected`, `ap_paid` | float | Settled during the month |
+| `ar_late_days`, `ap_late_days` | float | Amount-weighted positive days beyond due date, summed over settled invoices |
 | `dso_days`, `dpo_days` | float | Value-weighted days to settle |
 | `n_invoices_issued`, `n_invoices_received` | float | Invoice counts |
 
@@ -372,7 +376,9 @@ about 250 uncached companies a month.
 `xray.api` is a FastAPI app that serves what is already in `data/serving`. At start-up it opens
 an in-memory DuckDB and creates one view per parquet file it finds; with no files it still
 starts, so the container can come up before the pipeline has run. One router per resource under
-`api/routers/`, registered in `api/main.py`; `health` is the only one so far. A global handler
+`api/routers/`, registered in `api/main.py`. The local `/viewer` and
+`/api/v1/real-groups` read the provisional baseline score and driver marts separately from serving tables.
+A global handler
 turns any unexpected error into a plain 500: a demo must not show a stack trace. Conventions are
 in `.claude/rules/api-design.md`.
 

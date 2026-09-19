@@ -96,3 +96,10 @@ counts between groups and months. CSS transitions are 180ms on backgrounds and 5
 ## Deep links
 
 `?group=DEMO_002&compare=DEMO_001,DEMO_003&month=2026-08-01&tab=alerts` (or `tab=agents`) opens the demo on a given scene.
+
+## Internal score viewer
+
+The local `/viewer` is an analysis workspace for provisional baseline scores. Its styles live in
+`src/xray/api/static/viewer.css` and are separate from the jury demo. It uses a compact group
+rail, a monthly trajectory, a five-pillar contribution table, and a quality panel. Missing values
+appear as unavailable, and mixed currency and uncategorized flows remain visible beside the score.

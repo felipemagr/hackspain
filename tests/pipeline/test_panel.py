@@ -25,6 +25,9 @@ def _write(tmp_path, companies, transactions, invoices, cash=None):
     staging, marts = tmp_path / "staging", tmp_path / "marts"
     staging.mkdir(exist_ok=True)
     marts.mkdir(exist_ok=True)
+    companies = companies.copy()
+    if "currency" not in companies:
+        companies["currency"] = "EUR"
     for name, df in [
         ("companies", companies),
         ("transactions", transactions),
@@ -78,6 +81,7 @@ class TestAsOf:
         assert panel.loc[M1, "ar_open"] == 500.0
         assert panel.loc[M2, "ar_open"] == 0.0
         assert panel.loc[M2, "dso_days"] == 40.0
+        assert panel.loc[M2, "ar_late_days"] / panel.loc[M2, "ar_collected"] == 10.0
 
     def test_erp_block_is_absent_before_the_first_invoice(self, tmp_path):
         companies = pd.DataFrame([{"company_id": "c1", "group_id": "g1"}])
@@ -138,6 +142,26 @@ class TestNoLeakage:
 
 
 class TestGroupRollup:
+    def test_operating_flow_excludes_unknown_and_transfers(self, tmp_path):
+        companies = pd.DataFrame([{"company_id": "c1", "group_id": "g1"}])
+        transactions = pd.DataFrame(
+            [
+                _tx("c1", M1, 100.0, "collection"),
+                _tx("c1", M1, -40.0, "payment"),
+                _tx("c1", M1, 900.0, "uncategorized"),
+                _tx("c1", M1, -500.0, "transfer"),
+                _tx("c1", M1, -10.0, "interest_charge"),
+            ]
+        )
+        invoices = pd.DataFrame([_invoice("c1", "receivable", 1.0, M1, M1)]).iloc[0:0]
+        panel = build(*_write(tmp_path, companies, transactions, invoices))["panel_group"]
+        first = panel.set_index("month").loc[M1]
+
+        assert first["operating_inflow"] == 100
+        assert first["operating_outflow"] == 40
+        assert first["uncategorized_amount"] == 900
+        assert first["interest_outflow"] == 10
+
     def test_group_dso_is_weighted_by_invoice_value(self, tmp_path):
         companies = pd.DataFrame(
             [
@@ -160,8 +184,8 @@ class TestGroupRollup:
     def test_group_is_covered_when_any_company_is(self, tmp_path):
         companies = pd.DataFrame(
             [
-                {"company_id": "c1", "group_id": "g1"},
-                {"company_id": "c2", "group_id": "g1"},
+                {"company_id": "c1", "group_id": "g1", "currency": "EUR"},
+                {"company_id": "c2", "group_id": "g1", "currency": "USD"},
             ]
         )
         transactions = pd.DataFrame([_tx("c1", M1, 100.0)])
@@ -172,3 +196,4 @@ class TestGroupRollup:
 
         assert panel.loc[M1, "is_covered"]
         assert panel.loc[M1, "n_companies"] == 2
+        assert panel.loc[M1, "n_currencies"] == 2
