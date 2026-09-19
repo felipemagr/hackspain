@@ -91,8 +91,9 @@ export interface CompanyRow {
   company_id: string;
   group_id: string;
   name: string;
-  inflow_share: number;
-  level: number;
+  inflow_share: number | null;
+  // Null for a company with no activity in the window.
+  level: number | null;
   is_weakest: boolean;
 }
 

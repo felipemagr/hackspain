@@ -1,4 +1,4 @@
-import { fmtEur, fmtSigned, monthLong } from "../lib/format";
+import { fmtEur, fmtScore, fmtSigned, monthLong } from "../lib/format";
 import { PILLARS, PILLAR_LABEL } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
@@ -167,8 +167,8 @@ export function GroupDetail({
                       {c.name}
                       {c.is_weakest && <span className="company__flag">drags the group</span>}
                     </span>
-                    <span className="company__share">{(c.inflow_share * 100).toFixed(0)}%</span>
-                    <span className="company__level">{c.level.toFixed(0)}</span>
+                    <span className="company__share">{((c.inflow_share ?? 0) * 100).toFixed(0)}%</span>
+                    <span className="company__level">{fmtScore(c.level)}</span>
                   </div>
                 ))}
               </>
