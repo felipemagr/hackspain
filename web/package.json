@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm install --no-audit --no-fund",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:v3": "node scripts/build-v3.mjs",

@@ -192,7 +192,7 @@ web-data: ## Export data/serving parquet to web/public/data as JSON for the fron
 web: web-data ## Run the demo front end on http://localhost:5173, talking to the API on :8000 (WEB_PORT, API_PORT to change)
 	cd web && VITE_API_URL=http://localhost:$(API_PORT) npm run dev -- --port $(WEB_PORT) --strictPort
 
-web-build: web-data ## Build the demo front end into web/dist
+web-build: $(WEB_DEPS) web-data ## Build the demo front end into web/dist
 	cd web && npm run build
 
 publish: web-data ## Stage everything Render serves (tables, JSON copies, agent cache): commit and push after
