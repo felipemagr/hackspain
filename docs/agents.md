@@ -28,8 +28,8 @@ events, and the Agents tab draws them as they land. The request is a message, th
 screen, the recent turns and the display currency.
 
 The **director** is a loop, not a fixed plan. Each round the model sees the schema of every table
-(read live from DuckDB), the roster, and what has come back so far, and returns the next calls as
-JSON. Two kinds of call:
+(read live from DuckDB), the roster with each agent's rules, what has come back so far and which
+round it is on, and returns the next calls as JSON. Two kinds of call:
 
 - `query`: one read-only SELECT over any table. The model writes the SQL, the database produces
   every figure. Rows come back as text, at most 40, so a question is answered by aggregating. A
@@ -37,9 +37,18 @@ JSON. Two kinds of call:
 - an agent pointed at **any** `group_id` and `month`, with optional `tools` (narrow it),
   `compare` (peers), `what_if` (simulator) and `company` (market).
 
+Every call is checked before it runs: group ids are respelled as the tables spell them
+(`group_0130` becomes `GROUP_0130`), the month is clamped to the month on screen, a `what_if`
+written as `{"pillar": ..., "points": ...}` is read. An agent pointed at a month the group has no
+score for fails with the group's last scored month before it, and the director re-points the
+call there. An answer that is not a valid move goes back to the model once with its error (a
+transport error does not: the rules or the results stand in); `complete_json` reads the object
+out of any prose or fence around it.
+
 Calls of one round run in parallel threads. The loop ends when the director returns no calls,
-marks a round `final`, or after four rounds. Then the writer streams the answer from the results,
-in the language of the question, and every figure in it is checked against those results.
+marks a round `final` and every call in it ran, or after four rounds. Then the writer streams
+the answer from the results, in the language of the question, and every figure in it is checked
+against those results.
 
 ```
 planning -> plan {purpose, agents: [{run, id, reason, target}]}
@@ -79,9 +88,13 @@ move. Built from figures the agents found, never by the model. Anything that mov
 draft a person signs.
 
 **Without a model** (`HELMCODE_API_KEY` unset, or the director failing on the first round) rules
-stand in: a group id named in the question gets Scorecard plus the agents its words match
-(`PURPOSE_RULES`), a second id is compared, and a question that names no group reads the
-portfolio by state. The answer is then the raw results.
+stand in: a group id named in the question, in any case, gets Scorecard plus the agents its words
+match (`PURPOSE_RULES`) at its last scored month on or before the month on screen, a second id is
+compared, and a question that names no group reads the portfolio by state. The answer is then
+the raw results.
+
+The notifier keeps one copy of a rule: a request identical to one in force is reported as such
+and nothing is added.
 
 What the data does not allow is stated as a rule instead of guessed: counterparty ids do not link
 to other groups, so a customer is judged only on how it paid this group; there is no sector and

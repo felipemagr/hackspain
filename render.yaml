@@ -12,6 +12,10 @@ services:
       # Vite bakes it in at build time: the Agents tab calls the API, nothing else does.
       - key: VITE_API_URL
         value: https://lighthouse-api-sku5.onrender.com
+      # The same value as LIGHTHOUSE_API_KEY on the API. Set it in the Render dashboard, then redeploy:
+      # Vite bakes it in at build time too.
+      - key: VITE_API_KEY
+        sync: false
     routes:
       - type: rewrite
         source: /*
@@ -30,6 +34,9 @@ services:
     envVars:
       - key: XRAY_ENV
         value: prod
+      # The key every /api/v1 call must carry in X-API-Key. Set the value in the Render dashboard.
+      - key: LIGHTHOUSE_API_KEY
+        sync: false
       # Only the Agents chat needs these. Set the values in the Render dashboard.
       - key: HELMCODE_API_KEY
         sync: false

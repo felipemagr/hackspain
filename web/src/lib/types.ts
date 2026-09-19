@@ -1,3 +1,5 @@
+import type { MonthRecord } from "./scoring";
+
 export type State =
   | "healthy"
   | "stable"
@@ -40,7 +42,8 @@ export interface ScoreRow {
   debt_burden: number | null;
   level_uncapped: number;
   is_capped: boolean;
-  level: number;
+  level: number | null;
+  localScoring?: MonthRecord["scoring"];
   coverage: number;
   buffer_days: number | null;
   operating_margin: number | null;
@@ -94,6 +97,9 @@ export interface CompanyRow {
   inflow_share: number | null;
   // Null for a company with no activity in the window.
   level: number | null;
+  is_weakest: boolean;
+  /** The company's own covered months. Absent in tables built before it was served. */
+  months_observed?: number;
 }
 
 export interface CompanyScoreRow extends ScoreRow {

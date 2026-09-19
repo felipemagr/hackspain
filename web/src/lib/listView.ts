@@ -1,14 +1,14 @@
-import type { State } from "./types";
+import type { Bucket } from "./meta";
 
-export type Direction = "rising" | "flat" | "falling";
-export type SortKey = "state" | "level_desc" | "level_asc" | "trend_desc" | "trend_asc" | "name";
+export type SortKey = "priority" | "level_desc" | "level_asc" | "trend_desc" | "trend_asc" | "name";
 
-/** How the groups rail is filtered and sorted. Empty filter lists mean "all". */
+/** How the groups rail is filtered and sorted. */
 export interface ListView {
-  states: State[];
-  directions: Direction[];
+  /** Free text: words match name, sector, country or state; ">70" and "<40" match the score. */
+  query: string;
+  bucket: Bucket | "all";
   favoritesOnly: boolean;
   sort: SortKey;
 }
 
-export const DEFAULT_VIEW: ListView = { states: [], directions: [], favoritesOnly: false, sort: "state" };
+export const DEFAULT_VIEW: ListView = { query: "", bucket: "all", favoritesOnly: false, sort: "priority" };

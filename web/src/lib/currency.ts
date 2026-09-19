@@ -22,8 +22,8 @@ function subscribe(notify: () => void) {
   return () => listeners.delete(notify);
 }
 
-export function loadRates() {
-  fetch("/data/fx.json")
+export function loadRates(url = "/data/fx.json") {
+  fetch(url)
     .then((res) => res.json())
     .then((rows: { year: number; usd_per_eur: number }[]) => {
       usdPerEur = new Map(rows.map((r) => [r.year, r.usd_per_eur]));

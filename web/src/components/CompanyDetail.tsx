@@ -24,7 +24,8 @@ export function CompanyDetail({ store, companyId, month, onMonth, onBack }: Comp
   const drivers = store.companyDriversAt(companyId, month);
   const impact = store.companyImpactAt(companyId, month)?.impact_points;
   const index = history.findIndex((row) => row.month === month);
-  const change = score && index > 0 ? score.level - history[index - 1].level : null;
+  const previous = index > 0 ? history[index - 1].level : null;
+  const change = score?.level != null && previous != null ? score.level - previous : null;
   const share = score && groupScore && groupScore.monthly_inflow_eur > 0
     ? score.monthly_inflow_eur / groupScore.monthly_inflow_eur
     : null;
@@ -73,6 +74,7 @@ export function CompanyDetail({ store, companyId, month, onMonth, onBack }: Comp
           onMonth={onMonth}
           primary={{ name: company.name, history }}
           compare={[group ? { name: group.name, history: store.scoresByGroup.get(company.group_id) ?? [] } : null]}
+          macro={null}
           alerts={store.companyAlerts.filter((a) => a.company_id === companyId).map((a) => ({ ...a, group_id: companyId }))}
         />
       </section>

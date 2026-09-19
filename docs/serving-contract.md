@@ -47,7 +47,7 @@ when `build_id` changes; without an API it reads the same tables from `web/publi
 `group_id`, `name`, `sector`, `country`, `n_companies`, `has_erp`, `annual_revenue_eur`, `archetype` (mock only).
 
 `companies`: subsidiaries at the last month.
-`company_id`, `group_id`, `name`, `inflow_share`, `level`.
+`company_id`, `group_id`, `name`, `inflow_share`, `level`, `is_weakest`, `months_observed` (the company's own, not the group's).
 
 `company_scores`: one row per covered company and month. Same score, pillars, trajectory,
 state and headline indicators as `scores`, keyed by `company_id`, `group_id`, `month`.

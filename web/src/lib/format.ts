@@ -26,22 +26,26 @@ export function monthLong(month: string): string {
 }
 
 export function fmtScore(v: number | null | undefined): string {
-  return v == null ? "-" : v.toFixed(0);
+  return v == null || !Number.isFinite(v) ? "-" : v.toFixed(0);
 }
 
 export function fmtSigned(v: number | null | undefined, digits = 1): string {
-  if (v == null) return "-";
+  if (v == null || !Number.isFinite(v)) return "-";
   const s = v > 0 ? "+" : "";
   return `${s}${v.toFixed(digits)}`;
 }
 
 /** An amount held in euros, shown in the currency picked in the side rail. */
 export function fmtEur(eur: number | null | undefined): string {
-  if (eur == null) return "-";
+  if (eur == null || !Number.isFinite(eur)) return "-";
   const { value: v, symbol } = toDisplay(eur);
   if (Math.abs(v) >= 1_000_000) return `${symbol}${(v / 1_000_000).toFixed(1)}M`;
   if (Math.abs(v) >= 1_000) return `${symbol}${(v / 1_000).toFixed(0)}K`;
   return `${symbol}${v.toFixed(0)}`;
+}
+
+export function fmtMonthsOfData(months: number): string {
+  return `${months.toFixed(0)} ${months === 1 ? "month" : "months"} of data`;
 }
 
 /** "4 months early", or null when the alert did not run ahead of the tier change. */

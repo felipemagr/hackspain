@@ -129,6 +129,10 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 - Only the Agents chat needs secrets: set `HELMCODE_API_KEY`, `EXA_API_KEY` and `TAVILY_API_KEY` on
   `lighthouse-api` in the Render dashboard (`sync: false` in `render.yaml`). The static site gets the
   API address at build time through `VITE_API_URL`; locally it defaults to `http://localhost:8000`.
+- Every `/api/v1` route except `real-groups` asks for the shared key in `X-API-Key` (`src/xray/api/auth.py`). Set the
+  same value as `LIGHTHOUSE_API_KEY` on `lighthouse-api` and `VITE_API_KEY` on `lighthouse`, then redeploy the
+  site so the build picks it up. With no key set the API is open, which is how local work runs. The key
+  ships inside the site's bundle: it keeps strangers off the chat and the Slack test, not a reader of the page.
 - Nothing else on the API needs secrets. If Render gives the site another hostname, update `XRAY_CORS_ORIGINS` in `render.yaml`.
 - Before the pitch, open `/health` on the API to wake it, or point a free UptimeRobot monitor at it every 5 minutes.
 - Fallback on stage: `make api-up` plus `cloudflared tunnel --url http://localhost:8000`.

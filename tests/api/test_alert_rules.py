@@ -36,3 +36,23 @@ def test_a_request_without_a_channel_is_rejected(client):
 
     assert response.status_code == 422
     assert "slack or email" in response.json()["detail"]
+
+
+def test_the_test_button_sends_the_rule_down_its_channel(client, monkeypatch):
+    sent = []
+    monkeypatch.setattr(alert_rules, "send_slack", lambda text: sent.append(text) or True)
+    client.post("/api/v1/alert-rules", json={"text": "slack me when GROUP_0220 falls"})
+
+    assert client.post("/api/v1/alert-rules/1/test").status_code == 204
+    assert "Slack gets critical alerts on GROUP_0220" in sent[0]
+    assert client.post("/api/v1/alert-rules/9/test").status_code == 404
+
+
+def test_the_test_button_says_when_the_channel_is_not_configured(client, monkeypatch):
+    monkeypatch.setattr(alert_rules, "send_slack", lambda text: False)
+    client.post("/api/v1/alert-rules", json={"text": "slack me everything"})
+
+    response = client.post("/api/v1/alert-rules/1/test")
+
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"]

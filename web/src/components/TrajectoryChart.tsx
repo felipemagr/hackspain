@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { monthLong, monthShort } from "../lib/format";
+import { alignMacro, type MacroSeries } from "../lib/macro";
 import { SERIES_COLORS, STATE_META, toneColor } from "../lib/meta";
 import type { AlertRow, ScoreRow } from "../lib/types";
 import { useTween } from "../lib/useTween";
+import { CHART_COLORS, DEFAULT_CHART, type ChartConfig } from "../lib/viewAgent";
 
 export interface ChartSeries {
   name: string;
@@ -14,19 +16,19 @@ interface TrajectoryChartProps {
   month: string;
   onMonth: (month: string) => void;
   primary: ChartSeries;
-  /** One entry per comparison slot, null when free. The slot picks the color. */
-  compare: (ChartSeries | null)[];
+  /** Market health level behind the score, on the same 0-100 axis. Null when none is picked. */
+  macro: MacroSeries | null;
+  compare?: (ChartSeries | null)[];
   alerts: AlertRow[];
+  config?: ChartConfig;
 }
 
 const H = 300;
 const M = { top: 16, right: 44, bottom: 28, left: 96 };
-const TICKS = [
-  { at: 100, label: "" },
-  { at: 70, label: "Healthy" },
-  { at: 40, label: "Vulnerable" },
-  { at: 0, label: "" },
-];
+const THRESHOLDS: Record<number, string> = { 70: "Healthy", 40: "Vulnerable" };
+// Narrowest zoom, in months between the two ends of the axis.
+const MIN_SPAN = 2;
+const MACRO_COLOR = "var(--series-3)";
 
 function align(months: string[], history: ScoreRow[]): number[] {
   const byMonth = new Map(history.map((s) => [s.month, s.level]));
@@ -38,38 +40,75 @@ export function TrajectoryChart({
   month,
   onMonth,
   primary,
-  compare,
+  macro,
+  compare = [],
   alerts,
+  config = DEFAULT_CHART,
 }: TrajectoryChartProps) {
   const wrap = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(880);
   const [hover, setHover] = useState<number | null>(null);
+  // Kept as months, not indexes: the axis start moves with the group's own history.
+  const [zoom, setZoom] = useState<[string, string] | null>(null);
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
+  const press = useRef<{ index: number; clientX: number } | null>(null);
 
   useEffect(() => {
     const el = wrap.current;
     if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const ro = new ResizeObserver(([entry]) =>
+      setWidth(entry.contentRect.width),
+    );
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
   // The axis opens where the oldest drawn series starts, not where the portfolio does.
-  const oldest = [primary, ...compare].flatMap((c) => c?.history[0]?.month ?? []).sort()[0];
-  const months = oldest ? timeline.slice(timeline.indexOf(oldest)) : timeline;
+  const oldest = [primary, ...compare].flatMap((series) => series?.history[0]?.month ?? []).sort()[0];
+  const fullMonths = oldest ? timeline.slice(timeline.indexOf(oldest)) : timeline;
+  const periodStart = config.months
+    ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - config.months, 1)).toISOString().slice(0, 10)
+    : "";
+  const months = config.months
+    ? fullMonths.filter(value => value >= periodStart && value <= month)
+    : fullMonths;
+  const primaryColor = CHART_COLORS[config.color];
   const n = months.length;
-  const span = Math.max(n - 1, 1);
   const cursor = months.indexOf(month);
-  const a = useTween(align(months, primary.history));
-  // All slots tween as one flat array, so the hook count does not depend on the selection.
-  const flat = useTween(
-    compare.flatMap((c) => (c ? align(months, c.history) : months.map(() => NaN))),
-  );
-  const others = compare.flatMap((c, k) =>
-    c ? [{ ...c, color: SERIES_COLORS[k], vals: flat.slice(k * n, (k + 1) * n) }] : [],
+  const target = align(months, primary.history);
+  const a = useTween(target);
+  const macroVals = macro ? alignMacro(macro, months) : [];
+  const compareTargets = compare.map(series => series ? align(months, series.history) : months.map(() => NaN));
+  const flat = useTween(compareTargets.flat());
+  const others = compare.flatMap((series, index) =>
+    series ? [{ ...series, color: SERIES_COLORS[index], vals: flat.slice(index * n, (index + 1) * n) }] : [],
   );
 
-  const x = (i: number) => M.left + (i / span) * (width - M.left - M.right);
-  const y = (v: number) => M.top + (1 - v / 100) * (H - M.top - M.bottom);
+  const zi = zoom ? [months.indexOf(zoom[0]), months.indexOf(zoom[1])] : [];
+  const [i0, i1] = zi[0] >= 0 && zi[1] > zi[0] ? zi : [0, Math.max(n - 1, 0)];
+  const zoomed = i0 > 0 || i1 < n - 1;
+  // Zoomed in, the score axis closes on what is drawn; the full window keeps the fixed 0 to 100.
+  const seen = [target, macroVals, ...compareTargets]
+    .flatMap((vals) => vals.slice(i0, i1 + 1))
+    .filter(Number.isFinite);
+  const yLo =
+    zoomed && config.type !== "bar" && seen.length
+      ? Math.max(0, Math.floor((Math.min(...seen) - 5) / 10) * 10)
+      : 0;
+  const yHi =
+    zoomed && seen.length
+      ? Math.min(100, Math.ceil((Math.max(...seen) + 5) / 10) * 10)
+      : 100;
+  const [v0, v1, lo, hi] = useTween([i0, i1, yLo, yHi]);
+
+  const bottom = H - M.bottom;
+  const plotW = Math.max(0, width - M.left - M.right);
+  const slotWidth = plotW / Math.max(v1 - v0 + 1, 1);
+  const x = (i: number) => M.left + (config.type === "bar"
+    ? (i - v0 + .5) * slotWidth
+    : ((i - v0) / Math.max(v1 - v0, 1)) * plotW);
+  const y = (v: number) =>
+    M.top + (1 - (v - lo) / (hi - lo)) * (bottom - M.top);
   const path = (vals: number[], from: number, to: number) => {
     let d = "";
     let pen = false;
@@ -85,30 +124,70 @@ export function TrajectoryChart({
   };
   const indexAt = (clientX: number) => {
     const rect = wrap.current!.getBoundingClientRect();
-    const i = Math.round(((clientX - rect.left - M.left) / (width - M.left - M.right)) * span);
-    return Math.max(0, Math.min(n - 1, i));
+    const fraction = (clientX - rect.left - M.left) / Math.max(plotW, 1);
+    const i = config.type === "bar"
+      ? i0 + Math.floor(fraction * (i1 - i0 + 1))
+      : Math.round(i0 + fraction * (i1 - i0));
+    return Math.max(i0, Math.min(i1, i));
+  };
+  const setRange = (from: number, to: number) =>
+    setZoom(
+      from <= 0 && to >= n - 1
+        ? null
+        : [months[Math.max(0, from)], months[Math.min(n - 1, to)]],
+    );
+  // Zooms around the selected month while it is on screen, around the middle otherwise.
+  const zoomBy = (factor: number) => {
+    const size = Math.max(MIN_SPAN, Math.round((i1 - i0) * factor));
+    const mid = cursor >= i0 && cursor <= i1 ? cursor : (i0 + i1) / 2;
+    const from = Math.max(
+      0,
+      Math.min(n - 1 - size, Math.round(mid - size / 2)),
+    );
+    setRange(from, from + size);
   };
 
-  const first = a.findIndex(Number.isFinite);
-  const area =
-    others.length === 0 && first >= 0 && cursor > first
-      ? `${path(a, first, cursor)}L${x(cursor).toFixed(1)},${y(0)}L${x(first).toFixed(1)},${y(0)}Z`
-      : "";
+  const areaPath = (values: number[]) => {
+    let result = "";
+    let start = -1;
+    for (let index = 0; index <= cursor + 1; index++) {
+      if (index <= cursor && Number.isFinite(values[index])) {
+        if (start < 0) start = index;
+      } else if (start >= 0) {
+        result += `${path(values, start, index - 1)}L${x(index - 1)},${bottom}L${x(start)},${bottom}Z`;
+        start = -1;
+      }
+    }
+    return result;
+  };
+  const cursorSeen = cursor >= i0 && cursor <= i1;
   const endLabels = [
-    { v: a[cursor], color: "var(--ink)" },
-    ...others.map((o) => ({ v: o.vals[cursor], color: o.color })),
+    { v: a[cursor], color: primaryColor },
+    ...others.map(series => ({ v: series.vals[cursor], color: series.color })),
+    ...(macro ? [{ v: macroVals[cursor], color: MACRO_COLOR }] : []),
   ]
-    .filter((l) => Number.isFinite(l.v))
+    .filter((l) => cursorSeen && Number.isFinite(l.v))
     .map((l) => ({ ...l, py: y(l.v) }))
     .sort((p, q) => p.py - q.py);
   // End labels closer than a line of text get pushed apart, top to bottom, then back inside the plot.
   for (let k = 1; k < endLabels.length; k++) {
     endLabels[k].py = Math.max(endLabels[k].py, endLabels[k - 1].py + 14);
   }
-  const overflow = endLabels.length ? endLabels[endLabels.length - 1].py - y(0) : 0;
+  const overflow = endLabels.length
+    ? endLabels[endLabels.length - 1].py - bottom
+    : 0;
   if (overflow > 0) endLabels.forEach((l) => (l.py -= overflow));
 
-  const hoverAlert = hover != null ? alerts.find((al) => al.month === months[hover]) : undefined;
+  const yTicks = [yHi, 70, 40, yLo].filter(
+    (t, k, all) => t >= yLo && t <= yHi && all.indexOf(t) === k,
+  );
+  const every = i1 - i0 > 12 ? 3 : i1 - i0 > 6 ? 2 : 1;
+
+  const activeHover = hover != null && hover >= i0 && hover <= i1 && hover < n ? hover : null;
+  const hoverAlert = activeHover != null ? alerts.find((al) => al.month === months[activeHover]) : undefined;
+  const barSeries = [{ name: primary.name, color: primaryColor, vals: a }, ...others];
+  const barWidth = Math.min(24, slotWidth * .7 / barSeries.length);
+  const barGap = Math.min(1, barWidth * .15);
 
   return (
     <div className="chart" ref={wrap}>
@@ -116,121 +195,232 @@ export function TrajectoryChart({
         width={width}
         height={H}
         role="img"
-        aria-label={`Health score of ${primary.name}${others
-          .map((o) => ` and ${o.name}`)
-          .join("")} over ${n} months. Click to move to a month.`}
-        onPointerMove={(e) => setHover(indexAt(e.clientX))}
+        aria-label={`${config.type} chart of ${primary.name}${others.map(series => ` and ${series.name}`).join("")} over ${n} months${macro ? `, against ${macro.name}` : ""}. Click to move to a month, drag across months to zoom in.`}
+        onPointerDown={(e) => {
+          e.currentTarget.setPointerCapture(e.pointerId);
+          press.current = { index: indexAt(e.clientX), clientX: e.clientX };
+        }}
+        onPointerMove={(e) => {
+          const i = indexAt(e.clientX);
+          setHover(i);
+          const p = press.current;
+          if (p && (drag || Math.abs(e.clientX - p.clientX) > 4))
+            setDrag({ from: p.index, to: i });
+        }}
+        onPointerUp={(e) => {
+          const p = press.current;
+          press.current = null;
+          setDrag(null);
+          if (!p) return;
+          if (!drag) { if (n) onMonth(months[indexAt(e.clientX)]); return; }
+          const from = Math.min(drag.from, drag.to);
+          const to = Math.max(drag.from, drag.to);
+          // A drag shorter than the narrowest zoom still opens a readable window.
+          if (to > from) setRange(from, Math.max(to, from + MIN_SPAN));
+        }}
+        onPointerCancel={() => {
+          press.current = null;
+          setDrag(null);
+        }}
         onPointerLeave={() => setHover(null)}
-        onClick={(e) => onMonth(months[indexAt(e.clientX)])}
+        onDoubleClick={() => setZoom(null)}
       >
         <defs>
           <linearGradient id="wash" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--ink)" stopOpacity="0.07" />
-            <stop offset="1" stopColor="var(--ink)" stopOpacity="0" />
+            <stop offset="0" stopColor={primaryColor} stopOpacity="0.07" />
+            <stop offset="1" stopColor={primaryColor} stopOpacity="0" />
           </linearGradient>
+          {/* A little wider than the plot, so a dot on the edge month is not cut in half. */}
+          <clipPath id="plot">
+            <rect
+              x={M.left - 7}
+              y={M.top - 7}
+              width={Math.max(plotW, 0) + 14}
+              height={bottom - M.top + 14}
+            />
+          </clipPath>
+          <clipPath id="bar-plot">
+            <rect x={M.left} y={M.top} width={plotW} height={bottom - M.top} />
+          </clipPath>
         </defs>
 
-        {[0, 100].map((t) => (
-          <line key={t} x1={M.left} x2={width - M.right} y1={y(t)} y2={y(t)} className="chart__grid" />
-        ))}
-        {TICKS.filter((t) => t.label).map((t) => (
+        {config.show_grid && [M.top, bottom].map((py) => (
           <line
-            key={t.at}
+            key={py}
             x1={M.left}
             x2={width - M.right}
-            y1={y(t.at)}
-            y2={y(t.at)}
-            className="chart__threshold"
+            y1={py}
+            y2={py}
+            className="chart__grid"
           />
         ))}
-        {TICKS.map((t) => (
-          <text key={t.at} x={M.left - 10} y={y(t.at) + 4} textAnchor="end" className="chart__tick">
-            {t.label} {t.at}
+        {config.show_grid && yTicks
+          .filter((t) => THRESHOLDS[t] && t > yLo && t < yHi)
+          .map((t) => (
+            <line
+              key={t}
+              x1={M.left}
+              x2={width - M.right}
+              y1={y(t)}
+              y2={y(t)}
+              className="chart__threshold"
+            />
+          ))}
+        {yTicks.map((t) => (
+          <text
+            key={t}
+            x={M.left - 10}
+            y={y(t) + 4}
+            textAnchor="end"
+            className="chart__tick"
+          >
+            {primary.history.some(row => row.localScoring) ? "" : THRESHOLDS[t]} {t}
           </text>
         ))}
         {months.map((m, i) =>
-          i % 3 === 0 ? (
-            <text key={m} x={x(i)} y={H - 6} textAnchor="middle" className="chart__tick">
+          i % every === 0 && i >= i0 && i <= i1 ? (
+            <text
+              key={m}
+              x={x(i)}
+              y={H - 6}
+              textAnchor="middle"
+              className="chart__tick"
+            >
               {monthShort(m)}
             </text>
           ) : null,
         )}
 
-        {area && <path d={area} fill="url(#wash)" />}
-
-        {/* months after the selected one stay visible, but recede */}
-        <path d={path(a, cursor, n - 1)} className="chart__line chart__line--ahead" />
-        {others.map((o) => (
-          <path key={`ahead-${o.color}`} d={path(o.vals, cursor, n - 1)} className="chart__line chart__line--ahead" />
-        ))}
-        {others.map((o) => (
-          <path key={o.color} d={path(o.vals, 0, cursor)} className="chart__line" stroke={o.color} />
-        ))}
-        <path d={path(a, 0, cursor)} className="chart__line" stroke="var(--ink)" />
-
-        {alerts.map((al) => {
-          const i = months.indexOf(al.month);
-          if (i < 0 || !Number.isFinite(a[i])) return null;
-          return (
-            <circle
-              key={`alert-${al.month}`}
-              cx={x(i)}
-              cy={y(a[i])}
-              r={5}
-              className="chart__alert"
-              stroke={toneColor(STATE_META[al.state_to].tone)}
+        <g clipPath="url(#plot)">
+          {drag && (
+            <rect
+              x={x(Math.min(drag.from, drag.to))}
+              y={M.top}
+              width={Math.abs(x(drag.to) - x(drag.from))}
+              height={bottom - M.top}
+              className="chart__brush"
             />
-          );
-        })}
+          )}
 
-        {hover != null && hover !== cursor && (
-          <line x1={x(hover)} x2={x(hover)} y1={M.top} y2={y(0)} className="chart__crosshair" />
-        )}
-        {cursor >= 0 && (
-          <line x1={x(cursor)} x2={x(cursor)} y1={M.top} y2={y(0)} className="chart__cursor" />
-        )}
-        {others.map(
-          (o) =>
-            Number.isFinite(o.vals[cursor]) && (
+          {macro && (
+            <path
+              d={path(macroVals, 0, n - 1)}
+              className="chart__line chart__line--macro"
+              stroke={MACRO_COLOR}
+            />
+          )}
+
+          {config.type === "area" && <>
+            <path d={areaPath(a)} fill="url(#wash)" />
+            {others.map(series => <path key={series.color} d={areaPath(series.vals)} fill={series.color} opacity={.06} />)}
+          </>}
+
+          {config.type !== "bar" && <>
+            {/* months after the selected one stay visible, but recede */}
+            <path d={path(a, cursor, n - 1)} className="chart__line chart__line--ahead" />
+            {others.map(series => <path key={`ahead-${series.color}`} d={path(series.vals, cursor, n - 1)} className="chart__line chart__line--ahead" />)}
+            {others.map(series => <path key={series.color} d={path(series.vals, 0, cursor)} className="chart__line" stroke={series.color} />)}
+            <path d={path(a, 0, cursor)} className="chart__line" stroke={primaryColor} />
+          </>}
+          {config.type === "bar" && <g clipPath="url(#bar-plot)">
+            {barSeries.flatMap((series, seriesIndex) => series.vals.map((value, index) =>
+              Number.isFinite(value) && index >= i0 && index <= i1
+                ? <rect key={`${seriesIndex}-${index}`} x={x(index) - barWidth * barSeries.length / 2 + seriesIndex * barWidth}
+                    y={y(value)} width={barWidth - barGap} height={Math.max(0, bottom - y(value))}
+                    fill={series.color} opacity={index > cursor ? .25 : .85} />
+                : null))}
+          </g>}
+
+          {alerts.map((al) => {
+            const i = months.indexOf(al.month);
+            if (i < 0 || !Number.isFinite(a[i])) return null;
+            return (
               <circle
-                key={o.color}
-                cx={x(cursor)}
-                cy={y(o.vals[cursor])}
-                r={4.5}
-                className="chart__dot"
-                fill={o.color}
+                key={`alert-${al.month}`}
+                cx={x(i)}
+                cy={y(a[i])}
+                r={5}
+                className="chart__alert"
+                stroke={toneColor(STATE_META[al.state_to].tone)}
               />
-            ),
-        )}
-        {Number.isFinite(a[cursor]) && (
-          <circle cx={x(cursor)} cy={y(a[cursor])} r={4.5} className="chart__dot" fill="var(--ink)" />
-        )}
-        {endLabels.map((l, i) => (
-          <text key={i} x={x(cursor) + 10} y={l.py + 4} className="chart__end" fill={l.color}>
+            );
+          })}
+
+          {activeHover != null && activeHover !== cursor && (
+            <line
+              x1={x(activeHover)}
+              x2={x(activeHover)}
+              y1={M.top}
+              y2={bottom}
+              className="chart__crosshair"
+            />
+          )}
+          {cursor >= 0 && (
+            <line
+              x1={x(cursor)}
+              x2={x(cursor)}
+              y1={M.top}
+              y2={bottom}
+              className="chart__cursor"
+            />
+          )}
+          {config.type !== "bar" && Number.isFinite(a[cursor]) && (
+            <circle
+              cx={x(cursor)}
+              cy={y(a[cursor])}
+              r={4.5}
+              className="chart__dot"
+              fill={primaryColor}
+            />
+          )}
+          {config.type !== "bar" && others.map(series => Number.isFinite(series.vals[cursor]) && (
+            <circle key={series.color} cx={x(cursor)} cy={y(series.vals[cursor])} r={4.5} className="chart__dot" fill={series.color} />
+          ))}
+        </g>
+        {config.type !== "bar" && endLabels.map((l, i) => (
+          <text
+            key={i}
+            x={x(cursor) + 10}
+            y={l.py + 4}
+            className="chart__end"
+            fill={l.color}
+          >
             {l.v.toFixed(0)}
           </text>
         ))}
       </svg>
 
-      {hover != null && (
+      {activeHover != null && (
         <div
           className="tooltip"
           style={{
-            left: x(hover),
-            transform: `translateX(${hover > n * 0.7 ? "calc(-100% - 12px)" : "12px"})`,
+            left: x(activeHover),
+            transform: `translateX(${activeHover - i0 > (i1 - i0) * 0.7 ? "calc(-100% - 12px)" : "12px"})`,
           }}
         >
-          <div className="tooltip__title">{monthLong(months[hover])}</div>
+          <div className="tooltip__title">{monthLong(months[activeHover])}</div>
           {[
-            { s: primary, v: a[hover], color: "var(--ink)" },
-            ...others.map((o) => ({ s: o, v: o.vals[hover], color: o.color })),
-          ].map(({ s, v, color }) => (
-            <div className="tooltip__row" key={color}>
-              <span className="key" style={{ background: color }} />
-              <strong>{Number.isFinite(v) ? v.toFixed(0) : "-"}</strong>
-              <span>{s.name}</span>
+            { s: primary, v: a[activeHover], color: primaryColor },
+            ...others.map(series => ({ s: series, v: series.vals[activeHover], color: series.color })),
+          ].map(
+            ({ s, v, color }) => (
+              <div className="tooltip__row" key={color}>
+                <span className="key" style={{ background: color }} />
+                <strong>{Number.isFinite(v) ? v.toFixed(0) : "-"}</strong>
+                <span>{s.name}</span>
+              </div>
+            ),
+          )}
+          {macro && Number.isFinite(macroVals[activeHover]) && (
+            <div className="tooltip__row">
+              <span
+                className="key key--dashed"
+                style={{ background: MACRO_COLOR }}
+              />
+              <strong>{macroVals[activeHover].toFixed(0)}</strong>
+              <span>{macro.name}</span>
             </div>
-          ))}
+          )}
           {hoverAlert && (
             <div className="tooltip__note">
               Alert: {STATE_META[hoverAlert.state_from].label} to{" "}
@@ -239,6 +429,41 @@ export function TrajectoryChart({
           )}
         </div>
       )}
+
+      <div className="chart__zoom">
+        <span className="chart__range">
+          {zoomed
+            ? `${monthLong(months[i0])} to ${monthLong(months[i1])}`
+            : "Drag across the chart to zoom"}
+        </span>
+        {zoomed && (
+          <button className="link" onClick={() => setZoom(null)}>
+            Reset
+          </button>
+        )}
+        <button
+          className="icon-button"
+          aria-label="Zoom out"
+          title="Zoom out"
+          disabled={!zoomed}
+          onClick={() => zoomBy(2)}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+            <path d="M2.5 7h9" />
+          </svg>
+        </button>
+        <button
+          className="icon-button"
+          aria-label="Zoom in"
+          title="Zoom in"
+          disabled={i1 - i0 <= MIN_SPAN}
+          onClick={() => zoomBy(0.5)}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden>
+            <path d="M2.5 7h9M7 2.5v9" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }

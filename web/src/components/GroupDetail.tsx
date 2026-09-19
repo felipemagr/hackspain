@@ -1,38 +1,94 @@
 import { useState } from "react";
-import { fmtEur, fmtScore, fmtSigned, monthLong } from "../lib/format";
-import { PILLAR_LABEL, SERIES_COLORS } from "../lib/meta";
+import {
+  fmtEur,
+  fmtMonthsOfData,
+  fmtScore,
+  fmtSigned,
+  monthLong,
+} from "../lib/format";
+import {
+  MACRO_BY_ID,
+  MACRO_PILLARS,
+  MACRO_SERIES,
+  defaultMacro,
+} from "../lib/macro";
+import type { MacroSeries } from "../lib/macro";
+import { PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
+import type { Weights } from "../lib/scoring";
 import { useTween } from "../lib/useTween";
-import { Check, Menu } from "./Menu";
+import { LowDataNote } from "./LowData";
+import { Menu } from "./Menu";
+import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
 import { PromptPay } from "./PromptPay";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { TrajectoryChart } from "./TrajectoryChart";
+import { WhatIf } from "./WhatIf";
+import { CHART_COLORS, DEFAULT_CHART, type ChartConfig } from "../lib/viewAgent";
+import { scoreLabels } from "../lib/scoring";
+
+/** Where a market's level comes from and how it is built. Opens on hover or keyboard focus. */
+function MacroInfo({ macro }: { macro: MacroSeries }) {
+  return (
+    <span className="info">
+      <button
+        className="info__mark"
+        aria-label="How market health is built"
+        aria-describedby="macro-info"
+      >
+        i
+      </button>
+      <span className="info__pop" id="macro-info" role="tooltip">
+        <strong className="info__title">How market health is built</strong>
+        <span className="info__rows">
+          {MACRO_PILLARS.map((p) => (
+            <span className="info__row" key={p.name}>
+              <span className="info__name">{p.name}</span>
+              <span className="info__weight">{p.weight}</span>
+              <span className="info__what">{p.what}</span>
+            </span>
+          ))}
+        </span>
+        <span className="info__note">
+          Each pillar is 0-100 on fixed anchors, then a weighted mean.
+          Conditions, not distance to distress. Built from {macro.source}, to{" "}
+          {macro.through}.
+        </span>
+      </span>
+    </span>
+  );
+}
 
 interface GroupDetailProps {
   store: Store;
   groupId: string;
-  /** One group id per comparison slot, "" when free. */
-  compareSlots: string[];
   month: string;
   onMonth: (month: string) => void;
-  /** Adds the group to a free slot, or removes it. */
-  onCompare: (groupId: string) => void;
-  onClearCompare: () => void;
   favorite: boolean;
   onFavorite: () => void;
   syncing: boolean;
   onSync: () => void;
-  onCompany: (companyId: string) => void;
+  onCompany?: (companyId: string) => void;
+  weights?: Weights;
+  onWeights?: (weights: Weights) => void;
+  evaluating?: boolean;
+  onEntity?: (id: string, kind: "group" | "company") => void;
+  chart?: ChartConfig;
 }
 
-const clock = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+const clock = (d: Date) =>
+  d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 const stamp = (d: Date) =>
   `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${clock(d)}`;
 
 function heading(score: ScoreRow): string {
+  if (score.localScoring) {
+    const { level, evolution } = score.localScoring;
+    return `Confidence ${level.confidence == null ? "-" : `${level.confidence.toFixed(0)}%`} · Evolution ${evolution.score == null ? "-" : `${evolution.score.toFixed(1)}/100`}`;
+  }
   const parts: string[] = [];
   if (score.trend != null && Math.abs(score.trend) > 0.15) {
     parts.push(
@@ -48,44 +104,62 @@ function heading(score: ScoreRow): string {
 export function GroupDetail({
   store,
   groupId,
-  compareSlots,
   month,
   onMonth,
-  onCompare,
-  onClearCompare,
   favorite,
   onFavorite,
   syncing,
   onSync,
   onCompany,
+  weights,
+  onWeights,
+  evaluating,
+  onEntity,
+  chart = DEFAULT_CHART,
 }: GroupDetailProps) {
-  const [query, setQuery] = useState("");
   const group = store.groupById.get(groupId);
   const history = store.scoresByGroup.get(groupId) ?? [];
   const score = store.scoreAt(groupId, month);
   const idx = history.findIndex((s) => s.month === month);
   const prevLevel = idx > 0 ? history[idx - 1].level : null;
-  const since = score && prevLevel != null ? score.level - prevLevel : null;
-  const way = since == null || Math.abs(since) < 0.05 ? "" : since > 0 ? "is-up" : "is-down";
+  const since = score?.level != null && prevLevel != null ? score.level - prevLevel : null;
+  const way =
+    since == null || Math.abs(since) < 0.05
+      ? ""
+      : since > 0
+        ? "is-up"
+        : "is-down";
   const line = score ? heading(score) : "";
+  const thin = !store.localScoring && thinHistory(score?.months_observed);
   const [level] = useTween([score?.level ?? NaN]);
+  const [macroId, setMacroId] = useState(() =>
+    defaultMacro(group?.country ?? null),
+  );
   if (!group) return null;
 
   const drivers = store.driversAt(groupId, month);
+  const detail = store.localDetails?.get(groupId);
+  const record = detail?.monthly.find((r) => r.month.slice(0, 7) === month.slice(0, 7));
+  const activeWeights = weights ?? store.localWeights?.get(groupId) ?? store.localScoring?.config.weights;
   const offer = store.offerAt(groupId, month);
-  const actions = [...(store.actionsByGroup.get(groupId) ?? [])].sort((a, b) => a.rank - b.rank);
+  const actions = [...(store.actionsByGroup.get(groupId) ?? [])].sort(
+    (a, b) => a.rank - b.rank,
+  );
   const companies = [...(store.companiesByGroup.get(groupId) ?? [])].sort(
     (a, b) =>
       (store.companyImpactAt(b.company_id, month)?.impact_points ?? -Infinity) -
       (store.companyImpactAt(a.company_id, month)?.impact_points ?? -Infinity),
   );
-  const compare = compareSlots.map((id) => store.groupById.get(id) ?? null);
-  const nCompare = compare.filter(Boolean).length;
-  const full = nCompare === compareSlots.length;
-  const q = query.trim().toLowerCase();
-  const candidates = store.groups.filter(
-    (g) => g.group_id !== groupId && (!q || g.name.toLowerCase().includes(q)),
-  );
+  const macro = MACRO_BY_ID.get(macroId) ?? null;
+  const chartHistory = (metric: string) => metric === "level" ? history : history.map(row => ({ ...row, level: row.localScoring?.families[metric]?.score ?? null }));
+  const periodStart = chart.months ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - chart.months, 1)).toISOString().slice(0, 10) : "";
+  const observed = new Map(chart.series.map(metric => [metric, chartHistory(metric).filter(row => row.month <= month && row.month >= periodStart && row.level != null && Number.isFinite(row.level)).length]));
+  const omitted = store.localScoring ? chart.series.filter(metric => observed.get(metric)! < 2) : [];
+  const chartSeries = chart.series.filter(metric => !omitted.includes(metric));
+  const chartPrimary = chartSeries[0];
+  const primaryName = chartPrimary === "level" ? group.name : scoreLabels[chartPrimary];
+  const showMarket = chartSeries.length === 1 && chartPrimary === "level";
+  const chartComparisons = chartSeries.slice(1).map(metric => ({ name: metric === "level" ? "Health score" : scoreLabels[metric], history: chartHistory(metric) }));
 
   return (
     <article className="detail" aria-label={group.name}>
@@ -96,7 +170,9 @@ export function GroupDetail({
             <button
               className={`fav ${favorite ? "is-on" : ""}`}
               aria-pressed={favorite}
-              aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
+              aria-label={
+                favorite ? "Remove from favorites" : "Add to favorites"
+              }
               onClick={onFavorite}
             >
               <Star filled={favorite} />
@@ -124,29 +200,37 @@ export function GroupDetail({
               group.sector,
               group.country,
               `${group.n_companies} ${group.n_companies === 1 ? "company" : "companies"}`,
-              `${fmtEur(group.annual_revenue_eur)} revenue`,
+              !store.localScoring && `${fmtEur(group.annual_revenue_eur)} revenue`,
               store.updatedAt && `updated ${stamp(store.updatedAt)}`,
             ]
               .filter(Boolean)
               .join(" · ")}
           </p>
+          {detail && (detail.entity.kind === "group" || detail.entity.fx_estimated || detail.entity.fx_partial) && <p className="detail__meta">{detail.entity.fx_partial ? "Partial EUR coverage: some exchange rates are unavailable. " : detail.entity.fx_estimated ? "EUR amounts include estimated currency conversion. " : "EUR aggregation. "}{detail.entity.kind === "group" && "Intragroup flows are not eliminated."}</p>}
         </div>
         {score && (
           <div className="score">
-            <span className={`score__level ${way}`} key={`${groupId}-${month}`}>
+            <span
+              className={`score__level ${way} ${thin ? "is-thin" : ""}`}
+              key={`${groupId}-${month}`}
+            >
               {Number.isFinite(level) ? level.toFixed(0) : "-"}
             </span>
             <div>
-              <StateTag state={score.state} />
+              {!score.localScoring && <StateTag state={score.state} />}
               <p className="score__line">
                 {line}
                 {since != null && (
                   <>
                     {line && ", "}
-                    <span className={`score__since ${way}`}>{fmtSigned(since)}</span> since last month
+                    <span className={`score__since ${way}`}>
+                      {fmtSigned(since)}
+                    </span>{" "}
+                    since last month
                   </>
                 )}
               </p>
+              {thin && <LowDataNote months={score.months_observed} />}
             </div>
           </div>
         )}
@@ -154,99 +238,86 @@ export function GroupDetail({
 
       <section>
         <div className="section-head">
-          <h2>Health score, {monthLong(month)}</h2>
-          <div className="compare">
-            {nCompare > 0 && (
+          <h2>{(omitted.length ? null : chart.title) ?? (showMarket ? "Health score" : "Pillar scores")}, {monthLong(month)}</h2>
+          {store.localScoring && <span className="hint">{store.localWeights?.has(groupId) ? "Custom weights" : "Default weights"}</span>}
+          {showMarket && <div className="compare">
+            {macro && (
               <span className="legend">
                 <span className="legend__item">
-                  <span className="key" style={{ background: "var(--ink)" }} />
+                  <span className="key" style={{ background: CHART_COLORS[chart.color] }} />
                   {group.name}
                 </span>
-                {compare.map(
-                  (c, k) =>
-                    c && (
-                      <button
-                        key={c.group_id}
-                        className="legend__item legend__item--remove"
-                        aria-label={`Stop comparing with ${c.name}`}
-                        onClick={() => onCompare(c.group_id)}
-                      >
-                        <span className="key" style={{ background: SERIES_COLORS[k] }} />
-                        {c.name}
-                        <svg width="8" height="8" viewBox="0 0 10 10" aria-hidden>
-                          <path d="M1.5 1.5l7 7M8.5 1.5l-7 7" />
-                        </svg>
-                      </button>
-                    ),
-                )}
+                <span className="legend__item">
+                  <span
+                    className="key key--dashed"
+                    style={{ background: "var(--series-3)" }}
+                  />
+                  {macro.name}
+                </span>
               </span>
             )}
             <Menu
-              label={nCompare > 0 ? `Compare · ${nCompare}` : "Compare with..."}
-              ariaLabel="Compare with other groups"
+              label={macro ? `Against ${macro.name}` : "Against the market..."}
+              ariaLabel="Lay a market's health behind the score"
               align="right"
             >
-              <input
-                className="menu__search"
-                type="search"
-                placeholder="Find a group"
-                aria-label="Find a group"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                autoFocus
-              />
               <div className="menu__scroll">
-                {candidates.map((g) => {
-                  const on = compareSlots.includes(g.group_id);
-                  return (
-                    <Check
-                      key={g.group_id}
-                      checked={on}
-                      disabled={!on && full}
-                      onChange={() => onCompare(g.group_id)}
-                    >
-                      {g.name}
-                    </Check>
-                  );
-                })}
-                {candidates.length === 0 && <p className="menu__note">No group by that name.</p>}
+                {MACRO_SERIES.map((series) => (
+                  <button
+                    key={series.id}
+                    className={`pick ${series.id === macroId ? "is-on" : ""}`}
+                    aria-pressed={series.id === macroId}
+                    onClick={() =>
+                      setMacroId(series.id === macroId ? "" : series.id)
+                    }
+                  >
+                    {series.name}
+                    {series.country && (
+                      <span className="pick__tag">{series.country}</span>
+                    )}
+                  </button>
+                ))}
               </div>
               <p className="menu__note menu__foot">
-                {full ? `Up to ${compareSlots.length} at a time` : `${nCompare} of ${compareSlots.length} selected`}
-                {nCompare > 0 && (
-                  <button className="link" onClick={onClearCompare}>
+                Published figures, aligned to the score's months.
+                {macro && (
+                  <button className="link" onClick={() => setMacroId("")}>
                     Clear
                   </button>
                 )}
               </p>
             </Menu>
-          </div>
+            {macro && <MacroInfo macro={macro} />}
+          </div>}
         </div>
-        <TrajectoryChart
+        {chartSeries.length > 0 ? <TrajectoryChart
+          config={chart}
           months={store.months}
           month={month}
           onMonth={onMonth}
-          primary={{ name: group.name, history }}
-          compare={compare.map(
-            (c) => c && { name: c.name, history: store.scoresByGroup.get(c.group_id) ?? [] },
-          )}
-          alerts={store.alerts.filter((a) => a.group_id === groupId)}
-        />
+          primary={{ name: primaryName, history: chartHistory(chartPrimary) }}
+          compare={chartComparisons}
+          macro={showMarket ? macro : null}
+          alerts={chartPrimary === "level" ? store.alerts.filter((a) => a.group_id === groupId) : []}
+        /> : <p className="empty">A time chart needs at least two observations in this period.</p>}
+        {chartSeries.length > 0 && !showMarket && <div className="view-chart-legend">{chartSeries.map((metric, index) => <span className="legend__item" key={metric}><span className="key" style={{ background: index === 0 ? CHART_COLORS[chart.color] : SERIES_COLORS[index - 1] }} />{metric === "level" ? "Health score" : scoreLabels[metric]}</span>)}</div>}
+        {omitted.length > 0 && <p className="view-chart-note" role="status">{omitted.map(metric => `${metric === "level" ? "Health score" : scoreLabels[metric]} omitted: ${observed.get(metric) === 1 ? "only 1 observation" : "no observations"} in this period.`).join(" ")}</p>}
       </section>
 
       {!score ? (
         <p className="empty">
-          {group.name} has no score in {monthLong(month)}. Pick a later month on the chart.
+          {group.name} has no score in {monthLong(month)}. Pick a later month on
+          the chart.
         </p>
       ) : (
         <div className="columns">
           <section>
             <div className="section-head">
-              <h2>The five pillars</h2>
-              <span className="hint">what each moved this month</span>
+              <h2>{store.localScoring ? "The four pillars" : "The five pillars"}</h2>
+              <span className="hint">{store.localScoring ? "available evidence and effective weights" : "what each moved this month"}</span>
             </div>
-            <Pillars score={score} drivers={drivers} />
-            {companies.length > 0 && (
+            <Pillars score={score} drivers={drivers} weights={activeWeights} cashDate={typeof record?.cash_date === "string" ? record.cash_date : undefined} />
+            {!store.localScoring && companies.length > 0 && (
               <>
                 <div className="section-head section-head--spaced">
                   <h2>Companies in the group</h2>
@@ -259,7 +330,7 @@ export function GroupDetail({
                     ? own.monthly_inflow_eur / score.monthly_inflow_eur
                     : null;
                   return (
-                    <button className="company company--open" key={c.company_id} onClick={() => onCompany(c.company_id)}>
+                    <button className="company company--open" key={c.company_id} onClick={() => onCompany?.(c.company_id)}>
                       <span className="company__name">{c.name}</span>
                       <span className="company__share">{share == null ? "-" : `${(share * 100).toFixed(0)}%`}</span>
                       <span className="company__level">{fmtScore(own?.level ?? null)}</span>
@@ -271,6 +342,38 @@ export function GroupDetail({
                 })}
               </>
             )}
+            {store.localScoring && companies.length > 0 && (
+              <>
+                <div className="section-head section-head--spaced">
+                  <h2>Companies in the group</h2>
+                  <span className="hint">{store.localScoring ? "open company" : "share of inflow"}</span>
+                </div>
+                {companies.map((c) => {
+                  const months = c.months_observed;
+                  const short = thinHistory(months);
+                  return (
+                    <div className="company" key={c.company_id}>
+                      <span className="company__name">
+                        {store.localScoring && onEntity ? <button className="link" onClick={() => onEntity(c.company_id, "company")}>{c.name}</button> : c.name}
+                        {short && (
+                          <span className="company__note">
+                            {fmtMonthsOfData(months)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="company__share">
+                        {store.localScoring ? "" : `${((c.inflow_share ?? 0) * 100).toFixed(0)}%`}
+                      </span>
+                      <span
+                        className={`company__level ${short ? "is-thin" : ""}`}
+                      >
+                        {fmtScore(c.level)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </section>
 
           <section>
@@ -278,15 +381,21 @@ export function GroupDetail({
               <h2>Next moves</h2>
               <span className="hint">expected gain</span>
             </div>
-            {actions.length === 0 && <p className="empty">No moves computed for this group.</p>}
+            {actions.length === 0 && (
+              <p className="empty">No moves computed for this group.</p>
+            )}
             <ol className="moves">
               {actions.map((a) => (
                 <li key={a.rank}>
                   <div>
-                    <span className="moves__pillar">{PILLAR_LABEL[a.pillar] ?? a.pillar}</span>
+                    <span className="moves__pillar">
+                      {PILLAR_LABEL[a.pillar] ?? a.pillar}
+                    </span>
                     <p>{a.action}</p>
                   </div>
-                  <span className="moves__gain">+{a.expected_level_gain.toFixed(1)}</span>
+                  <span className="moves__gain">
+                    +{a.expected_level_gain.toFixed(1)}
+                  </span>
                 </li>
               ))}
             </ol>
@@ -297,21 +406,31 @@ export function GroupDetail({
             </div>
             {offer?.eligible ? (
               <p className="offer">
-                <strong>{fmtEur(offer.limit_eur)}</strong> at {offer.apr == null ? "-" : (offer.apr * 100).toFixed(1)}% APR
-                {offer.limit_change_eur != null && offer.limit_change_eur !== 0 && (
-                  <span className={offer.limit_change_eur > 0 ? "is-up" : "is-down"}>
-                    {offer.limit_change_eur > 0 ? "+" : "-"}
-                    {fmtEur(Math.abs(offer.limit_change_eur))} this month
-                  </span>
-                )}
+                <strong>{fmtEur(offer.limit_eur)}</strong> at{" "}
+                {offer.apr == null ? "-" : (offer.apr * 100).toFixed(1)}% APR
+                {offer.limit_change_eur != null &&
+                  offer.limit_change_eur !== 0 && (
+                    <span
+                      className={
+                        offer.limit_change_eur > 0 ? "is-up" : "is-down"
+                      }
+                    >
+                      {offer.limit_change_eur > 0 ? "+" : "-"}
+                      {fmtEur(Math.abs(offer.limit_change_eur))} this month
+                    </span>
+                  )}
               </p>
             ) : (
-              <p className="empty">No line this month: the score is too low or too young.</p>
+              <p className="empty">
+                {store.localScoring ? "Working-capital offers are not available for this scoring profile." : "No line this month: the score is too low or too young."}
+              </p>
             )}
           </section>
         </div>
       )}
 
+      {store.localScoring && score && <OwnHistory history={history} month={month} />}
+      {store.localScoring && score && <WhatIf score={score} weights={activeWeights} onWeights={onWeights} evaluating={evaluating} />}
       {score && <PromptPay store={store} groupId={groupId} month={month} />}
     </article>
   );

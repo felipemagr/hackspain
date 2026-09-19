@@ -397,7 +397,35 @@ Limits: 1,000 Tavily credits a month on the current plan, 100 requests a minute 
 Three parallel requests per company are far from the rate limit; credits are the real budget,
 about 250 uncached companies a month.
 
-## 9. API
+## 9. Market health, the macro line behind the score
+
+`make macro` (`pipeline/fetch_macro.py`) pulls published series for Spain, Germany, the UK,
+Europe and the US, and writes `web/src/lib/macro.json`, which the front end imports at build time. Nothing is
+fetched while the demo runs.
+
+| Source | Series |
+|---|---|
+| ECB Data Portal | Euribor 12m and HICP for ES, DE and the euro area |
+| Eurostat `une_rt_m` | unemployment for ES, DE and the EU |
+| ONS | UK CPI (`D7G7`) and unemployment (`MGSX`) |
+| OECD SDMX | UK and US short rates (`IRSTCI`) and US inflation; the Bank of England's own CSV endpoint no longer answers a script |
+| BLS | US unemployment (`LNS14000000`) |
+| Yahoo Finance | month-end closes of the S&P 500, STOXX 600, IBEX 35, DAX and FTSE 100 |
+
+`pipeline/market_health.py` turns those into one 0-100 level per market: Spain, Germany, the UK,
+Europe and the US, under the same rules as the company score: fixed anchors, nothing fitted, nothing read across markets, and month `t` reads
+only what was published by `t` (a release is carried forward at most three months). Four pillars,
+weighted: equity 0.30 (drawdown from the trailing 12m high, 6m momentum), labour 0.25
+(unemployment against its own trailing 5y median, 12m change), prices 0.25 (inflation, two-sided
+around 2%), funding 0.20 (real short rate, 12m change). The anchor tables are the top of the
+module and are the only place to change the shape. Only the five levels reach the front end: the
+published series are inputs, not something the demo offers to draw.
+
+The two 0-100 scales do not mean the same thing. The company score is distance to distress; the
+market level is conditions. They share an axis so the trajectories can be read together, which is
+what answers "is it us, or is the market moving too?". Subtracting them as points would be wrong.
+
+## 10. API
 
 `xray.api` is a FastAPI app that serves what is already in `data/serving`. At start-up it opens
 an in-memory DuckDB and creates one view per parquet file it finds (`api/db.py`); with no files
@@ -410,7 +438,7 @@ the provisional baseline score and driver marts separately from serving tables. 
 turns any unexpected error into a plain 500: a demo must not show a stack trace. Conventions are
 in `.claude/rules/api-design.md`.
 
-## 10. Docker
+## 11. Docker
 
 Two images from one `Dockerfile`. The `pipeline` target is built from the repo with the raw data
 mounted rather than baked in: 615 MB of CSV does not belong in an image.
@@ -429,7 +457,7 @@ The `api` target is the demo image, the one that matters in front of the jury. I
 without the pipeline dependency group, so no pandas, bakes `data/serving` in, and needs no volume,
 no network and no database. `make api-up` builds and runs it; `docs/infra.md` has the detail.
 
-## 11. When this stops being right
+## 12. When this stops being right
 
 The full rebuild is ten seconds at 3.46 M rows on one core. It stays under a minute well past
 Embat's real customer count, so a nightly full rebuild is a defensible production answer, not just

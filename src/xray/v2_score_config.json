@@ -1,0 +1,21 @@
+{
+  "version": "v2-local-preview-1",
+  "status": "Expert anchors; no predictive validation",
+  "weights": {
+    "level": {"financial": 0.4, "liquidity": 0.2, "receivables": 0.2, "payables": 0.2},
+    "financial": {"generation": 0.6666666666666666, "debt_coverage": 0.3333333333333333},
+    "evolution": {"activity": 0.4, "conversion": 0.6}
+  },
+  "history": {"flow_minimum": 3, "evolution_minimum": 6, "reference_months": 12},
+  "quality": {"observed": 1.0, "estimated": 0.5},
+  "warnings": {"dpo_days": 90},
+  "confidence_scope": "Evidence on the registered perimeter; not probability of accuracy",
+  "curves": {
+    "generation": [[-0.3333333333333333, 0], [-0.1111111111111111, 25], [0, 50], [0.09090909090909091, 75], [0.2, 100]],
+    "debt_coverage": [[0, 0], [0.8, 25], [1, 50], [1.25, 75], [2, 100]],
+    "liquidity": [[0, 0], [15, 25], [30, 50], [60, 75], [90, 100]],
+    "invoice_age": [[0, 100], [30, 75], [60, 50], [90, 25], [180, 0]],
+    "activity": [[-0.3, 0], [-0.1, 25], [0, 50], [0.1, 75], [0.3, 100]],
+    "conversion": [[-10, 0], [-3, 25], [0, 50], [3, 75], [10, 100]]
+  }
+}
