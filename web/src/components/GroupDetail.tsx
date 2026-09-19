@@ -33,7 +33,7 @@ const clock = (d: Date) => d.toLocaleTimeString("en-GB", { hour: "2-digit", minu
 const stamp = (d: Date) =>
   `${d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}, ${clock(d)}`;
 
-function heading(score: ScoreRow, prevLevel: number | null): string {
+function heading(score: ScoreRow): string {
   const parts: string[] = [];
   if (score.trend != null && Math.abs(score.trend) > 0.15) {
     parts.push(
@@ -43,7 +43,6 @@ function heading(score: ScoreRow, prevLevel: number | null): string {
   } else if (score.trend != null) {
     parts.push("Holding steady");
   }
-  if (prevLevel != null) parts.push(`${fmtSigned(score.level - prevLevel)} since last month`);
   return parts.join(", ");
 }
 
@@ -66,6 +65,9 @@ export function GroupDetail({
   const score = store.scoreAt(groupId, month);
   const idx = history.findIndex((s) => s.month === month);
   const prevLevel = idx > 0 ? history[idx - 1].level : null;
+  const since = score && prevLevel != null ? score.level - prevLevel : null;
+  const way = since == null || Math.abs(since) < 0.05 ? "" : since > 0 ? "is-up" : "is-down";
+  const line = score ? heading(score) : "";
   const [level] = useTween([score?.level ?? NaN]);
   if (!group) return null;
 
@@ -127,10 +129,20 @@ export function GroupDetail({
         </div>
         {score && (
           <div className="score">
-            <span className="score__level">{Number.isFinite(level) ? level.toFixed(0) : "-"}</span>
+            <span className={`score__level ${way}`} key={`${groupId}-${month}`}>
+              {Number.isFinite(level) ? level.toFixed(0) : "-"}
+            </span>
             <div>
               <StateTag state={score.state} />
-              <p className="score__line">{heading(score, prevLevel)}</p>
+              <p className="score__line">
+                {line}
+                {since != null && (
+                  <>
+                    {line && ", "}
+                    <span className={`score__since ${way}`}>{fmtSigned(since)}</span> since last month
+                  </>
+                )}
+              </p>
             </div>
           </div>
         )}

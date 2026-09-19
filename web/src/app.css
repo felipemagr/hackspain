@@ -720,6 +720,39 @@ h1 {
   line-height: 1;
 }
 
+/* The level flashes its direction on a new month or group, then settles back to ink. */
+.score__level.is-up,
+.score__level.is-down {
+  color: var(--ink);
+  animation: score-flash 1.4s ease-out;
+}
+
+.score__level.is-up {
+  --flash: var(--good-ink);
+}
+
+.score__level.is-down {
+  --flash: var(--bad-ink);
+}
+
+@keyframes score-flash {
+  0%,
+  35% {
+    color: var(--flash);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score__level {
+    animation: none !important;
+  }
+}
+
+.score__since {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .score__line {
   margin-top: 2px;
   max-width: 30ch;
@@ -1713,8 +1746,26 @@ select:hover {
 }
 
 .whatif__value {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-bottom: 1px dashed transparent;
+  background: none;
+  font: inherit;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
   text-align: right;
+  cursor: text;
+}
+
+.whatif__value:hover {
+  border-bottom-color: var(--ink-3);
+}
+
+.whatif__value:focus {
+  outline: none;
+  border-bottom: 1px solid currentColor;
 }
 
 .whatif__slider {

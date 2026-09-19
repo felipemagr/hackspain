@@ -23,6 +23,40 @@ function levelOf(values: Map<Pillar, number>, coverage: number): number {
   return capped ? 50 : level;
 }
 
+interface LeverValueProps {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+}
+
+/** The lever's number, typed instead of dragged. The draft only lives while the field has focus. */
+function LeverValue({ label, value, onChange }: LeverValueProps) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  return (
+    <input
+      className="whatif__value"
+      type="text"
+      inputMode="decimal"
+      aria-label={`${label} value`}
+      value={draft ?? value.toFixed(1)}
+      onFocus={(e) => {
+        setDraft(value.toFixed(1));
+        e.target.select();
+      }}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        const typed = parseFloat(e.target.value.replace(",", "."));
+        if (!Number.isNaN(typed)) onChange(Math.min(100, Math.max(0, typed)));
+      }}
+      onBlur={() => setDraft(null)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === "Escape") e.currentTarget.blur();
+      }}
+    />
+  );
+}
+
 export function WhatIf({ score }: WhatIfProps) {
   const [moved, setMoved] = useState<Moved>({});
   // A different group or month is a different starting point: drop the moves.
@@ -68,7 +102,11 @@ export function WhatIf({ score }: WhatIfProps) {
                     weight {((p.weight / 100 / coverage) * 100).toFixed(0)}%
                   </span>
                 </label>
-                <span className="whatif__value">{value.toFixed(1)}</span>
+                <LeverValue
+                  label={p.label}
+                  value={value}
+                  onChange={(v) => setMoved({ ...moved, [p.key]: v })}
+                />
                 <input
                   id={`whatif-${p.key}`}
                   className="whatif__slider"
