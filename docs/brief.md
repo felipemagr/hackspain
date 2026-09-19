@@ -227,7 +227,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | API for the demo | `src/xray/api/`, one router per resource in `routers/` (see `.claude/rules/api-design.md`) |
 | Runtime settings from `.env`, `XRAY_` prefix | `src/xray/settings.py`, `.env.example` |
 | API container, CI | `Dockerfile` (target `api`), `docker-compose.yml`, `.github/workflows/ci.yml` |
-| Demo front end | to be decided, deployed, not localhost-only |
+| Demo front end | `web/` (Vite + React), `make web`, deployed as a static site via `render.yaml` |
 | Reproducible build on any laptop | `Dockerfile`, `make docker-build`, `make docker-pipeline` |
 
 The model team codes against `data/marts/panel_group.parquet`: 250 groups x 24 months, every

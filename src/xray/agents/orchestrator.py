@@ -7,6 +7,7 @@ from xray.agents.context_retrieval import build_agent as build_context_agent
 from xray.agents.llm import build_llm
 from xray.agents.macro import MacroAgent
 from xray.agents.narrator import NarratorAgent
+from xray.agents.peers import build_agent as build_peers_agent
 from xray.settings import Settings
 
 
@@ -19,11 +20,12 @@ class Orchestrator:
 
 
 def build_orchestrator(settings: Settings) -> Orchestrator:
-    """The default line-up: research, then macro, then the narrative."""
+    """The default line-up: research, peers, then macro, then the narrative."""
     llm = build_llm(settings)
     return Orchestrator(
         [
             build_context_agent(settings),
+            build_peers_agent(settings),
             MacroAgent(llm),
             NarratorAgent(llm),
         ]

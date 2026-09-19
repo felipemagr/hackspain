@@ -1,0 +1,79 @@
+# Product
+
+<!-- impeccable:product-schema 1 -->
+
+## Platform
+
+web
+
+## Stack
+
+Vite + React + TypeScript front end (user-chosen framework), FastAPI backend. Deploy per
+`render.yaml`: the web build ships as a static service (`web/` → `dist`), the API as a separate
+Docker service; the demo reads `web/public/data/*.json` exported by `make web-data`. Demo
+screens are Operate mode.
+
+## Users
+
+Primary user: the CFO of an SME, an Embat customer, checking the health of their own business
+group. Demo audience: the HackSpain jury (Embat engineers), who must grasp who pays and why
+within five minutes.
+
+## Product Purpose
+
+X Ray is a financial health radar built on the treasury data Embat already holds. It answers,
+per business group and per month: who is healthy, who is improving, who is starting to bend,
+whether a bad month is a bump or a fall, why the score moved, and how many months ahead the
+signal was visible. On top of the score it prices a working-capital line that reprices monthly
+and ranks three concrete moves for the CFO.
+
+Pitch in one line: "What will my bank think of me in three months, and what do I do about it
+this week?"
+
+## Positioning
+
+Snapshot scores and late-arriving accounts cannot tell a 45 -> 65 trajectory from an 82 -> 68
+one when both sit near the same level. X Ray prices trajectory and measured anticipation, in
+both directions, and decomposes every number into named drivers.
+
+## Operating Context
+
+- Read-only demo over precomputed parquet in `data/serving/` (contract: `docs/serving-contract.md`).
+- The unit of everything on screen is the business group, not the company.
+- The five-minute demo script (docs/brief.md section 7) is the binding usage scene: Northbrook
+  Foods (45 -> 65) vs Velasco Industrial (82 -> 68) side by side, trajectory cross, drivers,
+  monitor alert with measured anticipation, and the two offers diverging.
+- Mock serving data today: 45 groups `DEMO_001`..`DEMO_045`, `groups.archetype` is mock-only.
+
+## Capabilities and Constraints
+
+- Score: `level` 0-100 (the number shown), `trend` (Theil-Sen slope, pts/month), `compound`
+  (level + 4*trend, the number the offer prices on). States: healthy, stable, weak, improving,
+  bending, falling, bump, not_enough_data. Tiers: healthy >= 70, coping 40-70, vulnerable < 40.
+- Five pillars, named and weighted: liquidity 25, cash generation 25, payment discipline 20,
+  collections 15, debt burden 15. `coverage` says how much weight was available.
+- Alerts fire on entering bending/falling/improving, with `anticipation_months` measured.
+- No user accounts, no multi-tenant, no live ingestion, no mobile. Anything outside the
+  five-minute demo does not get built.
+- UI copy is in English (user decision; repo and docs are English).
+
+## Brand Commitments
+
+Name: **X Ray**. Voice: a tool a CFO trusts with a lending decision — precise, calm, no black
+box. Look, pinned by the team: light, calm and minimal. The less on screen the better, no
+clutter, no decoration that reads as generated. Visual system: `DESIGN.md`.
+
+## Evidence on Hand
+
+- `data/serving/*.parquet`: groups, companies, scores, drivers, alerts, offers, actions.
+- `data/serving/context/cabify.json`: cached public-context agent report for one real company.
+- `docs/health-score-research.md`: pillar design, anchors, state rules, validation plan.
+- No real-company scores yet; the mock groups are invented (marked by `archetype`).
+
+## Product Principles
+
+1. Trajectory over snapshot: every view shows where the group is heading, not only where it is.
+2. No unexplained number: anything the UI shows decomposes into named drivers.
+3. Both directions carry equal weight: improvement is as sellable as deterioration.
+4. Anticipation is measured, not claimed: the monitor states months-ahead, with the date it fired.
+5. The demo is the product: if a screen does not appear in the five-minute script, it is not built.

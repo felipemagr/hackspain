@@ -109,8 +109,9 @@ src/xray/
   agents/          research, macro and narrator agents around the score, tools under agents/tools
   integrations/    outbound clients, one module per service (slack)
   api/             FastAPI demo backend, one router per resource in api/routers
+web/               demo front end (Vite + React): `make web-install`, then `make web`
 tests/             mirrors src/xray: tests/pipeline, tests/api, tests/agents
-notebooks/         exploration only, outputs stripped on commit
+notebooks/         exploration only; `01_eda.ipynb` is published with its outputs on purpose
 data/raw/          the dataset (git-ignored)
 data/processed/    derived tables (git-ignored)
 data/serving/      parquet written by the pipeline, read by the API (git-ignored)
@@ -123,7 +124,7 @@ The API never imports `pipeline` (no pandas in the container, see `docs/infra.md
 
 Infrastructure, Docker, `.env` and CI are explained in [`docs/infra.md`](docs/infra.md). The score design is in [`docs/health-score-research.md`](docs/health-score-research.md).
 
-Next modules land in `scoring/`: `score` → `explain` → `monitor` → `offer` → `submit`, plus the demo front end.
+Next modules land in `scoring/`: `score` → `explain` → `monitor` → `offer` → `submit`.
 
 ## Dataset
 
