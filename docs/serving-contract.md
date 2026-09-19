@@ -117,5 +117,4 @@ the group's own receivable invoices as of each month: open and overdue are rebui
 | `days_late`, `days_late_change` | amount-weighted days beyond terms over six months, and against the six before |
 | `payer_score` | 100, minus 1.5 per day late (capped at 60 days), minus up to 10 for overdue exposure |
 
-Amounts are in euros at one rate per currency: the median of the last year of `exchange_rate`
-seen against the euro. The median, because USD carries a few rates off by orders of magnitude.
+Amounts arrive in euros from `xray.pipeline.clean`, at the average rate of the invoice's year.

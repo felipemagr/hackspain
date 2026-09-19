@@ -107,7 +107,7 @@ ROSTER: tuple[FleetMember, ...] = (
             f"A customer needs {MIN_PAID_INVOICES} paid invoices before its lateness counts.",
             "A customer is judged only on how it paid this group: ids do not link across groups.",
             "Open and overdue are rebuilt as of the month, never read from the final snapshot.",
-            "Amounts are in euros at the median rate of the last year per currency.",
+            "Amounts are in euros at the average rate of the year each invoice was issued.",
         ],
         tools=[
             Tool(name="concentration", does="share of billing on the largest customers"),

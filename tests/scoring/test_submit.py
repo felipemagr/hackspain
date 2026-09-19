@@ -120,9 +120,9 @@ def _write_dump(path, groups: dict[str, list[str]], rng):
         ]
     )
     empty_debt.to_csv(path / "debt_products.csv", index=False)
-    pd.DataFrame(columns=["product_id", "company_id"]).to_csv(
-        path / "debt_schedule_config.csv", index=False
-    )
+    pd.DataFrame(
+        columns=["product_id", "company_id", "currency", "granted_balance", "outstanding_balance"]
+    ).to_csv(path / "debt_schedule_config.csv", index=False)
 
 
 @pytest.fixture

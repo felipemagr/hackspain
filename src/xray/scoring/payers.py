@@ -3,7 +3,7 @@
 Built from the group's own receivable invoices. Counterparty ids do not join to the dataset's
 companies, so a customer is judged only by how it has paid this group. As of month t an invoice
 counts as open when it was paid after t or never: `status` and `pending_amount` describe
-extraction day and are never read. Amounts are in euros at one rate per currency.
+extraction day and are never read. Amounts arrive in euros from `xray.pipeline.clean`.
 """
 
 import logging
@@ -33,30 +33,10 @@ with months as (
         (month + interval 1 month - interval 1 day)::date as month_end
     from read_parquet('{{scores}}')
 ),
-fx_seen as (
-    -- `exchange_rate` is units of the invoice currency per unit of the accounting currency.
-    select currency as cur, exchange_rate as per_eur, issuance_date as seen
-    from read_parquet('{{invoices}}')
-    where accounting_currency = 'EUR' and currency <> 'EUR' and exchange_rate > 0
-    union all
-    select accounting_currency, 1 / exchange_rate, issuance_date
-    from read_parquet('{{invoices}}')
-    where currency = 'EUR' and accounting_currency <> 'EUR' and exchange_rate > 0
-),
-fx as (
-    -- One rate per currency: the median of the last year of data. The median, not the mean:
-    -- USD carries a few rates that are off by orders of magnitude.
-    select cur, coalesce(
-        median(per_eur) filter (where seen > (select max(seen) from fx_seen) - interval 12 month),
-        median(per_eur)) as per_eur
-    from fx_seen group by cur
-    union all select 'EUR', 1.0
-),
 inv as (
-    -- Invoices in a currency never seen against the euro are dropped: a handful of rows.
     select group_id, counterparty_id, issuance_date::date as issued, due_date::date as due,
-           payment_date::date as paid, abs(amount) / fx.per_eur as amt
-    from read_parquet('{{invoices}}') i join fx on fx.cur = i.currency
+           payment_date::date as paid, abs(amount) as amt
+    from read_parquet('{{invoices}}')
     where side = 'receivable' and document_type = 'invoice'
       and counterparty_id is not null and due_date is not null and amount <> 0
 ),

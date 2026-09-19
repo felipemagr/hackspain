@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
+.PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
         events score validate monitor alerts notify serve submit api api-up api-down slack-test email-test \
         context peers test test-quick lint format quality ci clean web-install web-data web \
         web-build publish
@@ -39,6 +39,9 @@ clean-data: $(CLEAN_STAMP) ## Stage data/raw as parquet in data/processed
 cash: $(CASH) ## Reconstruct the monthly cash mart
 
 panel: $(PANEL) ## Build the monthly panel mart, rebuilding upstream layers as needed
+
+fx: ## Refresh the yearly euro rates (ECB, pegs, the data) in src/xray/pipeline/fx_rates.csv
+	uv run python -m xray.pipeline.fx
 
 pipeline: ## Rebuild everything from the raw CSVs, ignoring what is already built
 	uv run python -m xray.pipeline

@@ -1,4 +1,10 @@
-"""Clean the raw tables and write them as parquet to data/processed."""
+"""Clean the raw tables and write them as parquet to data/processed.
+
+Every money column leaves this stage in euros, at the average rate of its year (`xray.pipeline.fx`).
+Flows and invoices use the year they are dated in, snapshots use the year of the extraction. The
+original figure is kept next to it as `*_local` where a later stage needs it, and `currency`
+always names the original currency.
+"""
 
 import logging
 from pathlib import Path
@@ -7,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from xray.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
+from xray.pipeline import fx
 from xray.pipeline.data import load_all
 
 logger = logging.getLogger(__name__)
@@ -40,8 +47,20 @@ def clean_companies(companies: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def clean_transactions(tx: pd.DataFrame, companies: pd.DataFrame) -> pd.DataFrame:
-    """Keep booked, non-zero movements inside full months; add group_id and month."""
+def product_currencies(banking: pd.DataFrame, debt: pd.DataFrame) -> pd.Series:
+    """Currency of every account and financing product, indexed by product_id."""
+    products = pd.concat([banking[["product_id", "currency"]], debt[["product_id", "currency"]]])
+    return products.drop_duplicates("product_id").set_index("product_id")["currency"]
+
+
+def clean_transactions(
+    tx: pd.DataFrame, companies: pd.DataFrame, currencies: pd.Series
+) -> pd.DataFrame:
+    """Keep booked, non-zero movements inside full months; add group_id, month and euros.
+
+    A movement is in the currency of its account. `amount_local` keeps it, because the cash
+    series is rolled back in the account's own currency before it is converted.
+    """
     out = tx[(tx["status"] != "pending") & (tx["amount"] != 0)]
     out = out[(out["date"] >= WINDOW_START) & (out["date"] < WINDOW_END)].copy()
     out["category"] = (
@@ -50,7 +69,12 @@ def clean_transactions(tx: pd.DataFrame, companies: pd.DataFrame) -> pd.DataFram
         .replace({"-": "uncategorized", "cash_settlements": "cash_settlement"})
     )
     out["month"] = out["date"].dt.to_period("M").dt.to_timestamp()
-    return out.merge(companies[["company_id", "group_id"]], on="company_id")
+    out = out.merge(companies[["company_id", "group_id", "currency"]], on="company_id")
+    # The account's currency, or the company's when the product is not in the dump.
+    out["currency"] = out["product_id"].map(currencies).fillna(out["currency"])
+    out["amount_local"] = out["amount"]
+    out["amount"] = fx.to_eur(out["amount"], out["currency"], out["date"])
+    return out
 
 
 def clean_invoices(inv: pd.DataFrame, companies: pd.DataFrame) -> pd.DataFrame:
@@ -71,33 +95,54 @@ def clean_invoices(inv: pd.DataFrame, companies: pd.DataFrame) -> pd.DataFrame:
         out["due_date"] >= out["issuance_date"], out["issuance_date"]
     )
     out["side"] = np.where(out["amount"] > 0, "receivable", "payable")
+    for col in ["amount", "pending_amount"]:
+        out[col] = fx.to_eur(out[col], out["currency"], out["issuance_date"])
     return out.merge(companies[["company_id", "group_id"]], on="company_id")
 
 
+def _snapshot_to_eur(df: pd.DataFrame, columns: list[str], currency: pd.Series) -> pd.DataFrame:
+    """Convert balances photographed at extraction, at the rate of the extraction year."""
+    out = df.copy()
+    when = pd.Series(WINDOW_END, index=out.index)
+    for col in columns:
+        out[col] = fx.to_eur(out[col], currency, when)
+    return out
+
+
 def clean_debt(debt: pd.DataFrame) -> pd.DataFrame:
-    """Add positive `owed` and `limit` columns (the source stores debt as negative numbers)."""
-    out = debt.copy()
+    """Euros, plus positive `owed` and `limit` (the source stores debt as negative numbers)."""
+    out = _snapshot_to_eur(debt, ["granted", "outstanding"], debt["currency"])
     out["owed"] = (-out["outstanding"]).clip(lower=0)
     out["limit"] = out["granted"].abs().replace(0, np.nan)
     return out
 
 
-def clean_balances(bal: pd.DataFrame) -> pd.DataFrame:
-    """Drop placeholder balances."""
-    return bal[bal["balance"].abs() < MAX_ABS_BALANCE].drop(columns="available")
+def clean_balances(bal: pd.DataFrame, currencies: pd.Series) -> pd.DataFrame:
+    """Drop placeholders and convert to euros. `balance_local` feeds the cash series."""
+    out = bal[bal["balance"].abs() < MAX_ABS_BALANCE].drop(columns="available")
+    out = out.assign(currency=out["product_id"].map(currencies), balance_local=out["balance"])
+    return _snapshot_to_eur(out, ["balance", "granted", "liquidity", "countable"], out["currency"])
+
+
+def clean_debt_schedule(schedule: pd.DataFrame) -> pd.DataFrame:
+    return _snapshot_to_eur(
+        schedule, ["granted_balance", "outstanding_balance"], schedule["currency"]
+    )
 
 
 def build(raw_dir: Path = RAW_DATA_DIR) -> dict[str, pd.DataFrame]:
     """Clean every table found in ``raw_dir``, keyed by table name."""
     raw = load_all(raw_dir)
     companies = clean_companies(raw["companies"])
+    currencies = product_currencies(raw["banking_products"], raw["debt_products"])
     clean = {
         **raw,
         "companies": companies,
-        "transactions": clean_transactions(raw["transactions"], companies),
+        "transactions": clean_transactions(raw["transactions"], companies, currencies),
         "invoices": clean_invoices(raw["invoices"], companies),
         "debt_products": clean_debt(raw["debt_products"]),
-        "balances": clean_balances(raw["balances"]),
+        "debt_schedule_config": clean_debt_schedule(raw["debt_schedule_config"]),
+        "balances": clean_balances(raw["balances"], currencies),
     }
     for name, df in clean.items():
         logger.info("%-22s %9d -> %9d rows", name, len(raw[name]), len(df))

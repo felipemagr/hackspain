@@ -259,8 +259,23 @@ and any awk or cut pipeline gives wrong answers. Parse with a real CSV reader.
 large amount flips a whole month's weighted DSO negative. The panel drops them from the settled
 aggregate.
 
+**Forty-nine currencies, and no amount says which one it is in.** A movement is in the currency of
+its account, an invoice carries its own, a group can hold pesos, soles and euros at once. Summed
+raw, one group showed 11.3 bn "euros" of revenue that are 145 M. `xray.pipeline.clean` converts
+every money column to euros at the **average rate of its year** (`xray.pipeline.fx`): flows and
+invoices at the year they are dated, snapshots at the extraction year. The rates are a table in
+git, `fx_rates.csv`, never computed from the dump being scored, so a group still scores the same
+alone as in a portfolio. Sources, best first: ECB monthly reference rates averaged by year (36
+currencies), pegs (AED, SAR, NAD, BAM, XOF), the yearly median of `exchange_rate` on invoices
+booked against the euro (ARS, CLP, COP, MZN, PEN; the median because USD rows carry rates off by
+orders of magnitude), and five hand-set reference figures for currencies on a handful of rows.
+`make fx` refreshes it. One place keeps local currency: the cash series is rolled back in the
+account's own currency (`amount_local`, `balance_local`) and converted month by month, because
+rolling euros would mix the snapshot year's rate with the flows'. Effect on the score: 200 of 230
+groups move under half a point, 18 move three points or more, holdout AUC 0.903 to 0.906.
+
 Smaller: 90.2% of transactions have no `counterparty_id`; `category` is `-` on 25% and is
-normalised to `uncategorized`; 4% of transactions carry a non-unit exchange rate.
+normalised to `uncategorized`; the `exchange_rate` on transactions is not used, the account currency is.
 
 ## 7. Daily data
 
