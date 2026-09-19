@@ -3,7 +3,7 @@ services:
   # The demo. Static on a CDN, never sleeps. Reads web/public/data/*.json (run `make web-data`
   # and commit after the serving tables change).
   - type: web
-    name: xray
+    name: lighthouse
     runtime: static
     rootDir: web
     buildCommand: npm ci && npm run build

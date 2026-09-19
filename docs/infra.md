@@ -121,7 +121,7 @@ Both jobs run in parallel and use no secrets. There is no CD job: the API has `a
 
 | Service | What | Sleeps |
 |---|---|---|
-| `xray` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
+| `lighthouse` | static site, `web/` built with `npm ci && npm run build`, served from a CDN | never |
 | `xray-api` | the `api` image, Frankfurt, health check on `/health` | after 15 min idle, about a minute to wake |
 
 - The demo only needs the static site, which reads `web/public/data/*.json`. Those files are in git: after the serving tables or the agent cache change, run `make publish` (re-exports the JSON and stages what Render serves), then commit and push.
