@@ -10,6 +10,10 @@ balances written here. If a story does not show, the trail was not written well 
 Every figure is invented. The names are labels for a demo of a synthetic dataset, the revenue
 scale is an order of magnitude, and nothing here describes the real companies.
 
+The dump is meant to sit beside the challenge dump in one portfolio (`make demo` replays both),
+so every id it mints carries a `SYN_` prefix and cannot collide with a real product, movement,
+invoice or counterparty.
+
     python -m xray.pipeline.synth --out data/demo/raw
 """
 
@@ -155,7 +159,7 @@ class Writer:
 
     def product(self, opening: float = 0.0) -> str:
         self.n_products += 1
-        pid = f"PRODUCT_{self.n_products:05d}"
+        pid = f"SYN_PRODUCT_{self.n_products:05d}"
         self.balance[pid] = opening
         return pid
 
@@ -165,7 +169,7 @@ class Writer:
         self.balance[account] += amount
         self.rows["transactions"].append(
             (
-                f"TX_{self.n_tx:07d}",
+                f"SYN_TX_{self.n_tx:07d}",
                 company,
                 account,
                 date,
@@ -186,7 +190,7 @@ class Writer:
         # As in the source: an unpaid invoice carries its due date where the payment date goes.
         self.rows["invoices"].append(
             (
-                f"INV_{self.n_inv:07d}",
+                f"SYN_INV_{self.n_inv:07d}",
                 company,
                 "invoice",
                 issued,
@@ -273,12 +277,8 @@ def _company(
                 "fixed",
             )
         )
-    customers = [
-        f"COUNTERPARTY_{rng.integers(10_000, 99_999)}" for _ in range(CUSTOMERS_PER_COMPANY)
-    ]
-    suppliers = [
-        f"COUNTERPARTY_{rng.integers(10_000, 99_999)}" for _ in range(SUPPLIERS_PER_COMPANY)
-    ]
+    customers = [f"SYN_CP_{rng.integers(10_000, 99_999)}" for _ in range(CUSTOMERS_PER_COMPANY)]
+    suppliers = [f"SYN_CP_{rng.integers(10_000, 99_999)}" for _ in range(SUPPLIERS_PER_COMPANY)]
     weights = 1 / np.arange(1, CUSTOMERS_PER_COMPANY + 1) ** 0.9
     weights /= weights.sum()
 

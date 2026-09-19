@@ -22,6 +22,7 @@ during a replay are identical to the rows for `t` in the full run. `tests/pipeli
 holds that; `--check` verifies it on the real data against `data/marts/scores.parquet`.
 
     python -m xray.pipeline.replay --from 2025-01 --to 2026-08 --pause 8 --channel slack
+    python -m xray.pipeline.replay --raw-dir data/raw --raw-dir data/demo/raw   # one portfolio
 """
 
 import argparse
@@ -148,8 +149,22 @@ def rebuild(as_of: date, lake_dir: Path = LAKE_DIR) -> dict[str, pd.DataFrame]:
     )
 
 
+def load_dumps(raw_dirs: list[Path]) -> dict[str, pd.DataFrame]:
+    """One portfolio out of several raw dumps, table by table.
+
+    The score is never cross-sectional, so groups from different dumps score exactly as they
+    would alone; this is how the synthetic named groups join the challenge groups on screen.
+    Columns one dump has and another lacks (names, sectors) come through as nulls.
+    """
+    dumps = [load_all(d) for d in raw_dirs]
+    return {
+        name: pd.concat([d[name] for d in dumps if name in d], ignore_index=True)
+        for name in {n for d in dumps for n in d}
+    }
+
+
 def run(
-    raw_dir: Path,
+    raw_dirs: Path | list[Path],
     first: pd.Timestamp,
     last: pd.Timestamp,
     pause: float,
@@ -160,7 +175,8 @@ def run(
 ) -> None:
     """Land, rebuild, publish and notify, one month at a time from ``first`` to ``last``."""
     serving_dir = serving_dir or get_settings().serving_dir
-    raw = load_all(raw_dir)
+    raw = load_dumps([raw_dirs] if isinstance(raw_dirs, Path) else raw_dirs)
+    logger.info("%d groups in the portfolio", raw["groups"]["group_id"].nunique())
     reference = pd.read_parquet(MARTS_DIR / "scores.parquet") if check else None
     # The months before the first one shown still have to be in the lake: the reference tables
     # land with the first month of the window, and every rebuild reads everything up to its date.
@@ -222,7 +238,13 @@ def _check(
 def main() -> None:
     """Replay the dump month by month into the lake and the serving tables."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--raw-dir", type=Path, default=RAW_DATA_DIR)
+    parser.add_argument(
+        "--raw-dir",
+        type=Path,
+        action="append",
+        dest="raw_dirs",
+        help="a dump of the nine CSVs; repeat to replay several as one portfolio",
+    )
     parser.add_argument("--from", dest="first", default=WINDOW_FIRST_MONTH[:7], help="YYYY-MM")
     parser.add_argument("--to", dest="last", default=WINDOW_LAST_MONTH[:7], help="YYYY-MM")
     parser.add_argument("--pause", type=float, default=8.0, help="seconds between months")
@@ -238,7 +260,7 @@ def main() -> None:
         shutil.rmtree(args.lake_dir, ignore_errors=True)
         (MARTS_DIR / notify.LEDGER_NAME).unlink(missing_ok=True)
     run(
-        args.raw_dir,
+        args.raw_dirs or [RAW_DATA_DIR],
         pd.Timestamp(args.first + "-01"),
         pd.Timestamp(args.last + "-01"),
         args.pause,

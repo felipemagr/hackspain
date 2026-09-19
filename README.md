@@ -130,7 +130,7 @@ One command, a few minutes the first time (npm install and 615 MB of CSV), about
 after that. Ctrl-C stops the API and the web together; `make lighthouse-down` stops them from anywhere.
 An API or web already running on its port is reused, not fought over. With it running, a second terminal feeds
 the months in live: `make replay FROM=2025-01 PAUSE=8` on the challenge data, or
-`make demo FROM=2025-01 PAUSE=8` on a synthetic portfolio of named Spanish scale-ups.
+`make demo FROM=2025-01 PAUSE=8` to add a synthetic portfolio of named Spanish scale-ups beside them.
 
 Piece by piece:
 
@@ -153,7 +153,7 @@ make monitor                 # detect sustained moves, write the alert feed
 make serve                   # write the tables the API reads
 make submit RAW=path/to/csvs # score a dataset the system has never seen
 make replay FROM=2025-01     # live mode: a month lands every few seconds
-make demo FROM=2025-01       # live mode on the synthetic Spanish scale-ups (make serve restores the real tables)
+make demo FROM=2025-01       # live mode with 24 named synthetic scale-ups added to the portfolio (make serve restores the tables)
 ```
 
 `make help` lists every target. `make ci` runs what must pass before pushing.
