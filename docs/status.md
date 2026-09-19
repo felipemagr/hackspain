@@ -43,7 +43,7 @@ data, `stub` exists but returns a placeholder, `todo` is not written.
 | Serving tables | `src/xray/scoring/serve.py` | built | `data/serving/*.parquet` from the real score: 250 groups, 1,286 companies, 4,114 scores, 16,485 drivers, 343 alerts, 4,114 offers, 749 actions. `mock.py` still runs for archetypes but is no longer what the demo reads | `make serve` |
 | Serving export | `src/xray/pipeline/export_serving.py` | built | `web/public/data/*.json`, the static fallback | `make web-data` |
 | Publish | `src/xray/scoring/serve.py::publish` | built | tables swapped into `data/serving` through `.next/`, `_version.json` stamped last | `make serve` |
-| Synthetic demo dump | `src/xray/pipeline/synth.py` | built | 24 named Spanish scale-ups with an archetype each, in the nine-CSV shape, under `data/demo/raw`; the real pipeline scores it | `make demo-data`, `make demo` |
+| Synthetic demo dump | `src/xray/pipeline/synth.py` | built | 24 named Spanish scale-ups with an archetype each, in the nine-CSV shape, under `data/demo/raw`; `make demo` replays them beside the 250 challenge groups as one portfolio; the real pipeline scores it | `make demo-data`, `make demo` |
 | Replay | `src/xray/pipeline/replay.py` | built | one month at a time: land in the lake, rebuild as-of, publish, notify. About 2 s a month. `CHECK=1` proves each month equals the full run | `make replay` |
 | API | `src/xray/api/` | built: health, version, tables, alerts, chat | DuckDB views over `data/serving/`, re-read on every query, re-registered on `/version` | `make api` |
 | Front end | `web/` | built | reads the API when it answers (`live` badge, polls `/version` every 3 s, follows new months), else the static JSON | `make web` |

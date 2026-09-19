@@ -132,8 +132,11 @@ DEMO_DIR := data/demo
 demo-data: ## Generate the synthetic Spanish scale-up dump (nine CSVs, invented figures) in data/demo/raw
 	uv run python -m xray.pipeline.synth --out $(DEMO_DIR)/raw
 
-demo: demo-data ## Live demo on that dump: a month lands every PAUSE s into data/serving. Run make api and make web first; make serve restores the real tables after
-	uv run python -m xray.pipeline.replay --raw-dir $(DEMO_DIR)/raw --lake-dir $(DEMO_DIR)/lake --reset \
+# The named groups join the challenge groups in one portfolio: nothing disappears when the demo
+# starts. Without CSVs in RAW_DIR the portfolio is the synthetic one alone.
+demo: demo-data ## Live demo: the named synthetic groups join the portfolio and a month lands every PAUSE s into data/serving. make lighthouse first; make serve restores the challenge tables after
+	uv run python -m xray.pipeline.replay $(if $(wildcard $(RAW_DIR)/*.csv),--raw-dir $(RAW_DIR)) \
+		--raw-dir $(DEMO_DIR)/raw --lake-dir $(DEMO_DIR)/lake --reset \
 		$(if $(FROM),--from $(FROM)) $(if $(TO),--to $(TO)) --pause $(or $(PAUSE),8) \
 		$(if $(CHANNEL),--channel $(CHANNEL))
 

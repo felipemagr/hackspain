@@ -75,3 +75,25 @@ class TestStoriesEmerge:
         assert pd.notna(first_alarm)
         assert glovo.loc[first_alarm, "tier"] in ("healthy", "coping")
         assert glovo.loc[first_alarm, "level"] > glovo["level"].iloc[-1]
+
+
+class TestSitsBesideTheChallengeDump:
+    def test_every_minted_id_is_prefixed(self, dump):
+        raw = load_all(dump)
+        assert raw["banking_products"]["product_id"].str.startswith("SYN_").all()
+        assert raw["transactions"]["transaction_id"].str.startswith("SYN_").all()
+        assert raw["invoices"]["operation_id"].str.startswith("SYN_").all()
+        assert raw["transactions"]["counterparty_id"].dropna().str.startswith("SYN_").all()
+
+    def test_two_dumps_load_as_one_portfolio(self, dump, tmp_path, write_dump):
+        from xray.pipeline.replay import load_dumps
+
+        other = write_dump(tmp_path / "other", {"g1": ["c1"]})
+        raw = load_dumps([other, dump])
+        assert set(raw["groups"]["group_id"]) == {"g1", "GLOVO", "CABIFY", "IDEALISTA"}
+        # The plain dump has no names; they come through as nulls, not as errors.
+        assert (
+            raw["groups"].set_index("group_id").loc["g1", "name"]
+            != raw["groups"].set_index("group_id").loc["GLOVO", "name"]
+        )
+        assert raw["transactions"]["transaction_id"].is_unique
