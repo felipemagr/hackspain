@@ -1981,3 +1981,11 @@ select:hover {
   gap: 40px;
   margin-top: 28px;
 }
+
+@media (max-width: 900px) {
+  .promptpay__stats,
+  .promptpay__deal {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+}

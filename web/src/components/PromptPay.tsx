@@ -46,6 +46,7 @@ function inWindow(c: PromptPayCustomerRow, days: number): { due: number; expecte
 
 export function PromptPay({ store, groupId, month }: PromptPayProps) {
   const [days, setDays] = useState<number>(60);
+  const [signedAt, setSignedAt] = useState<string | null>(null);
   const [discount, setDiscount] = useState(DEFAULT_DISCOUNT);
   const offer = store.offerAt(groupId, month);
   const lineDefault = offer?.apr != null ? offer.apr * 100 : DEFAULT_LINE_COST;
@@ -55,6 +56,7 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
   useEffect(() => {
     setDiscount(DEFAULT_DISCOUNT);
     setLineCost(lineDefault);
+    setSignedAt(null);
   }, [groupId, month, lineDefault]);
 
   const row = store.promptPayAt(groupId, month, days);
@@ -290,7 +292,20 @@ export function PromptPay({ store, groupId, month }: PromptPayProps) {
                     the saving. A person signs it.
                   </p>
                 </div>
-                <button type="button">Sign</button>
+                {signedAt ? (
+              <span className="hint">Signed at {signedAt}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  setSignedAt(
+                    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                  )
+                }
+              >
+                Sign
+              </button>
+            )}
               </aside>
             </>
           )}
