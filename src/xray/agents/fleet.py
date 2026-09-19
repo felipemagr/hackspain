@@ -464,6 +464,7 @@ def run_chat(
         yield {"type": "suggestion"} | suggestion
 
     yield {"type": "writing"}
+    writing = time.monotonic()
     source, answer = writer_input(request, snapshot, plan, reports, suggestion), ""
     try:
         for text in write(plan, reports, source, llm):
@@ -474,7 +475,12 @@ def run_chat(
         yield {"type": "error", "message": "The writer could not finish. The agent reports stand."}
     else:
         untraced = untraced_figures(answer, source)
-        yield {"type": "check", "figures": len(_figures(answer)), "untraced": untraced}
+        yield {
+            "type": "check",
+            "figures": len(_figures(answer)),
+            "untraced": untraced,
+            "ms": _ms(writing),
+        }
     yield {"type": "done", "ms": _ms(started)}
 
 

@@ -47,6 +47,7 @@ export interface Suggestion {
 export interface FigureCheck {
   figures: number;
   untraced: string[];
+  ms?: number;
 }
 
 export type Phase = "planning" | "agents" | "writing" | "done" | "stopped" | "error";
@@ -123,6 +124,11 @@ export function checkNote(check: FigureCheck): string {
   return check.figures ? `${check.figures} figures, all traced` : "no figures to trace";
 }
 
+// The rail shows a time, as for any agent. Only a failed check earns words there.
+export function writerNote(check: FigureCheck): string {
+  return check.untraced.length ? checkNote(check) : secs(check.ms ?? 0);
+}
+
 const queued = (agents: Dispatched[], followUp: boolean): AgentRun[] =>
   agents.map((a) => ({ ...a, followUp, status: "running", steps: [] }));
 
@@ -167,7 +173,7 @@ function apply(turn: Turn, event: ChatEvent): Turn {
     case "token":
       return { ...turn, answer: turn.answer + event.text };
     case "check":
-      return { ...turn, check: { figures: event.figures, untraced: event.untraced } };
+      return { ...turn, check: { figures: event.figures, untraced: event.untraced, ms: event.ms } };
     case "error":
       return { ...turn, phase: "error", error: event.message };
     case "done":

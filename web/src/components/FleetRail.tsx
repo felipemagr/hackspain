@@ -1,6 +1,6 @@
 import {
-  checkNote,
   runNote,
+  writerNote,
   writerStatus,
   type Conversation,
   type FleetState,
@@ -145,7 +145,7 @@ function Fleet({
           <span className="row__sub">Writes the answer. Every figure is checked.</span>
         </span>
         <span className="row__when">
-          {turn?.phase === "writing" ? "writing" : turn?.check ? checkNote(turn.check) : ""}
+          {turn?.phase === "writing" ? "writing" : turn?.check ? writerNote(turn.check) : ""}
         </span>
       </div>
       {!fleet.model && (

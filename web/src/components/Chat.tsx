@@ -145,7 +145,7 @@ function WriterLine({ turn }: { turn: Turn }) {
         <span className="agent__dot" data-status={writerStatus(turn)} />
         <span className="trace__label">Writer</span>
         <span className={turn.check ? "trace__text" : "trace__text is-pending"}>{note}</span>
-        <span className="row__when">{turn.check ? "" : "writing"}</span>
+        <span className="row__when">{turn.check ? secs(turn.check.ms ?? 0) : "writing"}</span>
       </button>
       {open && (
         <div className="trace__detail">
