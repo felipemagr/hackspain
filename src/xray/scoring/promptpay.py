@@ -136,7 +136,7 @@ GROUP_QUERY = (
 select r.group_id, r.month::timestamp as month, r.window_days,
     round(r.due_eur) as due_eur,
     round(r.expected_eur) as expected_eur,
-    r.variance,
+    round(r.variance) as variance,
     round(r.thin_eur) as thin_eur,
     r.n_customers, r.n_thin,
     coalesce(s.payable_n, 0) as payable_n,
@@ -195,7 +195,7 @@ def _format(query: str, serving, **extra) -> str:
         rounded=",\n    ".join(
             f"round(coalesce(r.due_{w}_eur, 0)) as due_{w}_eur,"
             f" round(coalesce(r.exp_{w}_eur, 0)) as exp_{w}_eur,"
-            f" coalesce(r.var_{w}, 0) as var_{w}"
+            f" round(coalesce(r.var_{w}, 0)) as var_{w}"
             for w in WINDOWS
         ),
         **extra,
@@ -207,6 +207,9 @@ def build_promptpay() -> tuple[int, int]:
     serving = get_settings().serving_dir
     counts = []
     with duckdb.connect() as con:
+        # Parallel float summation reorders the addends, which moves a few rounded euros
+        # between builds. One thread keeps the committed tables byte-identical.
+        con.execute("set threads = 1")
         for name, query in (("promptpay", GROUP_QUERY), ("promptpay_customers", CUSTOMER_QUERY)):
             target = serving / f"{name}.parquet"
             con.execute(f"copy ({_format(query, serving)}) to '{target}' (format parquet)")
