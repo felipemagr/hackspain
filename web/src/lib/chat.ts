@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // The agent service. The rest of the demo reads static JSON and works without it.
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
 
 export interface FleetMember {
   id: string;
