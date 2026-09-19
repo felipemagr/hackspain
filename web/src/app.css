@@ -1028,6 +1028,12 @@ select:hover {
   stroke-linecap: round;
 }
 
+.chart__line--macro {
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.85;
+}
+
 .chart__line--ahead {
   stroke: var(--line-strong);
   stroke-width: 1.5;
@@ -2320,4 +2326,143 @@ select:hover {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
+}
+
+.key--dashed {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0 60%,
+    var(--surface) 60%
+  );
+  background-size: 5px 2px;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-size: 13px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.pick:hover {
+  background: var(--side);
+}
+
+.pick.is-on {
+  color: var(--series-3);
+  font-weight: 500;
+}
+
+.pick__tag {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+
+/* ---------- info ---------- */
+
+.info {
+  position: relative;
+  display: inline-flex;
+  margin-left: -8px;
+}
+
+.info__mark {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: none;
+  font-size: 10px;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--ink-3);
+  cursor: help;
+  transition:
+    border-color 0.18s var(--ease),
+    color 0.18s var(--ease);
+}
+
+.info__mark:hover,
+.info__mark:focus-visible {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.info__pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: none;
+  width: 300px;
+  padding: 11px 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px -8px rgb(5 11 44 / 0.22);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  text-align: left;
+  white-space: normal;
+}
+
+.info:hover .info__pop,
+.info__mark:focus-visible + .info__pop {
+  display: block;
+}
+
+.info__title {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.info__rows {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 8px;
+}
+
+.info__row {
+  display: contents;
+}
+
+.info__name {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.info__weight {
+  justify-self: start;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.info__what {
+  grid-column: 1 / -1;
+  margin-bottom: 4px;
+}
+
+.info__note {
+  display: block;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-3);
 }

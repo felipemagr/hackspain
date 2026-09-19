@@ -144,7 +144,7 @@ counts between groups and months. CSS transitions are 180ms on backgrounds and 5
 
 ## Deep links
 
-`?group=DEMO_002&compare=DEMO_001,DEMO_003&month=2026-08-01&tab=alerts` (or `tab=agents`) opens the demo on a given scene.
+`?group=DEMO_002&month=2026-08-01&tab=alerts` (or `tab=agents`) opens the demo on a given scene.
 
 ## Internal score viewer
 

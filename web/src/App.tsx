@@ -12,13 +12,10 @@ import { fetchVersion, loadStore, type Store } from "./lib/load";
 import { alertKey } from "./lib/meta";
 import { useStoredSet } from "./lib/useStoredSet";
 
-// Deep links for the demo: ?group=GROUP_0220&compare=GROUP_0043,GROUP_0173&month=2026-08-01&tab=alerts|agents
+// Deep links for the demo: ?group=GROUP_0220&month=2026-08-01&tab=alerts|agents
 const params = new URLSearchParams(window.location.search);
 // The brief's Velasco: healthy at 94, bending alarm at 82, tier crossed four months later.
 const DEFAULT_GROUP = "GROUP_0220";
-// A comparison keeps its slot, and so its color, while others come and go. "" is a free slot.
-const COMPARE_SLOTS = 4;
-const askedCompare = (params.get("compare") ?? "").split(",").filter(Boolean);
 // How often to ask the API whether a new build of the tables was published.
 const POLL_MS = 3000;
 
@@ -27,9 +24,6 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("group") ?? DEFAULT_GROUP);
-  const [compareSlots, setCompareSlots] = useState(() =>
-    Array.from({ length: COMPARE_SLOTS }, (_, k) => askedCompare[k] ?? ""),
-  );
   const [view, setView] = useState(DEFAULT_VIEW);
   const [favorites, updateFavorites] = useStoredSet("xray.favorites");
   const [cleared, updateCleared] = useStoredSet("xray.clearedAlerts");
@@ -112,18 +106,7 @@ export default function App() {
   }
   if (!store) return <p className="splash">Loading</p>;
 
-  const select = (groupId: string) => {
-    setSelectedId(groupId);
-    setCompareSlots((slots) => slots.map((id) => (id === groupId ? "" : id)));
-  };
-  const toggleCompare = (groupId: string) =>
-    setCompareSlots((slots) => {
-      const next = [...slots];
-      const at = next.indexOf(groupId);
-      if (at >= 0) next[at] = "";
-      else if (next.includes("")) next[next.indexOf("")] = groupId;
-      return next;
-    });
+  const select = (groupId: string) => setSelectedId(groupId);
   const toggleFavorite = (groupId: string) =>
     updateFavorites((next) => {
       if (!next.delete(groupId)) next.add(groupId);
@@ -219,11 +202,8 @@ export default function App() {
           <GroupDetail
             store={store}
             groupId={selectedId}
-            compareSlots={compareSlots}
             month={month}
             onMonth={setMonth}
-            onCompare={toggleCompare}
-            onClearCompare={() => setCompareSlots((slots) => slots.map(() => ""))}
             favorite={favorites.has(selectedId)}
             onFavorite={() => toggleFavorite(selectedId)}
             syncing={syncing}
