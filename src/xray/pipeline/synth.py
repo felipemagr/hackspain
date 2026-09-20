@@ -61,6 +61,9 @@ class Archetype:
 # Margins are before debt service, which takes another 7% of outflow where there is a loan.
 ARCHETYPES = {
     "healthy": Archetype(75, 75, 0.12, 1.08, 0.0, (2, 2), (4, 4), 12),
+    # Every pillar at its anchor ceiling, no loan, and still growing at the end: the level sits
+    # above 95. Lateness below zero means paid on the due date (the clamp in _company).
+    "pristine": Archetype(150, 150, 0.45, 3.5, 0.0, (-10, -10), (-10, -10), 12),
     "stable": Archetype(35, 35, 0.06, 0.98, 0.0, (8, 8), (10, 10), 12),
     "improving": Archetype(12, 55, -0.01, 1.30, 0.12, (32, 3), (35, 5), 4),
     "bending": Archetype(55, 60, 0.10, 0.78, -0.17, (3, 26), (5, 28), 7),
@@ -84,14 +87,14 @@ ROSTER = [
     ("Glovo", "Delivery", 1_100e6, 5, "bending", True),
     ("Cabify", "Mobility", 750e6, 4, "improving", True),
     ("Jobandtalent", "Staffing", 1_900e6, 6, "healthy", True),
-    ("Idealista", "Real estate portal", 380e6, 2, "healthy", True),
+    ("Idealista", "Real estate portal", 380e6, 2, "pristine", True),
     ("Wallbox", "EV charging", 180e6, 3, "falling", True),
     ("Factorial", "HR software", 120e6, 2, "improving", True),
     ("TravelPerk", "Business travel", 260e6, 3, "improving", False),
     ("Fever", "Live entertainment", 520e6, 4, "bump", True),
     ("Devo", "Security analytics", 90e6, 2, "stable", True),
     ("Copado", "DevOps software", 110e6, 2, "bending", True),
-    ("Typeform", "Forms software", 95e6, 2, "healthy", False),
+    ("Typeform", "Forms software", 95e6, 2, "pristine", True),
     ("Wallapop", "Marketplace", 85e6, 1, "improving", True),
     ("Playtomic", "Sports booking", 60e6, 2, "improving", False),
     ("Seedtag", "Contextual advertising", 140e6, 3, "stable", True),
@@ -99,7 +102,7 @@ ROSTER = [
     ("Domestika", "Online learning", 130e6, 2, "bending", True),
     ("Genially", "Visual communication", 40e6, 1, "healthy", False),
     ("Clarity AI", "Sustainability data", 55e6, 2, "stable", True),
-    ("Freepik", "Stock content", 160e6, 2, "healthy", True),
+    ("Freepik", "Stock content", 160e6, 2, "pristine", True),
     ("Lookiero", "Fashion subscription", 70e6, 2, "bump", True),
     ("Spotahome", "Mid-term rentals", 30e6, 1, "falling", False),
     ("Colvin", "Flowers", 25e6, 1, "weak", True),
@@ -373,7 +376,7 @@ def build(seed: int = SEED, roster=ROSTER) -> dict[str, pd.DataFrame]:
         gid = name.upper().replace(" ", "_")
         a = ARCHETYPES[archetype]
         shares = w.rng.dirichlet(np.full(n_companies, 2.0))
-        has_debt = w.rng.random() < 0.6
+        has_debt = w.rng.random() < 0.6 and archetype != "pristine"
         # Three groups onboard late, as in the challenge data.
         first_month = 0 if i % 8 else 9
         for k in range(n_companies):
