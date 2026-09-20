@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   WRITER_RULES,
   checkNote,
@@ -246,10 +248,12 @@ function TurnView({ turn, members }: { turn: Turn; members: Map<string, FleetMem
   return (
     <article className="turn">
       <p className="turn__question">{turn.question}</p>
-      <Trace turn={turn} members={members} />
+      {turn.viewChart
+        ? <p className="hint">AI view · {turn.entityId} · {monthLong(turn.month)}{turn.phase === "stopped" ? " · stopped" : ""}</p>
+        : <Trace turn={turn} members={members} />}
       {(turn.answer || turn.phase === "writing") && (
         <div className={working ? "answer is-streaming" : "answer"} aria-live="polite">
-          {turn.answer.split(/\n{2,}/).map((para, i) => (
+          {turn.viewChart ? <Markdown remarkPlugins={[remarkGfm]} skipHtml>{turn.answer}</Markdown> : turn.answer.split(/\n{2,}/).map((para, i) => (
             <p key={i}>{para}</p>
           ))}
         </div>

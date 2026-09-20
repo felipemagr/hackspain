@@ -137,11 +137,13 @@ def pillars(subs: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
     return out
 
 
-def level(pil: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
+def level(
+    pil: pd.DataFrame, key: str = "group_id", weights: dict[str, float] | None = None
+) -> pd.DataFrame:
     """Renormalised weighted level, additive pillar contributions, coverage and the cap rule."""
     names = list(PILLAR_WEIGHTS)
     block = pil[names]
-    weights = pd.Series(PILLAR_WEIGHTS)
+    weights = pd.Series(PILLAR_WEIGHTS if weights is None else weights)
     available = weights * block.notna()
     coverage = available.sum(axis=1)
     renormalised = available.div(coverage.replace(0, np.nan), axis=0)

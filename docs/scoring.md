@@ -30,6 +30,14 @@ No `uv` on the machine: `docker run --rm -v "$PWD/data:/app/data" -v "$PWD/src:/
 -e XRAY_PROCESSED_DIR=/app/data/processed -e XRAY_MARTS_DIR=/app/data/marts -w /app xray:latest
 python -m xray.scoring.score` runs the same thing (`make docker-build` first).
 
+The main-view chat accepts session-specific group pillar weights. `scoring/session.py` blends
+the published pillar scores with the normalized budget and runs the same level cap, monitor,
+driver decomposition, offers and ranked actions over the history. No table is published.
+`POST /api/v1/groups/{group_id}/evaluations` returns the recalculated tables; the browser applies
+them together and retains the weights across month changes and data refreshes until reset or reload.
+Company scores retain their baseline weights. Company pressure is unavailable under custom group
+weights because the serving export does not contain the leave-one-company-out pillar scores.
+
 ## 0. Five invariants
 
 Anything you add must keep these. Each has a test or a measurement behind it.

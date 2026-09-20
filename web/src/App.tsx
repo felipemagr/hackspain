@@ -11,6 +11,7 @@ import { DEFAULT_CHART, withViewWeights, type ChartConfig } from "./lib/viewAgen
 import { useChat } from "./lib/chat";
 import { useDisplayCurrency } from "./lib/currency";
 import { DEFAULT_VIEW } from "./lib/listView";
+import { evaluateGroup, withGroupViews, type GroupView } from "./lib/groupView";
 import { fetchVersion, loadStore, type Store } from "./lib/load";
 import { loadLocalStore, withLocalDetail } from "./lib/localStore";
 import { scoringRequest } from "./lib/scoring";
@@ -37,8 +38,10 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
   const [detailError, setDetailError] = useState("");
   const [baseStore, setStore] = useState<Store | null>(null);
   const [viewWeights, setViewWeights] = useState<Record<string, Record<string, number>>>({});
+  const [groupViews, setGroupViews] = useState<Record<string, GroupView & { source: Store }>>({});
+  const [refreshingWeights, setRefreshingWeights] = useState(false);
   const [charts, setCharts] = useState<Record<string, ChartConfig>>({});
-  const store = useMemo(() => baseStore ? withViewWeights(baseStore, viewWeights) : null, [baseStore, viewWeights]);
+  const store = useMemo(() => baseStore ? withGroupViews(withViewWeights(baseStore, viewWeights), groupViews) : null, [baseStore, viewWeights, groupViews]);
   const [error, setError] = useState<string | null>(null);
   const [month, setMonth] = useState("");
   const [selectedId, setSelectedId] = useState(params.get("entity") ?? params.get("group") ?? DEFAULT_GROUP);
@@ -53,8 +56,32 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
     askedTab === "alerts" || askedTab === "agents" ? askedTab : "groups",
   );
   const [syncing, setSyncing] = useState(false);
-  const chat = useChat(localScoring);
+  const applyViewActions = (entityId: string, actions: import("./lib/viewAgent").ViewAction[]) => {
+    for (const action of actions) {
+      if (action.type === "set_group_weights" && baseStore) setGroupViews(current => ({ ...current, [entityId]: { ...action, source: baseStore } }));
+      if (action.type === "set_weights") setViewWeights(current => ({ ...current, [entityId]: action.weights }));
+      if (action.type === "set_chart") setCharts(current => ({ ...current, [entityId]: action.chart }));
+    }
+  };
+  const chat = useChat(localScoring, applyViewActions);
   useDisplayCurrency(month);
+
+  useEffect(() => {
+    if (!baseStore || localScoring) return;
+    const pending = Object.entries(groupViews).filter(([, view]) => view.source !== baseStore);
+    if (!pending.length) { setRefreshingWeights(false); return; }
+    const controller = new AbortController();
+    setRefreshingWeights(true);
+    Promise.all(pending.map(async ([id, view]) => [id, { ...await evaluateGroup(id, view.weights, controller.signal), source: baseStore }] as const))
+      .then(entries => {
+        if (controller.signal.aborted) return;
+        setGroupViews(current => ({ ...current, ...Object.fromEntries(entries) }));
+        setDetailError("");
+      })
+      .catch((e: Error) => { if (!controller.signal.aborted) setDetailError(e.message); })
+      .finally(() => { if (!controller.signal.aborted) setRefreshingWeights(false); });
+    return () => controller.abort();
+  }, [baseStore, groupViews, localScoring]);
 
   useLayoutEffect(() => {
     if (selectedCompanyId && mainRef.current) mainRef.current.scrollTop = 0;
@@ -160,6 +187,7 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
     );
   }
   if (!store) return <p className="splash">Loading</p>;
+  const viewEntityId = !localScoring && selectedCompanyId ? selectedCompanyId : selectedId;
 
   const toggleCompare = (groupId: string) =>
     setCompareSlots((slots) => {
@@ -260,7 +288,7 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
         {tab === "agents" ? (
           <Chat
             key={chat.activeId ?? "new"}
-            month={month}
+            month={chat.turns.at(-1)?.viewChart ? chat.turns.at(-1)!.month : month}
             fleet={chat.fleet}
             turns={chat.turns}
             busy={chat.busy}
@@ -304,24 +332,23 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
           />
         )}
       </main>
-      {tab !== "agents" && (localScoring ? Boolean(store.localScoring) : !selectedCompanyId) && <ViewAgent
-        key={`${selectedId}-${month}`}
-        entityId={selectedId}
+      {tab !== "agents" && (!localScoring || Boolean(store.localScoring)) && <ViewAgent
+        key={`${viewEntityId}-${month}`}
+        entityId={viewEntityId}
+        parentGroupId={!localScoring && selectedCompanyId ? selectedId : undefined}
         month={month}
-        evaluating={evaluating}
+        onRecord={chat.recordViewTurn}
+        evaluating={evaluating || refreshingWeights}
+        groupWeights={groupViews[selectedId]?.weights}
         weights={store.localWeights?.get(selectedId) ?? store.localScoring?.config.weights}
         chart={charts[selectedId] ?? DEFAULT_CHART}
-        customized={Boolean(viewWeights[selectedId] || charts[selectedId])}
+        customized={!selectedCompanyId && Boolean(viewWeights[selectedId] || charts[selectedId] || groupViews[selectedId])}
         onReset={() => {
+          setGroupViews(current => { const next = { ...current }; delete next[selectedId]; return next; });
           setViewWeights(current => { const next = { ...current }; delete next[selectedId]; return next; });
           setCharts(current => { const next = { ...current }; delete next[selectedId]; return next; });
         }}
-        onApply={actions => {
-          for (const action of actions) {
-            if (action.type === "set_weights") setViewWeights(current => ({ ...current, [selectedId]: action.weights }));
-            if (action.type === "set_chart") setCharts(current => ({ ...current, [selectedId]: action.chart }));
-          }
-        }}
+        onApply={actions => applyViewActions(selectedId, actions)}
       />}
     </div>
   );

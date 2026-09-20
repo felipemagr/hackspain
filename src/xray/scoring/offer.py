@@ -122,15 +122,16 @@ def offers(scores: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
-def actions(scores: pd.DataFrame) -> pd.DataFrame:
+def actions(scores: pd.DataFrame, weights: dict[str, float] | None = None) -> pd.DataFrame:
     """Three ranked moves per group at its last scored month, weakest pillar first."""
+    weights = PILLAR_WEIGHTS if weights is None else weights
     last = scores.sort_values("month").groupby("group_id").tail(1).set_index("group_id")
     rows = []
     for gid, row in last.iterrows():
         contrib = pd.Series({p: row[f"contrib_{p}"] for p in PILLARS if pd.notna(row[p])})
         for rank, pillar in enumerate(contrib.nsmallest(N_ACTIONS).index, start=1):
             gap = max(TARGET_PILLAR - row[pillar], MIN_GAP)
-            weight = PILLAR_WEIGHTS[pillar] / row["coverage"]
+            weight = weights[pillar] / row["coverage"]
             rows.append(
                 {
                     "group_id": gid,

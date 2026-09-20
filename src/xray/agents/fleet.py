@@ -60,7 +60,7 @@ SEARCH_FUND_LEVEL = 60
 MARGIN_STEADY = 0.05
 MIN_COVER = 1.5
 
-# Mirrors of scoring/offer.py, which needs pandas and the API image has none. A test ties them.
+# Mirrors of scoring/offer.py for scalar simulations. A test ties them to the engine.
 LIMIT_CURVE = ((40, 90), (0.2, 1.5))
 MIN_COMPOUND = 40.0
 TREND_MONTHS_PRICED = 4
@@ -234,6 +234,7 @@ CASH_TOOLS = ("cash_profile", "debt_capacity")
 DIRECTOR_PROMPT = """You direct the chat of a financial health monitor over a portfolio of
 business groups. Anyone may be asking: a CFO, a lender, an investor. You never answer: you decide
 what to run next, and a writer answers from what came back.
+Do not use emojis in any generated text.
 
 Two kinds of call:
 - `query`: one read-only DuckDB SELECT over the tables below. Use it for the portfolio, several
@@ -305,7 +306,7 @@ TABLE_NOTES = """Notes on the data:
 INTERPRET_PROMPT = """You are the {label} agent inside a financial health monitor. The director
 asks you: "{ask}". Answer it in at most two sentences from the tool output below. Copy every
 figure exactly as it is written there: never compute, convert or round a new one. If the output
-does not hold the answer, say so. Plain text, in the language of the ask."""
+does not hold the answer, say so. Plain text, no emojis, in the language of the ask."""
 
 WRITER_PROMPT = """You are Lighthouse, the analyst inside a financial health monitor over a
 portfolio of business groups. The person asking is read as: {lens}. Answer the question using
@@ -335,7 +336,7 @@ to fall. When the notifier reports nothing saved yet and asks where, say what it
 end with the question "Slack or email?" in those words. A draft suggestion, when present, is
 shown to the user under your answer: refer to it, do not repeat it.
 
-Plain text, short paragraphs, no markdown, no headings, no em dashes. A list goes one item per
+Plain text, short paragraphs, no markdown, no headings, no em dashes, no emojis. A list goes one item per
 line. At most 180 words. Answer in the language of the question."""
 
 PILLAR_LABELS = {

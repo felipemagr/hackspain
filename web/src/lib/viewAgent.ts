@@ -1,4 +1,5 @@
 import type { Store } from "./load";
+import type { GroupView, GroupWeights } from "./groupView";
 import { API_HEADERS, API_URL, readEvents } from "./chat";
 import { displayCurrency } from "./currency";
 import { SCORING_API, type ScoreNode, type Weights } from "./scoring";
@@ -14,13 +15,26 @@ export interface ChartConfig {
 }
 export const DEFAULT_CHART: ChartConfig = { type: "area", series: ["level"], months: null, show_grid: true, color: "navy", title: null };
 export const CHART_COLORS = { navy: "#050b2c", blue: "#3878f6", green: "#008c70", purple: "#8041d1", orange: "#b0661a" };
-export type ViewAction = { type: "set_weights"; weights: Record<string, number> } | { type: "set_chart"; chart: ChartConfig };
+export type ViewAction = { type: "set_weights"; weights: Record<string, number> } | { type: "set_chart"; chart: ChartConfig } | ({ type: "set_group_weights" } & GroupView);
 export interface ViewReply { reply: string; actions: ViewAction[]; queries: { tool: string; rows: number }[]; model_available: boolean }
 export interface ViewMessage { role: "user" | "assistant"; content: string }
 
 export async function askGroupAgent(request: {
   message: string; groupId: string; month: string; history: ViewMessage[];
-}, signal: AbortSignal): Promise<string> {
+  currentWeights?: GroupWeights;
+  companyId?: string;
+}, signal: AbortSignal): Promise<{ reply: string; actions: ViewAction[] }> {
+  const viewResponse = await fetch(`${API_URL}/api/v1/group-view-chats`, {
+    method: "POST", headers: { "Content-Type": "application/json", ...API_HEADERS },
+    body: JSON.stringify({ message: request.message, group_id: request.groupId, month: request.month,
+      history: request.history, current_weights: request.currentWeights, company_id: request.companyId }), signal,
+  });
+  if (!viewResponse.ok) {
+    const body = await viewResponse.json().catch(() => null);
+    throw new Error(typeof body?.detail === "string" ? body.detail : "Could not update the score. Please retry.");
+  }
+  const view = await viewResponse.json() as { handled?: boolean; reply: string; actions: ViewAction[] };
+  if (view.handled !== false) return view;
   const response = await fetch(`${API_URL}/api/v1/chats`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...API_HEADERS },
@@ -42,7 +56,7 @@ export async function askGroupAgent(request: {
     if (event.type === "done") completed = true;
   }
   if (!completed || !answer.trim()) throw new Error("The answer was interrupted. Please retry.");
-  return answer;
+  return { reply: answer, actions: [] };
 }
 
 export async function askViewAgent(request: {

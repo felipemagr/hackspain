@@ -128,6 +128,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
   on hover. "New conversation" is a text link in the section head, shown while a conversation is
   open; the button under the composer does the same. The section is sticky at the top of the rail. Kept
   in localStorage (`xray.chats.v2`). A question asked in a new conversation moves it to the top.
+- **Floating chat** (`ViewAgent.tsx`): a compact white panel with a hairline outline, 14px radius and offset shadow. Its untitled toolbar holds expand and close icons. Questions sit on the side-rail fill; answers are plain 14px prose. A growing textarea and navy send button share one bordered composer. The panel starts empty after reload; conversations remain in Agents.
 - **Data sync** (`GroupDetail.tsx`): a borderless refresh icon beside the favorite star, same size
   and ink. It turns while the tables refetch, and only then. The meta line ends with when the data
   was last updated (the tables' Last-Modified); the icon's tooltip says when this browser synced.

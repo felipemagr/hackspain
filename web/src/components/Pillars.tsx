@@ -46,7 +46,8 @@ export function Pillars({ score, drivers, weights, cashDate }: PillarsProps) {
           const moved = driver?.delta_contribution ?? null;
           // Missing pillars have their weight spread over the rest, so what a pillar really
           // weighs is its base weight over the coverage.
-          const effective = value == null ? 0 : p.weight / score.coverage;
+          const weight = score.pillarWeights ? score.pillarWeights[p.key] * 100 : p.weight;
+          const effective = value == null ? 0 : weight / score.coverage;
           return (
             <tr key={p.key}>
               <th scope="row">
@@ -55,8 +56,8 @@ export function Pillars({ score, drivers, weights, cashDate }: PillarsProps) {
               </th>
               <td>
                 {value == null ? "-" : `${effective.toFixed(1)}%`}
-                {value != null && Math.abs(effective - p.weight) > 0.05 && (
-                  <span className="pillars__base">base {p.weight}%</span>
+                {value != null && Math.abs(effective - weight) > 0.05 && (
+                  <span className="pillars__base">base {weight.toFixed(1)}%</span>
                 )}
               </td>
               <td className="pillars__score">{value == null ? "-" : value.toFixed(1)}</td>

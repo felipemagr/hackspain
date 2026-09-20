@@ -1,5 +1,5 @@
 # Two images from one file. `pipeline`: raw CSVs in, parquet out (`make docker-build`).
-# `api` is the demo backend: no pandas, the serving parquet baked in. It is the last stage
+# `api` is the demo backend with session score recalculation and serving parquet baked in. Last
 # because hosts that cannot pick a target (Render) build the last one.
 
 FROM python:3.12-slim AS pipeline

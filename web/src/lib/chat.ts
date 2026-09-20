@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { API_HEADERS, API_URL } from "./api";
 import { displayCurrency } from "./currency";
 import type { Weights } from "./scoring";
+import type { GroupWeights } from "./groupView";
+import { askGroupAgent, askViewAgent, DEFAULT_CHART, type ChartConfig, type ViewAction } from "./viewAgent";
 
 // The agent service. The rest of the demo reads static JSON and works without it.
-export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
-// Baked into the bundle, so it keeps strangers off the API, not a reader of this page.
-const API_KEY = import.meta.env.VITE_API_KEY as string | undefined;
-export const API_HEADERS: Record<string, string> = API_KEY ? { "X-API-Key": API_KEY } : {};
+export { API_HEADERS, API_URL } from "./api";
 
 export interface FleetMember {
   id: string;
@@ -62,7 +62,10 @@ export interface Turn {
   question: string;
   month: string;
   entityId?: string;
+  parentGroupId?: string;
   weights?: Weights;
+  groupWeights?: GroupWeights;
+  viewChart?: ChartConfig;
   phase: Phase;
   purpose: string | null;
   agents: AgentRun[];
@@ -77,6 +80,7 @@ export interface Turn {
 // One conversation. Its title is its first question.
 export interface Conversation {
   id: number;
+  origin?: "view";
   turns: Turn[];
 }
 
@@ -209,7 +213,7 @@ function readChats(key: string): Conversation[] {
   }
 }
 
-export function useChat(localScoring = false) {
+export function useChat(localScoring = false, onViewActions?: (entityId: string, actions: ViewAction[]) => void) {
   const storageKey = localScoring ? "xray.localScoring.chats" : CHATS_KEY;
   const [fleet, setFleet] = useState<FleetState>({ status: "waking" });
   // Newest first. activeId null is a new conversation nobody has asked in yet.
@@ -234,21 +238,31 @@ export function useChat(localScoring = false) {
 
   const last = turns[turns.length - 1];
   const busy = !!last && WORKING.includes(last.phase);
-  const streaming = chats.some((chat) => WORKING.includes(chat.turns[chat.turns.length - 1].phase));
-
   useEffect(() => {
-    if (streaming) return;
     try {
       localStorage.setItem(storageKey, JSON.stringify(chats));
     } catch {
       // private window: the conversations still work for the session
     }
-  }, [chats, streaming, storageKey]);
+  }, [chats, storageKey]);
+
+  const recordViewTurn = useCallback((chatId: number, turn: Turn) => {
+    setChats(all => {
+      const known = all.find(chat => chat.id === chatId);
+      const turns = known?.turns.some(t => t.id === turn.id)
+        ? known.turns.map(t => t.id === turn.id ? turn : t)
+        : [...(known?.turns ?? []), turn];
+      return [{ id: chatId, origin: "view", turns }, ...all.filter(chat => chat.id !== chatId)];
+    });
+  }, []);
 
   const ask = useCallback(
     async (question: string, month: string, context?: { entityId: string; weights?: Weights }) => {
-      const entityId = context?.entityId;
-      const weights = context?.weights;
+      const viewConversation = chats.find(chat => chat.id === activeId)?.origin === "view";
+      const previous = turns.at(-1);
+      const entityId = viewConversation ? previous?.entityId : context?.entityId;
+      const weights = viewConversation ? previous?.weights : context?.weights;
+      if (viewConversation && previous) month = previous.month;
       const id = Date.now();
       const chatId = activeId ?? id;
       const history = turns
@@ -270,7 +284,10 @@ export function useChat(localScoring = false) {
         question,
         month,
         entityId,
+        parentGroupId: viewConversation ? previous?.parentGroupId : undefined,
         weights,
+        groupWeights: viewConversation ? previous?.groupWeights : undefined,
+        viewChart: viewConversation ? previous?.viewChart : undefined,
         phase: "planning",
         purpose: null,
         agents: [],
@@ -279,13 +296,28 @@ export function useChat(localScoring = false) {
       };
       // The conversation just asked in moves to the top.
       setChats((all) => [
-        { id: chatId, turns: [...(all.find((chat) => chat.id === chatId)?.turns ?? []), turn] },
+        { id: chatId, origin: viewConversation ? "view" : undefined, turns: [...(all.find((chat) => chat.id === chatId)?.turns ?? []), turn] },
         ...all.filter((chat) => chat.id !== chatId),
       ]);
       setActiveId(chatId);
       const controller = new AbortController();
       abort.current = controller;
       try {
+        if (viewConversation && entityId) {
+          const chart = previous?.viewChart ?? DEFAULT_CHART;
+          const messages = history as { role: "user" | "assistant"; content: string }[];
+          const result = weights
+            ? await askViewAgent({ message: question, entity_id: entityId, month: month.slice(0, 7),
+              current_weights: weights.level, current_profile: weights, chart, history: messages, allow_weights: true }, controller.signal)
+            : await askGroupAgent({ message: question, groupId: previous?.parentGroupId ?? entityId,
+              companyId: previous?.parentGroupId ? entityId : undefined, month, history: messages,
+              currentWeights: previous?.groupWeights }, controller.signal);
+          if (controller.signal.aborted) { patch(t => ({ ...t, phase: "stopped" })); return; }
+          onViewActions?.(entityId, result.actions);
+          patch(t => ({ ...t, phase: "done", answer: result.reply,
+            ...viewActionContext(t, result.actions) }));
+          return;
+        }
         const response = await fetch(`${API_URL}/api/v1/chats`, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...API_HEADERS },
@@ -310,7 +342,7 @@ export function useChat(localScoring = false) {
           }));
       }
     },
-    [turns, activeId, localScoring],
+    [turns, activeId, localScoring, chats, onViewActions],
   );
 
   const stop = useCallback(() => abort.current?.abort(), []);
@@ -326,5 +358,15 @@ export function useChat(localScoring = false) {
     [activeId],
   );
 
-  return { fleet, chats, activeId, open: setActiveId, remove, turns, busy, ask, stop, wake };
+  return { fleet, chats, activeId, open: setActiveId, remove, turns, busy, ask, stop, wake, recordViewTurn };
+}
+
+export function viewActionContext(turn: Turn, actions: ViewAction[]): Partial<Turn> {
+  const context: Partial<Turn> = {};
+  for (const action of actions) {
+    if (action.type === "set_group_weights") context.groupWeights = action.weights;
+    if (action.type === "set_weights" && turn.weights) context.weights = { ...turn.weights, level: action.weights };
+    if (action.type === "set_chart") context.viewChart = action.chart;
+  }
+  return context;
 }

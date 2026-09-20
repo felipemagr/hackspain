@@ -35,12 +35,11 @@ Two rules hold the shape together:
 
 - **Dependencies point one way**: `config`/`settings` <- `pipeline` <- `scoring` <- `agents`, `api`.
   Nothing imports from a stage to its right.
-- **Everything the demo shows is precomputed into `data/serving`.** The API never calls the
-  pipeline, the model or the web during a request. It imports no pandas, so its image stays small
-  and it cannot fail on stage because a third party is slow.
-  The one exception is the Agents chat (`POST /api/v1/chats`): it plans, queries the tables,
-  searches and writes during the request (`docs/agents.md`). It is a separate tab, so when the model or the network is slow the rest
-  of the demo is untouched.
+- **The default demo reads precomputed `data/serving` tables.** Session weight changes replay
+  the score and derived group outputs from stored pillars using the same scoring engine.
+  The API includes numpy and pandas for this calculation; it does not publish the results.
+  Chat endpoints call the configured model during a request (`docs/agents.md`); the existing
+  display stays available while a reply or recalculation is pending.
 
 Runtime configuration is `xray.settings` (environment, `XRAY_` prefix, see `docs/infra.md`).
 Paths and dataset constants are `xray.config`.
@@ -454,7 +453,7 @@ The image carries no data, so it rebuilds in seconds when only the source change
 keeps uv's download cache out of the layer, which is worth 480 MB. The 552 MB that remain are
 numpy, scipy, pandas, pyarrow and scikit-learn.
 The `api` target is the demo image, the one that matters in front of the jury. It installs
-without the pipeline dependency group, so no pandas, bakes `data/serving` in, and needs no volume,
+without the pipeline dependency group, includes pandas for session scoring, bakes `data/serving` in, and needs no volume,
 no network and no database. `make api-up` builds and runs it; `docs/infra.md` has the detail.
 
 ## 12. When this stops being right

@@ -33,6 +33,7 @@ export interface GroupRow {
 }
 
 export interface ScoreRow {
+  pillarWeights?: Record<Pillar, number>;
   group_id: string;
   month: string;
   liquidity: number | null;

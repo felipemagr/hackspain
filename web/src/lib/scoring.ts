@@ -1,4 +1,4 @@
-import { API_HEADERS, API_URL } from "./chat";
+import { API_HEADERS, API_URL } from "./api";
 
 export type Weights = Record<"level" | "financial" | "evolution", Record<string, number>>;
 export interface ScoreNode {

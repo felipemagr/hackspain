@@ -19,6 +19,7 @@ from xray.api.routers import (
     alerts,
     chat,
     client_errors,
+    group_view,
     health,
     real_groups,
     scoring,
@@ -93,7 +94,17 @@ async def unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
 # page with no key to send.
 app.include_router(health.router)
 app.include_router(real_groups.router)
-for protected in (version, tables, alerts, alert_rules, chat, client_errors, scoring, view_chat):
+for protected in (
+    version,
+    tables,
+    alerts,
+    alert_rules,
+    chat,
+    client_errors,
+    scoring,
+    view_chat,
+    group_view,
+):
     app.include_router(protected.router, dependencies=[Depends(require_api_key)])
 app.mount("/viewer/assets", StaticFiles(directory=STATIC_DIR), name="viewer-assets")
 

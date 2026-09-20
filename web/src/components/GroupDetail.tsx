@@ -152,7 +152,7 @@ export function GroupDetail({
   const record = detail?.monthly.find((r) => r.month.slice(0, 7) === month.slice(0, 7));
   const activeWeights = weights ?? store.localWeights?.get(groupId) ?? store.localScoring?.config.weights;
   const offer = store.offerAt(groupId, month);
-  const actions = [...(store.actionsByGroup.get(groupId) ?? [])].sort(
+  const actions = [...(store.actionsByGroup.get(groupId) ?? [])].filter(a => a.month === month).sort(
     (a, b) => a.rank - b.rank,
   );
   const companies = [...(store.companiesByGroup.get(groupId) ?? [])].sort(
@@ -399,6 +399,7 @@ export function GroupDetail({
                   <h2>Companies in the group</h2>
                   <span className="hint">inflow · score · group pressure</span>
                 </div>
+                {score.pillarWeights && <p className="hint">Company scores use standard weights. Group pressure is unavailable with custom group weights.</p>}
                 {companies.map((c) => {
                   const own = store.companyScoreAt(c.company_id, month);
                   const impact = store.companyImpactAt(c.company_id, month)?.impact_points;

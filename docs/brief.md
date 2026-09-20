@@ -209,10 +209,15 @@ saves nothing; the chat asks "Slack or email?" and the answer completes it.
 ### Scope: what we are not building
 
 No user accounts, no multi-tenant, no real lender integration, no live data ingestion, no mobile.
-The demo is read-only over precomputed results.
-The main group view has a floating AI chat backed by the Helmcode fleet, scoped to the selected group, month and display currency.
+The demo reads precomputed results and supports session-scoped group score weights.
+Group and company cards have a floating AI chat scoped to the selected entity and month; general explanations read the displayed score, history, drivers and alerts.
+Company-card analysis distinguishes the subsidiary from its group and uses the active group score for comparisons; score weight changes belong to the group card.
+The main view chat changes group pillar weights and recalculates history, trend, drivers, alerts, actions and offers together; reset restores the published results.
+AI button conversations are stored in the browser and appear in Agents with their group, month and weight context; follow-ups retain that context. The floating chat starts empty on reload or when reopening a card and does not restore archived conversations.
+Company scores retain baseline weights; company pressure is unavailable while group weights are customized.
 The optional local scorecard provides company/group views and uses the AI button for temporary pillar weights and chart settings.
 The view assistant reads evidence through the selected month and changes browser settings without writing data or recomputing component scores.
+View and chat prompts require responses without emojis.
 
 ---
 
@@ -244,6 +249,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Natural-language view controls and local evidence | `src/xray/agents/view.py`, `api/routers/view_chat.py`, `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts` |
 | Floating AI chat in the main group view | `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts`, `api/routers/chat.py`, `src/xray/agents/fleet.py` |
+| Session group weights and recalculated views | `src/xray/agents/group_view.py`, `src/xray/scoring/session.py`, `api/routers/group_view.py`, `web/src/lib/groupView.ts` |
 | Hidden-test predictions for the leaderboard | `src/xray/scoring/submit.py`, `make submit RAW=dir` |
 | Live demo: months land one at a time, the web and Slack follow | `src/xray/pipeline/replay.py` (`make replay`), `serve.publish`, `api/routers/version.py`, `api/routers/tables.py`, polling in `web/src/App.tsx` |
 | Live demo: named companies connect to the platform in batches and are scored on the spot | `src/xray/pipeline/synth.py` (the synthetic dump), `src/xray/pipeline/onboard.py` (`make demo`) |
@@ -270,6 +276,7 @@ Score design and data constraints: `docs/health-score-research.md`. Infrastructu
   group**, never by row or by month, to mimic the hidden test.
 - **The optional local scorecard also exposes companies.** Its configuration and serving export are separate from the baseline engine.
 - **AI weight actions blend existing local pillars.** The session overlay does not alter component scores, stored observations or the baseline engine.
+- **Main-view weights replay the group score and derived outputs.** The session preserves component scores, missing-data renormalization and safety caps; published tables and other viewers are unchanged.
 - **AI charts require two finite observations per series in the visible period.** Missing observations remain missing; a snapshot is not a historical series.
 - **The view prompt requires evidence for facts, numbers and dates.** It requires missing data to be acknowledged and relationships to be identified as interpretations, without invented causal explanations.
 - **No look-ahead.** A feature for month `t` uses only data up to `t`. `balances.csv` is a final
