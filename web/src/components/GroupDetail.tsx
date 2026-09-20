@@ -13,12 +13,12 @@ import {
   defaultMacro,
 } from "../lib/macro";
 import type { MacroSeries } from "../lib/macro";
-import { PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
+import { PILLARS, PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import type { Weights } from "../lib/scoring";
 import { useTween } from "../lib/useTween";
-import { LowDataNote } from "./LowData";
+import { LowDataNote, PartialDataNote } from "./LowData";
 import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
@@ -145,6 +145,8 @@ export function GroupDetail({
     defaultMacro(group?.country ?? null),
   ]);
   const [query, setQuery] = useState("");
+  const [showMembers, setShowMembers] = useState(false);
+  const [hotMember, setHotMember] = useState<string>();
   if (!group) return null;
 
   const drivers = store.driversAt(groupId, month);
@@ -160,6 +162,11 @@ export function GroupDetail({
       (store.companyImpactAt(b.company_id, month)?.impact_points ?? -Infinity) -
       (store.companyImpactAt(a.company_id, month)?.impact_points ?? -Infinity),
   );
+  const members = companies.flatMap((c) => {
+    const rows = store.scoresByCompany.get(c.company_id);
+    return rows?.length ? [{ name: c.name, history: rows }] : [];
+  });
+  const canShowMembers = members.length > 1;
   const macros = macroIds.flatMap((id) => MACRO_BY_ID.get(id) ?? []);
   const peers = compareSlots.flatMap((id) => store.groupById.get(id) ?? []);
   const slotsFree = peers.length < compareSlots.length;
@@ -249,7 +256,8 @@ export function GroupDetail({
                   </>
                 )}
               </p>
-              {thin && <LowDataNote months={score.months_observed} />}
+              {thin ? <LowDataNote months={score.months_observed} />
+                : !store.localScoring && score.coverage < 0.75 && <PartialDataNote missing={PILLARS.filter((p) => score[p.key] == null).length} total={PILLARS.length} />}
             </div>
           </div>
         )}
@@ -282,6 +290,12 @@ export function GroupDetail({
                   </svg>
                 </button>
               ))}
+              {showMembers && canShowMembers && (
+                <span className="legend__item">
+                  <span className="key key--member" />
+                  Companies
+                </span>
+              )}
               {macros.map((series, k) => (
                 <span className="legend__item" key={series.id}>
                   <span
@@ -292,6 +306,16 @@ export function GroupDetail({
                 </span>
               ))}
             </span>
+            {canShowMembers && (
+              <button
+                className="menu__button menu__button--toggle"
+                aria-pressed={showMembers}
+                aria-label="Show every company of the group on the chart"
+                onClick={() => setShowMembers((on) => !on)}
+              >
+                Companies · {members.length}
+              </button>
+            )}
             <Menu
               label={peers.length ? `Compare · ${peers.length}` : "Compare with..."}
               ariaLabel="Compare with other groups"
@@ -374,6 +398,9 @@ export function GroupDetail({
           primary={{ name: primaryName, history: chartHistory(chartPrimary) }}
           compare={chartComparisons}
           macros={showMarket ? macros : []}
+          members={showMarket && showMembers && canShowMembers ? members : []}
+          hotMember={hotMember}
+          onHotMember={setHotMember}
           alerts={chartPrimary === "level" ? store.alerts.filter((a) => a.group_id === groupId) : []}
         /> : <p className="empty">A time chart needs at least two observations in this period.</p>}
         {chartSeries.length > 0 && !showMarket && <div className="view-chart-legend">{chartSeries.map((metric, index) => <span className="legend__item" key={metric}><span className="key" style={{ background: index === 0 ? CHART_COLORS[chart.color] : SERIES_COLORS[index - 1] }} />{metric === "level" ? "Health score" : scoreLabels[metric]}</span>)}</div>}
@@ -407,7 +434,15 @@ export function GroupDetail({
                     ? own.monthly_inflow_eur / score.monthly_inflow_eur
                     : null;
                   return (
-                    <button className="company company--open" key={c.company_id} onClick={() => onCompany?.(c.company_id)}>
+                    <button
+                      className={`company company--open ${showMembers && hotMember === c.name ? "is-hot" : ""}`}
+                      key={c.company_id}
+                      onClick={() => onCompany?.(c.company_id)}
+                      onPointerEnter={() => setHotMember(c.name)}
+                      onPointerLeave={() => setHotMember(undefined)}
+                      onFocus={() => setHotMember(c.name)}
+                      onBlur={() => setHotMember(undefined)}
+                    >
                       <span className="company__name">{c.name}</span>
                       <span className="company__share">{share == null ? "-" : `${(share * 100).toFixed(0)}%`}</span>
                       <span className="company__level">{fmtScore(own?.level ?? null)}</span>

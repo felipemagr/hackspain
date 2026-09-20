@@ -735,6 +735,17 @@ ol {
   border-color: var(--ink-3);
 }
 
+.menu__button--toggle {
+  padding-right: 10px;
+  background-image: none;
+}
+
+.menu__button--toggle[aria-pressed="true"] {
+  border-color: var(--ink);
+  background-color: var(--ink);
+  color: var(--surface);
+}
+
 .menu__panel {
   position: absolute;
   top: calc(100% + 6px);
@@ -1047,6 +1058,21 @@ h1 {
   flex: none;
 }
 
+.pillars__note {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 12px 0 0;
+  color: var(--ink-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pillars__note .caveat {
+  position: relative;
+  top: 1px;
+}
+
 .score__caveat .caveat {
   position: relative;
   top: 1px;
@@ -1258,6 +1284,18 @@ select:hover {
   opacity: 0.85;
 }
 
+.chart__line--member {
+  stroke: var(--ink-3);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+
+.chart__line--member.is-hot {
+  stroke: var(--ink-2);
+  stroke-width: 2;
+  opacity: 1;
+}
+
 .chart__line--ahead {
   stroke: var(--line-strong);
   stroke-width: 1.5;
@@ -1453,6 +1491,7 @@ select:hover {
 }
 
 .company--open:hover,
+.company--open.is-hot,
 .company--open:focus-visible {
   background: var(--hover);
 }
@@ -2619,6 +2658,11 @@ select:hover {
   }
 }
 
+.key--member {
+  background: var(--ink-3);
+  opacity: 0.6;
+}
+
 .key--dashed {
   background-image: linear-gradient(
     90deg,
@@ -2685,6 +2729,14 @@ select:hover {
   color: var(--ink-2);
   text-align: left;
   white-space: normal;
+}
+
+/* Bridges the gap to the mark so the pointer can travel into the pop. */
+.info__pop::before {
+  content: "";
+  position: absolute;
+  inset: -9px 0 auto;
+  height: 9px;
 }
 
 .info:hover .info__pop,

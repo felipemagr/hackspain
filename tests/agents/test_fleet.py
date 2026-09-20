@@ -10,9 +10,12 @@ from xray.agents.fleet import (
     Call,
     ChatRequest,
     ChatTurn,
+    as_of,
     direct,
     level_of,
     limit_factor,
+    mentioned_companies,
+    mentioned_groups,
     pending_request,
     run_chat,
     untraced_figures,
@@ -134,7 +137,7 @@ def test_chat_without_a_model_plans_by_rules_and_answers_from_the_reports(db, tm
     score = done(events)["scorecard"]["summary"]
     assert score.startswith("Level 68, bending, -2.0 points a month, tier coping.")
     assert "It was 80 six months earlier, moved by collections -7.0." in score
-    assert "2nd best month of 2" in score
+    assert "worst month of 2" in score
     findings = done(events)["scorecard"]["findings"]
     assert findings[:2] == [
         "collections 41 (-15 this month)",
@@ -424,7 +427,7 @@ class TestDirector:
         assert "Round 2 of 4." in asked[0][1]
         assert "could not be read as a move: No JSON object" in asked[1][1]
         # The director reads each agent's rules along with its tools.
-        assert "Rule: Runs only for a real company the user names" in asked[0][0]
+        assert "Rule: Runs only for a real company" in asked[0][0]
 
     def test_falls_back_to_rules_when_the_model_fails_on_the_first_round(self, db):
         move = self.move(db, RuntimeError("down"), message="Is the sector of g1 moving too?")
@@ -604,3 +607,56 @@ def test_amounts_follow_the_display_currency_at_the_rate_of_the_year(db, tmp_pat
     line = done(events)["simulator"]["summary"]
     # 250,000 EUR at the 2026 average of 1.162858 dollars per euro.
     assert line == "Working-capital line of 290,714 USD at 7.0% APR, -58,143 USD on last month."
+
+
+def test_a_trading_name_in_the_question_finds_its_group():
+    cursor = duckdb.connect()
+    cursor.execute("create table groups as select 'GROUP_0007' as group_id, 'Grupo Meliá' as name")
+    cursor.execute(
+        "create table scores as select 'GROUP_0007' as group_id, timestamp '2026-08-01' as month"
+    )
+    request = ChatRequest(message="how is melia doing?", month="2026-08-01")
+
+    assert mentioned_groups(request, cursor) == [("GROUP_0007", "2026-08-01")]
+
+
+@pytest.fixture
+def named():
+    cursor = duckdb.connect()
+    cursor.execute(
+        """create table groups as select * from (values
+        ('GROUP_0007', 'Grupo Meliá'), ('GROUP_0009', 'Parlem')) t(group_id, name)"""
+    )
+    cursor.execute(
+        """create table companies as select * from (values
+        ('COMP_1', 'Parlem Holding', 'GROUP_0009'), ('COMP_2', 'Parlem', 'GROUP_0009'))
+        t(company_id, name, group_id)"""
+    )
+    cursor.execute(
+        """create table scores as select * from (values
+        ('GROUP_0007', timestamp '2026-08-01'), ('GROUP_0009', timestamp '2026-08-01'),
+        ('GROUP_0009', timestamp '2025-03-01')) t(group_id, month)"""
+    )
+    return cursor
+
+
+def test_a_follow_up_finds_the_group_the_earlier_turns_named(named):
+    history = [ChatTurn(role="assistant", content="Parlem fell the most, then Grupo Meliá.")]
+    request = ChatRequest(
+        message="why did the first one fall?", month="2026-08-01", history=history
+    )
+
+    assert [gid for gid, _ in mentioned_groups(request, named)] == ["GROUP_0009", "GROUP_0007"]
+
+
+def test_a_subsidiary_is_found_with_its_group(named):
+    request = ChatRequest(message="is parlem holding the weak one?", month="2026-08-01")
+
+    assert mentioned_companies(request, named) == [("COMP_1", "Parlem Holding", "GROUP_0009")]
+
+
+def test_a_query_cannot_read_past_the_month_on_screen(named):
+    sql = as_of("with s as (select * from scores) select max(month) from s", "2025-03-01", named)
+
+    assert f"{named.execute(sql).fetchone()[0]:%Y-%m}" == "2025-03"
+    assert as_of("select name from groups", "2025-03-01", named) == "select name from groups"

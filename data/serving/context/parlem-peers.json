@@ -1,0 +1,44 @@
+{
+  "key": "Parlem peers",
+  "stored_at": "2026-09-20T07:21:19.158565+00:00",
+  "payload": {
+    "sector": "Spanish telecommunications operator",
+    "sector_direction": "mixed",
+    "peers": [
+      "Telefónica",
+      "Vodafone",
+      "MasOrange",
+      "Digi"
+    ],
+    "report": {
+      "agent": "peers",
+      "summary": "Spanish telecommunications operator, sector mixed. Spanish telecom peers show a mixed picture: Telefónica and Vodafone Spain improved EBITDA and cut debt, while Digi widened losses and consumed IPO cash, and MasOrange still posts losses with further layoffs planned. Parlem's mixed score move (better cash generation but weaker collections and payment discipline) therefore looks more company-specific than sector-wide.",
+      "findings": [
+        "Vodafone: Vodafone plans collective layoffs of up to 180 employees at VOIS Spain, about one in five staff, with negotiations starting in September 2026. [seen 2026-09-09, hurts]",
+        "Digi: Digi Spain consumed 38% of its IPO proceeds in six months, with cash outflow of €51 million in H1 2026 amid heavy investment. [seen 2026-08-14, hurts]",
+        "Digi: Digi Spain widened its H1 2026 loss to €14.5 million from €1 million a year earlier, on revenue of €515 million (+15.7%). [seen 2026-08-13, hurts]",
+        "Telefónica: Telefónica posted H1 2026 adjusted EBITDA of €5,768 million (+3.8%) and free cash flow from continuing operations of €944 million, upgrading its 2026 operating cash flow forecast. [seen 2026-07-29, helps]",
+        "Vodafone: Vodafone Spain raised EBITDA and cut debt by 11% after network and workforce adjustments, per July 2026 reporting. [seen 2026-07-15, helps]",
+        "Vodafone: Vodafone España grew profitability despite flat revenue of €3,628 million in fiscal year 2026 (April 2025–March 2026), with parent Zegona cutting losses 56.8% and reducing debt by €500 million. [seen 2026-06-16, helps]",
+        "Telefónica: Telefónica closed 2025 with losses of €4,318 million due to its workforce reduction plan (ERE affecting over 5,000 workers) and Latin America disposals, while promising to meet 2026 targets. [seen 2026-02-24, hurts]",
+        "Telefónica: Telefónica reported Q4 2025 revenue of €9,174 million and full-year 2025 revenue of €35,120 million (+1.5% in constant terms) with accelerating adjusted EBITDA (+2.8% in Q4). [seen 2026-02-24, helps]",
+        "MasOrange: MasOrange reduced its losses to €186 million by Q3 2025, its second year after the merger, though debt financing costs still stood at €617.4 million. [seen 2025-12-02, helps]",
+        "MasOrange: MasOrange lost €582.8 million in fiscal 2024, hit by debt financing costs and the ERE, in the nine months it operated as an independent company. [seen 2025-05-21, hurts]",
+        "MasOrange: MasOrange plans further layoffs despite earlier promises of no job cuts after the merger, and is weighing a stock market listing, per April 2025 reporting. [seen 2025-04-04, hurts]"
+      ],
+      "sources": [
+        "https://cincodias.elpais.com/companias/2025-05-21/masorange-perdio-583-millones-en-2024-como-empresa-independiente.html",
+        "https://cincodias.elpais.com/companias/2026-06-16/vodafone-espana-aumenta-su-rentabilidad-pese-al-estancamiento-de-los-ingresos-en-su-ejercicio-fiscal-2026.html",
+        "https://elcierredigital.com/investigacion/masorange-bajo-lupa-mercado-planea-despidos-y-sopesa-salir-bolsa",
+        "https://en.ara.cat/economy/telefonica-expects-to-lose-4-318-billion-euros-in-2025-due-to-workforce-reductions-and-sales-in-latin-america_1_5657663.html",
+        "https://russpain.com/news/vodafone-plans-up-to-180-layoffs-at-vois-spain-unions-demand-justification-91802/",
+        "https://theobjective.com/economia/telecomunicaciones/2025-12-02/masorange-reduce-perdidas-septiembre/",
+        "https://theobjective.com/economia/telecomunicaciones/2026-07-15/vodafone-zegona-ebitda-deuda-ajuste-red-plantilla/",
+        "https://www.elconfidencial.com/empresas/2026-08-13/digi-perdidas-ultimo-semestre-14-5-millones-euros_4405368/",
+        "https://www.elconfidencial.com/empresas/2026-08-14/digi-consumo-caja-deuda-salida-bolsa_4405807/",
+        "https://www.telefonica.com/en/communication-room/press-room/telefonica-accelerates-growth-quarter-2025-increases-revenues-adjusted-ebitda-free-cash-flow/",
+        "https://www.telefonica.com/en/communication-room/press-room/telefonica-posts-an-adjusted-ebitda-of-e5768-million-in-the-first-half-of-the-year-and-upgrades-its-operating-cash-flow-forecast-for-2026/"
+      ]
+    }
+  }
+}

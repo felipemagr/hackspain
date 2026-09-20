@@ -41,3 +41,27 @@ export function LowDataNote({ months }: { months: number }) {
     </p>
   );
 }
+
+/** Beside the level when pillars are missing. */
+export function PartialDataNote({ missing, total }: { missing: number; total: number }) {
+  return (
+    <p className="score__caveat">
+      <Glyph />
+      <span>
+        <strong>Partial data:</strong> {missing} of {total} pillars missing.
+      </span>
+    </p>
+  );
+}
+
+/** Under the pillars table: which pillars have no data. */
+export function MissingPillarsNote({ missing }: { missing: string[] }) {
+  return (
+    <p className="pillars__note">
+      <Glyph />
+      <span>
+        No {new Intl.ListFormat("en", { type: "disjunction" }).format(missing.map((label) => label.toLowerCase()))} data.
+      </span>
+    </p>
+  );
+}

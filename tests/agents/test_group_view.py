@@ -8,7 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from xray.agents.group_view import GroupViewRequest, run_group_view
+from xray.agents.group_view import GroupViewRequest, _known_by, from_explicit, run_group_view
 from xray.agents.llm import OpenAICompatibleLLM
 from xray.api.routers.group_view import router
 from xray.scoring.anchors import PILLAR_WEIGHTS
@@ -134,6 +134,36 @@ def test_portfolio_question_keeps_existing_fleet(score_db, monkeypatch):
     assert result == {"handled": False, "actions": []}
 
 
+def test_portfolio_question_reaches_the_fleet_with_custom_weights_too(score_db, monkeypatch):
+    monkeypatch.setattr(
+        OpenAICompatibleLLM, "complete", lambda *args: '{"weights": null, "analyze_current": false}'
+    )
+    result = run_group_view(
+        GroupViewRequest(
+            group_id="EXAMPLE_GROUP",
+            month="2025-12-01",
+            message="Which groups are improving the most?",
+            current_weights=GroupWeights(**CUSTOM),
+        ),
+        score_db,
+        SETTINGS,
+    )
+    assert result == {"handled": False, "actions": []}
+
+
+def test_an_alert_shows_its_outcome_only_once_the_outcome_has_happened():
+    alert = {
+        "month": "2026-06-01",
+        "tier_change_month": "2026-08-01",
+        "anticipation_months": 2.0,
+        "late": False,
+        "resolution": "",
+        "resolution_month": None,
+    }
+    assert _known_by(alert, "2026-07-01") == {"month": "2026-06-01"}
+    assert _known_by(alert, "2026-08-01")["anticipation_months"] == 2.0
+
+
 def test_explain_this_uses_exact_displayed_card_without_changing_weights(score_db, monkeypatch):
     calls = []
 
@@ -213,7 +243,7 @@ def test_company_analysis_and_followups_use_own_card_and_cutoff(company_db, monk
 
 @pytest.mark.parametrize("company_id", ["OTHER_COMPANY", "UNKNOWN_COMPANY"])
 def test_company_must_belong_to_selected_group(company_db, company_id):
-    with pytest.raises(LookupError, match="grupo seleccionado"):
+    with pytest.raises(LookupError, match="selected group"):
         run_group_view(
             GroupViewRequest(
                 group_id="EXAMPLE_GROUP",
@@ -257,3 +287,32 @@ def test_evaluation_api_rejects_invalid_weights_and_missing_group(score_db):
         score_db.execute("update scores set cash_generation = null")
         unsupported = {p: float(p == "cash_generation") for p in CUSTOM}
         assert client.post(path, json=unsupported).status_code == 422
+
+
+def test_a_stated_percentage_is_kept_and_the_rest_is_shared_as_it_stood():
+    weights = from_explicit({"liquidity": 50}, GroupWeights(**PILLAR_WEIGHTS)).model_dump()
+
+    assert weights["liquidity"] == pytest.approx(0.5)
+    assert weights["payment_discipline"] == pytest.approx(2 * weights["collections"])
+    assert sum(weights.values()) == pytest.approx(1)
+
+
+@pytest.mark.parametrize(
+    "asked", [{"liquidity": 200}, {"debt_burden": -30}, {"liquidity": 70, "collections": 60}]
+)
+def test_an_impossible_percentage_is_refused(asked):
+    with pytest.raises(ValueError):
+        from_explicit(asked, GroupWeights(**PILLAR_WEIGHTS))
+
+
+def test_prose_instead_of_a_plan_changes_nothing(score_db, monkeypatch):
+    answers = iter(["That is a question, not an instruction.", "An analysis."])
+    monkeypatch.setattr(OpenAICompatibleLLM, "complete", lambda *args: next(answers))
+
+    result = run_group_view(
+        GroupViewRequest(group_id="EXAMPLE_GROUP", month="2025-12-01", message="is 90% sensible?"),
+        score_db,
+        SETTINGS,
+    )
+
+    assert result == {"reply": "An analysis.", "actions": []}

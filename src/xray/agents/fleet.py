@@ -21,6 +21,7 @@ import queue
 import re
 import threading
 import time
+import unicodedata
 from collections.abc import Callable, Iterator
 from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
@@ -50,6 +51,7 @@ MAX_HISTORY_TURNS = 6
 MAX_ROUNDS = 4
 MAX_CALLS_PER_ROUND = 4
 MAX_QUERY_ROWS = 40
+MAX_MENTIONS = 12
 QUERY_TIMEOUT_SECONDS = 20.0
 DRIVER_WINDOW_MONTHS = 6
 CUSTOMERS_SHOWN = 6
@@ -194,7 +196,7 @@ ROSTER: tuple[FleetMember, ...] = (
         purpose="A named company: its peers and its press.",
         thinks=True,
         rules=[
-            "Runs only for a real company the user names: groups are anonymous ids.",
+            "Runs only for a real company: one the user names, or a group's trading name.",
             "Only dated facts with a source.",
         ],
         tools=[
@@ -256,12 +258,21 @@ after it for the user: never read a later month.
 
 How to direct:
 - Point an agent only at a group id the question names or a result returned. Never guess one.
+- Groups and companies go by trading names. The ones this conversation names are resolved under
+  the question ("Cooltra is GROUP_0217"): use those ids, never spend a call looking a name up. A
+  question about a group of the portfolio starts from `scorecard`, whatever else it needs;
+  `market` adds the press, it never replaces the score.
 - Not every group is scored every month. A call that fails with "No score for group ..." names
   the last month the group was scored: re-point the same call at that month, in the next round.
 - Never repeat a call that already came back, with the same or a different wording of `why`:
   the results are kept across rounds. `notifier` saves rules: call it once per request. A
   message that only names slack, email or an email address, after the notifier asked where, is
   such a request.
+- A request to be told, warned, notified, pinged or emailed when something happens ("tell me
+  when any group starts to fall") is a rule to save: call `notifier`, never a query.
+- Keep each query plain. A count and a list are two queries, never one: no window function or
+  conditional aggregate to get both. A join that repeats rows inflates a count: count from
+  `scores` alone.
 - One round is the norm. Put every call the answer needs in the first round and set `final` to
   true. A second round is only for a call that needs a figure from the first, or to correct one
   that failed. You have {rounds} rounds in all; after the last one the writer answers with what
@@ -280,13 +291,15 @@ Answer with one JSON object and nothing else: no words before or after it, no co
 Optional on an agent call: `tools`, a list that narrows the agent to some of its tools;
 `compare`, another group id for `peers`; `what_if`, an object of pillar name to points moved,
 for `simulator` (pillars: liquidity, cash_generation, payment_discipline, collections,
-debt_burden); `company`, the real-world company the user names, for `market`: groups are
-anonymous ids and `market` runs only with one."""
+debt_burden); `company`, the real-world company for `market`: one the user names, or the
+trading name of the group (`groups.name`). `market` runs only with one."""
 
 TABLE_NOTES = """Notes on the data:
 - Group ids are upper case, GROUP_0130: write them so in SQL and in calls, whatever the user
   typed (group_0130, the 0130, group 130).
 - `month` is a timestamp on the first day of the month: month = '2026-08-01'.
+- Text is matched with ilike, never =: `sector ilike '%hospitality%'`. `country` is an ISO code
+  (ES, PT, DE), never a country name. Sectors: {sectors}.
 - `scores`: one row per group and month, from the group's first scored month to its last. A
   group may have no row for the month on screen. `level` is the 0-100 health score, `trend` its
   points a month, `state` one of healthy, stable, improving, bending, falling, weak,
@@ -296,14 +309,26 @@ TABLE_NOTES = """Notes on the data:
 - `alerts`: only the months the monitor fired, never a history of levels.
   `anticipation_months` is how early it fired, against the tier change. Urgency of an alert:
   critical when the group enters falling, warning for any other move down, info for a move up.
-- `groups.name` is the group id again; `country` can be null; `has_erp` says whether the group
-  has invoices.
-- `payers`: customers of a group as of a month, only for groups with invoices (`has_erp`).
+- `groups.name` is the trading name people use for a group, `groups.sector` its industry: join
+  `groups` and select `name` in any query that lists groups. `country` can be null; `has_erp`
+  says whether the group has invoices.
+- `payers`: customers of a group as of a month, only for groups with invoices (`has_erp`). No
+  rows for a group means no ERP is connected, not that nobody pays it late: use `ledger`, which
+  says so.
+- Ratios are fractions: `operating_margin` 0.15 is 15%. The search fund screen, portfolio-wide,
+  is a query: groups with n_companies = 1, level >= 60, state not in ('bending', 'falling'), and
+  over the last twelve months avg(operating_margin) >= 0.15 with stddev(operating_margin) < 0.05.
 - `offers`, `actions`: the working-capital line and the ranked next moves, per group and month.
-- `companies`: the companies inside each group.
+- `companies`: the companies inside each group, `name` their legal-entity name (Cooltra
+  Holding), `level` their own score, `is_weakest` the one dragging the group.
+  `company_scores`, `company_drivers`, `company_alerts` hold their history by `company_id`.
 - `invoices`, `transactions`, `balances`, `debt_products`, `banking_products`, when listed, are
   the raw trail per company. They are large: always filter or aggregate. `balances` is a single
-  snapshot at 2026-09-01.
+  snapshot at 2026-09-01. Every transaction is settled: never filter on `transactions.status`.
+  Money out is amount < 0; `category` is one of payment, bulk_payment, salary, tax,
+  social_security, utility, fee, debt_repayment, interest_charge, collection, bulk_collection,
+  transfer, uncategorized and a few refunds and settlements. `invoices.status` is one of paid,
+  overdue, pending.
 - Amounts in `_eur` columns are euros."""
 
 INTERPRET_PROMPT = """You are the {label} agent inside a financial health monitor. The director
@@ -321,6 +346,10 @@ Every figure you write is checked against the results after you finish: copy fig
 they are written there, and never compute, convert or round a new one. Do not add, average,
 count or subtract figures: when a total is not in the results, give the parts. State only what
 the results say: no distribution, streak, cause or intent they do not spell out.
+
+Anything that is not about this portfolio, its groups, the score or the alerts (a poem, general
+knowledge, code) is out of scope: say so in one sentence and offer what you can answer. The
+simulator's working-capital line is the line on offer to the group: give it as the offer.
 
 A line starting with "failed:" is a call that did not run, not a fact about the group: never
 quote it. When the results do not hold the answer, say so in one or two sentences and stop: no
@@ -341,6 +370,9 @@ too." or "Which email address?"): no talk of rules, results or settings. When it
 saved, confirm it in one sentence, with the address when there is one. A draft suggestion, when
 present, is shown to the user under your answer: refer to it, do not repeat it.
 
+Call a group by its trading name when the results give one, with the id in brackets the first
+time: Cooltra (GROUP_0217).
+
 Plain text, short paragraphs, no markdown, no headings, no em dashes, no emojis.
 A list goes one item per line. At most 180 words. Answer in the language of the question."""
 
@@ -353,6 +385,10 @@ PILLAR_LABELS = {
 }
 ACTION_WORDS = re.compile(r"\b(do|should|chase|hacer|hacemos|hago|cobr|reclam|priorit)", re.I)
 # Group ids carry a digit: only those words are looked up.
+# People say Meliá for Meliá Hotels and Hotusa for Grupo Hotusa.
+GENERIC_NAME_WORDS = re.compile(
+    r"^grupo | (hotels?|hoteles|hotel group|group|homes|foods|corporacion|inmobiliaria)$"
+)
 MENTION = re.compile(r"\b\w*\d\w*\b")
 # A month the director wrote starts with its year and month; anything else is dropped.
 MONTH_SPELLING = re.compile(r"\d{4}-\d{2}")
@@ -598,6 +634,7 @@ def run_chat(
     yield {"type": "writing"}
     writing = time.monotonic()
     source, answer = writer_input(request, results, suggestion), ""
+    source += _trading_names(db.cursor(), source)
     try:
         for text in write(lens, results, source, llm):
             answer += text
@@ -629,10 +666,22 @@ def describe_tables(cursor: duckdb.DuckDBPyConnection) -> str:
 def mentioned_groups(
     request: ChatRequest, cursor: duckdb.DuckDBPyConnection
 ) -> list[tuple[str, str]]:
-    """The groups the question names by id, as the tables spell them, each with its last scored
-    month at or before the month on screen. In the order named."""
+    """The groups the question names by id or trading name, as the tables spell them, each with
+    its last scored month at or before the month on screen. Ids first, in the order named. The
+    question is read before the earlier turns, so "the first one" finds the group it points at."""
     found = []
-    for word in dict.fromkeys(MENTION.findall(request.message)):
+    said = "\n".join([request.message, *(turn.content for turn in request.history)])
+    message = _plain(said)
+    names = cursor.execute("select group_id, name from groups where name <> group_id").fetchall()
+    named = [
+        gid
+        for gid, name in names
+        for key in {_plain(name), GENERIC_NAME_WORDS.sub("", _plain(name)).strip()}
+        if len(key) > 3 and re.search(rf"\b{re.escape(key)}\b", message)
+    ]
+    short = {gid: GENERIC_NAME_WORDS.sub("", _plain(name)).strip() for gid, name in names}
+    named.sort(key=lambda gid: message.find(short[gid]))
+    for word in dict.fromkeys([*MENTION.findall(said), *named]):
         row = cursor.execute(
             f"""select group_id, max(month) from scores
             where {SAME_GROUP} and month <= cast(? as timestamp) group by 1""",
@@ -640,7 +689,23 @@ def mentioned_groups(
         ).fetchone()
         if row:
             found.append((row[0], f"{row[1]:%Y-%m-%d}"))
-    return found
+    return list(dict.fromkeys(found))[:MAX_MENTIONS]
+
+
+def mentioned_companies(
+    request: ChatRequest, cursor: duckdb.DuckDBPyConnection
+) -> list[tuple[str, str, str]]:
+    """The subsidiaries the conversation names: company id, name and the group it belongs to."""
+    said = _plain("\n".join([request.message, *(turn.content for turn in request.history)]))
+    try:
+        rows = cursor.execute(
+            """select c.company_id, c.name, c.group_id
+            from companies c join groups g using (group_id)
+            where c.name <> c.company_id and c.name <> g.name"""
+        ).fetchall()
+    except duckdb.CatalogException:  # the API can run before the pipeline has
+        return []
+    return [row for row in rows if _plain(row[1]) in said][:MAX_MENTIONS]
 
 
 def direct(
@@ -675,7 +740,7 @@ def direct(
             rows=MAX_QUERY_ROWS,
             roster=roster,
             schema=schema,
-            notes=TABLE_NOTES,
+            notes=TABLE_NOTES.replace("{sectors}", _sectors(cursor)),
             month=request.month,
             calls=MAX_CALLS_PER_ROUND,
             rounds=MAX_ROUNDS,
@@ -684,6 +749,14 @@ def direct(
         user = (
             (f"Earlier in this conversation:\n{history}\n\n" if history else "")
             + f"Question: {request.message}"
+            + "".join(
+                f"\n{_name(cursor, gid)} is {gid}, last scored {month}."
+                for gid, month in mentioned_groups(request, cursor)
+            )
+            + "".join(
+                f"\n{name} is company {cid} of {gid}."
+                for cid, name, gid in mentioned_companies(request, cursor)
+            )
             + ("\n\nWhat has come back so far:\n\n" + _transcript(results) if results else "")
             + f"\n\nRound {round_no} of {MAX_ROUNDS}."
         )
@@ -741,6 +814,31 @@ def spelled(cursor: duckdb.DuckDBPyConnection, group_id: str | None) -> str | No
     return row[0] if row else group_id
 
 
+def _sectors(cursor: duckdb.DuckDBPyConnection) -> str:
+    rows = cursor.execute(
+        "select distinct sector from groups where sector is not null order by 1"
+    ).fetchall()
+    return ", ".join(row[0] for row in rows) or "none in the data"
+
+
+def _name(cursor: duckdb.DuckDBPyConnection, group_id: str) -> str:
+    row = cursor.execute("select name from groups where group_id = ?", [group_id]).fetchone()
+    return row[0] if row else group_id
+
+
+def _trading_names(cursor: duckdb.DuckDBPyConnection, text: str) -> str:
+    """The name of every group id in the results, so the writer can call groups by name."""
+    ids = list(dict.fromkeys(re.findall(r"GROUP_\w+", text)))
+    named = [(gid, _name(cursor, gid)) for gid in ids]
+    lines = [f"{gid} is {name}" for gid, name in named if name != gid]
+    return "\n\nTrading names: " + "; ".join(lines) + "." if lines else ""
+
+
+def _plain(text: str) -> str:
+    """Lower case without accents, so Melia finds Meliá."""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+
+
 def fallback_move(request: ChatRequest, cursor: duckdb.DuckDBPyConnection) -> Move:
     """The rules that stand in for the model: the named group's agents, or the portfolio."""
     move = Move(purpose="why the score moved", final=True)
@@ -778,7 +876,7 @@ def run_query(ctx: AgentContext) -> AgentReport:
         watchdog = threading.Timer(QUERY_TIMEOUT_SECONDS, ctx.db.interrupt)
         watchdog.start()
         try:
-            result = ctx.db.execute(sql)
+            result = ctx.db.execute(as_of(sql, ctx.request.month, ctx.db))
             columns = [column[0] for column in result.description]
             rows = result.fetchmany(MAX_QUERY_ROWS + 1)
         finally:
@@ -799,6 +897,30 @@ def run_query(ctx: AgentContext) -> AgentReport:
             for row in rows
         ],
     )
+
+
+def as_of(sql: str, month: str, cursor: duckdb.DuckDBPyConnection) -> str:
+    """The query, reading nothing after the month on screen.
+
+    Every table the query names that carries a ``month`` is shadowed by a CTE cut at that month
+    (invoices by issue date), so SQL a model wrote cannot see the future whatever it filters on.
+    """
+    dated = dict(
+        cursor.execute(
+            """select table_name, column_name from information_schema.columns
+            where column_name in ('month', 'issuance_date') order by column_name desc"""
+        ).fetchall()
+    )
+    end = f"timestamp '{month[:10]}' + interval 1 month"
+    cuts = [
+        f"{table} as not materialized (select * from main.{table} where {column} < {end})"
+        for table, column in dated.items()
+        if re.search(rf"\b{table}\b", sql, re.I)
+    ]
+    if not cuts:
+        return sql
+    own = re.match(r"\s*with\s+(?!recursive\b)", sql, re.I)
+    return "with " + ", ".join(cuts) + (", " + sql[own.end() :] if own else " " + sql)
 
 
 def _cell(value: Any) -> str:
@@ -889,9 +1011,11 @@ def _figures(text: str) -> list[tuple[str, float, int]]:
     """Every figure that is not a small count or a date: as written, its value, its decimals."""
     found = []
     for raw in FIGURE.findall(DATE.sub(" ", text)):
-        clean = raw.replace(",", "")
+        # 4,6 in a Spanish or French answer is 4.6: a thousands comma is followed by three digits.
+        clean = raw.replace(",", "." if re.fullmatch(r"\d+,\d{1,2}", raw) else "")
         decimals = len(clean.partition(".")[2])
-        if decimals or float(clean) > FREE_FIGURE_MAX:
+        # 100 is the top of the scale, not a finding.
+        if decimals or FREE_FIGURE_MAX < float(clean) != 100:
             found.append((raw, float(clean), decimals))
     return found
 
@@ -914,6 +1038,7 @@ def interpret(ctx: AgentContext, report: AgentReport) -> AgentReport:
     if not ctx.llm or not ctx.ask or not report.findings:
         return report
     output = "\n".join([report.summary, *report.findings])
+    output += _trading_names(ctx.db.cursor(), f"{output} {ctx.call.group_id or ''}")
     with ctx.tool("model.think", ask=ctx.ask[:90]) as step, SerialLLM._lock:
         system = INTERPRET_PROMPT.format(label=MEMBERS[ctx.call.tool].label, ask=ctx.ask)
         try:
@@ -1050,11 +1175,12 @@ def scorecard(ctx: AgentContext) -> AgentReport:
         else " The monitor has not fired for this group."
     )
     heading = f", {trend:+.1f} points a month" if trend is not None else ""
+    standing = "worst" if 1 < months == rank else f"{_ordinal(rank)} best".removeprefix("1st ")
     return AgentReport(
         agent="scorecard",
         summary=(
             f"Level {level:.0f}, {state.replace('_', ' ')}{heading}, tier {tier}.{window} "
-            f"This is its {_ordinal(rank)} best month of {months}.{monitor}"
+            f"This is its {standing} month of {months}.{monitor}"
         ),
         findings=findings + fired_lines,
     )
@@ -1326,15 +1452,18 @@ def _screen(ctx: AgentContext, summary: list[str]) -> str:
             f"level {level:.0f}, under {SEARCH_FUND_LEVEL}": level >= SEARCH_FUND_LEVEL,
             f"state {state}": state not in ("bending", "falling"),
         }
-        scored, passing = ctx.query(
+        scored, passing, who = ctx.query(
             f"""with m as (select group_id, avg(operating_margin) mu, stddev(operating_margin) sd
                 from scores where month <= cast($1 as timestamp)
                   and month > cast($1 as timestamp) - interval 12 month group by 1)
-            select count(*), count(*) filter (where g.n_companies = 1
-                and mu >= {SEARCH_FUND_MARGIN} and sd < {MARGIN_STEADY}
-                and s.level >= {SEARCH_FUND_LEVEL} and s.state not in ('bending', 'falling'))
-            from m join groups g using (group_id)
-            join scores s on s.group_id = m.group_id and s.month = cast($1 as timestamp)""",
+            select count(*), count(*) filter (where ok),
+                string_agg(g.name || ' (' || g.group_id || ')', ', ' order by s.level desc)
+                    filter (where ok)
+            from (select *, mu >= {SEARCH_FUND_MARGIN} and sd < {MARGIN_STEADY} as steady from m) m
+            join groups g using (group_id)
+            join scores s on s.group_id = m.group_id and s.month = cast($1 as timestamp),
+            lateral (select g.n_companies = 1 and steady and s.level >= {SEARCH_FUND_LEVEL}
+                and s.state not in ('bending', 'falling') as ok)""",
             [ctx.call.month],
         )[0]
         failed = [name for name, ok in tests.items() if not ok]
@@ -1344,7 +1473,11 @@ def _screen(ctx: AgentContext, summary: list[str]) -> str:
         )
     fit = "passes the search fund screen" if not failed else f"fails it on: {', '.join(failed)}"
     summary.append(f"As a target it {fit}.")
-    return f"Search fund screen: {fit}. {passing} of {scored} groups in the portfolio pass."
+    passers = f": {who}" if who else ""
+    return (
+        f"Search fund screen: this group {fit}. "
+        f"{passing} of {scored} groups in the portfolio pass{passers}."
+    )
 
 
 def _context_cache(ctx: AgentContext) -> JsonCache:
@@ -1372,8 +1505,21 @@ def _read(ctx: AgentContext, agent: Any, snapshot: ScoreSnapshot) -> AgentReport
     return report
 
 
+WEB_IS_TODAY = (
+    "Not read: the web shows today's press, and the month on screen is in the past. "
+    "Showing it would tell the user what happened after that month."
+)
+
+
+def _in_the_past(ctx: AgentContext) -> bool:
+    latest = ctx.db.execute("select max(month) from scores").fetchone()[0]
+    return latest is not None and ctx.request.month[:7] < f"{latest:%Y-%m}"
+
+
 def macro(ctx: AgentContext) -> AgentReport:
     """The read of the country. Keyed by country, so every group there shares one read."""
+    if _in_the_past(ctx):
+        return AgentReport(agent="macro", summary=WEB_IS_TODAY)
     llm = SerialLLM(ctx.llm, ctx) if ctx.llm else None
     report = _read(
         ctx, SectorAgent(ctx.settings.exa_api_key, llm, _context_cache(ctx)), ctx.snapshot
@@ -1383,6 +1529,8 @@ def macro(ctx: AgentContext) -> AgentReport:
 
 def market(ctx: AgentContext) -> AgentReport:
     """Peers and press of the real company the user named."""
+    if _in_the_past(ctx):
+        return AgentReport(agent="market", summary=WEB_IS_TODAY)
     llm = SerialLLM(ctx.llm, ctx) if ctx.llm else None
     cache = _context_cache(ctx)
     named = ctx.snapshot.model_copy(update={"name": ctx.call.company})

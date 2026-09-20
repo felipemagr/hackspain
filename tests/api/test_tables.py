@@ -34,6 +34,16 @@ class TestTables:
         with TestClient(app) as client:
             assert client.get("/api/v1/tables/nope").status_code == 404
 
+    def test_revalidates_until_the_table_is_republished(self, tmp_path, monkeypatch):
+        serving = _serving(tmp_path, monkeypatch)
+        with TestClient(app) as client:
+            etag = client.get("/api/v1/tables/scores").headers["etag"]
+            same = client.get("/api/v1/tables/scores", headers={"If-None-Match": etag})
+            assert same.status_code == 304 and not same.content
+            pd.DataFrame({"group_id": ["g1", "g2", "g3"]}).to_parquet(serving / "scores.parquet")
+            fresh = client.get("/api/v1/tables/scores", headers={"If-None-Match": etag})
+        assert fresh.status_code == 200 and len(fresh.json()) == 3
+
 
 class TestVersion:
     def test_reads_the_stamp_and_picks_up_new_files(self, tmp_path, monkeypatch):

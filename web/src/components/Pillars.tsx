@@ -1,5 +1,6 @@
 import { fmtSigned } from "../lib/format";
 import { PILLARS } from "../lib/meta";
+import { MissingPillarsNote } from "./LowData";
 import type { DriverRow, ScoreRow } from "../lib/types";
 import { scoreLabels, type ScoreNode, type Weights } from "../lib/scoring";
 
@@ -28,7 +29,8 @@ export function Pillars({ score, drivers, weights, cashDate }: PillarsProps) {
     <details><summary>Financial capacity breakdown</summary><table className="pillars"><thead><tr><th scope="col">Component</th><th scope="col">Weight</th><th scope="col">Score</th><th scope="col">Metric</th><th scope="col">Confidence</th></tr></thead><tbody><LocalRows nodes={score.localScoring.subscores} weights={weights.financial} /></tbody></table></details>
     <details><summary>Evolution breakdown</summary><table className="pillars"><thead><tr><th scope="col">Component</th><th scope="col">Weight</th><th scope="col">Score</th><th scope="col">Metric</th><th scope="col">Confidence</th></tr></thead><tbody><LocalRows nodes={score.localScoring.subscores} weights={weights.evolution} /></tbody></table></details>
   </>;
-  return (
+  const missing = PILLARS.filter((p) => score[p.key] == null).map((p) => p.label);
+  return (<>
     <table className="pillars">
       <thead>
         <tr>
@@ -74,5 +76,8 @@ export function Pillars({ score, drivers, weights, cashDate }: PillarsProps) {
         })}
       </tbody>
     </table>
-  );
+    {missing.length > 0 && missing.length < PILLARS.length && (
+      <MissingPillarsNote missing={missing} />
+    )}
+  </>);
 }
