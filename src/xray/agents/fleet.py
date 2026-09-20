@@ -341,8 +341,8 @@ too." or "Which email address?"): no talk of rules, results or settings. When it
 saved, confirm it in one sentence, with the address when there is one. A draft suggestion, when
 present, is shown to the user under your answer: refer to it, do not repeat it.
 
-Plain text, short paragraphs, no markdown, no headings, no em dashes, no emojis. A list goes one item per
-line. At most 180 words. Answer in the language of the question."""
+Plain text, short paragraphs, no markdown, no headings, no em dashes, no emojis.
+A list goes one item per line. At most 180 words. Answer in the language of the question."""
 
 PILLAR_LABELS = {
     "liquidity": "liquidity",
