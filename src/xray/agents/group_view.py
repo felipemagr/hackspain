@@ -119,6 +119,8 @@ def from_explicit(explicit: dict[str, float], current: GroupWeights) -> GroupWei
         raise ValueError("Each weight must be between 0% and 100% of one of the five pillars.")
     if sum(explicit.values()) > 100:
         raise ValueError("Those weights add up to more than 100%.")
+    if len(explicit) == len(PILLAR_WEIGHTS) and not any(explicit.values()):
+        raise ValueError("At least one pillar needs a weight above 0%.")
     rest = 1 - sum(explicit.values()) / 100
     others = {k: v for k, v in current.model_dump().items() if k not in explicit}
     base = sum(others.values())
