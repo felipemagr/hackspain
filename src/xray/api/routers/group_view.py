@@ -20,7 +20,7 @@ def evaluate(group_id: str, body: GroupWeights, request: Request) -> dict:
     except ValueError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     if tables is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No hay datos para este grupo.")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "There is no data for this group.")
     return {"weights": body.model_dump(), "tables": tables}
 
 
@@ -37,5 +37,5 @@ def chat(body: GroupViewRequest, request: Request) -> dict:
         logger.warning("Group view assistant failed", exc_info=True)
         raise HTTPException(
             status.HTTP_502_BAD_GATEWAY,
-            "No se ha podido consultar la ficha. La vista no ha cambiado. Reinténtalo.",
+            "Could not read the card. The view has not changed. Please retry.",
         ) from exc
