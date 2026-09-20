@@ -14,7 +14,13 @@ and a product a CFO can act on built on top of it.
 
 `HackSpain 2026` · `Embat challenge` · `Madrid`
 
+**[Open the live demo](https://lighthouse-1qeo.onrender.com)**
+
 </div>
+
+> **Disclaimer.** All data is synthetic. Groups are labelled with the names of real companies only
+> to make the demo readable: every score, figure and alert under a name is invented and says
+> nothing about the real company.
 
 ---
 
@@ -181,8 +187,9 @@ The package keeps its working name, `xray`. Dependencies point one way:
 ## Data
 
 The challenge dataset is fully synthetic: around 1,300 companies in 250 business groups over 24 months
-of bank movements, invoices and financing products. No real company, account or person appears anywhere
-in this repository. The raw dataset is not distributed here.
+of bank movements, invoices and financing products. No row corresponds to a real company, account or
+person. The names shown on groups are real company names used as labels over synthetic data (see the
+disclaimer above). The raw dataset is not distributed here.
 
 ---
 
