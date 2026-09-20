@@ -37,6 +37,9 @@ services:
       # The key every /api/v1 call must carry in X-API-Key. Set the value in the Render dashboard.
       - key: LIGHTHOUSE_API_KEY
         sync: false
+      # Where the monitor and the Test button of an alert rule deliver. Set it in the dashboard.
+      - key: XRAY_SLACK_WEBHOOK_URL
+        sync: false
       # Only the Agents chat needs these. Set the values in the Render dashboard.
       - key: HELMCODE_API_KEY
         sync: false
