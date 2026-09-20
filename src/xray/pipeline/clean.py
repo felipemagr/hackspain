@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from xray.config import PROCESSED_DATA_DIR, RAW_DATA_DIR
-from xray.pipeline import fx
+from xray.pipeline import fx, names
 from xray.pipeline.data import load_all
 
 logger = logging.getLogger(__name__)
@@ -137,10 +137,11 @@ def build(raw_dir: Path = RAW_DATA_DIR) -> dict[str, pd.DataFrame]:
 
 def build_from(raw: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
     """Clean raw tables already in memory, keyed by table name."""
-    companies = clean_companies(raw["companies"])
+    groups, companies = names.apply(raw["groups"], clean_companies(raw["companies"]))
     currencies = product_currencies(raw["banking_products"], raw["debt_products"])
     clean = {
         **raw,
+        "groups": groups,
         "companies": companies,
         "transactions": clean_transactions(raw["transactions"], companies, currencies),
         "invoices": clean_invoices(raw["invoices"], companies),

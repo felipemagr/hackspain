@@ -1,0 +1,300 @@
+name,sector,country,erp,size
+HOFF,Retail,ES,Microsoft Dynamics - AX 2012,3
+Molins,Construction,ES,SAP R3 / S4,3
+Northern Data,AI Infrastructure,DE,SAP R3 / S4,3
+Treatwell,Health & Wellness,GB,Netsuite,3
+Samy,Marketing & Advertising,ES,Netsuite,2
+Parlem,Telecom & Technology,ES,Netsuite,2
+CPS Group,Engineering,ES,Microsoft Business Central,2
+Grupo Construcía,Construction,ES,Microsoft Business Central,2
+thePower,Education,ES,Sage 200,2
+R2 Hotels,Hospitality,ES,Sage 200,2
+Prodesa,Industrial,ES,SAP Business One,2
+Lola Casademunt,Retail,ES,SAP Business One,2
+VIKO,Marketing & Advertising,ES,Odoo,1
+Cooltra,Transport & Mobility,ES,,3
+VIVLA,Real Estate,ES,,1
+Logalty,Legaltech / Regtech,ES,,1
+Cuidacasa,Facilities Services,ES,,1
+Urbia Services,Facilities Services,ES,,2
+Glas Agency,Marketing & Advertising,ES,,1
+PetLab Co.,Health & Wellness,GB,,2
+DOJO,Payments,GB,,3
+Meliá Hotels,Hospitality,ES,,3
+Barceló Hotel Group,Hospitality,ES,,3
+Iberostar,Hospitality,ES,,3
+Riu Hotels,Hospitality,ES,,3
+Palladium Hotel Group,Hospitality,ES,,3
+Grupo Hotusa,Hospitality,ES,,3
+Catalonia Hotels,Hospitality,ES,,2
+H10 Hotels,Hospitality,ES,,2
+Lopesan,Hospitality,ES,,2
+Princess Hotels,Hospitality,ES,,2
+Vincci Hoteles,Hospitality,ES,,2
+Sercotel,Hospitality,ES,,2
+Room Mate Hotels,Hospitality,ES,,2
+Grupo Piñero,Hospitality,ES,,3
+Petit Palace,Hospitality,ES,,1
+Only YOU Hotels,Hospitality,ES,,1
+Grupo Tragaluz,Hospitality,ES,,1
+Grupo Larrumba,Hospitality,ES,,1
+Goiko,Hospitality,ES,,2
+Honest Greens,Hospitality,ES,,1
+Grosso Napoletano,Hospitality,ES,,1
+Grupo Saona,Hospitality,ES,,1
+Restalia,Hospitality,ES,,2
+Rodilla,Hospitality,ES,,2
+Scalpers,Retail,ES,,2
+El Ganso,Retail,ES,,2
+Pompeii,Retail,ES,,1
+Bimba y Lola,Retail,ES,,2
+Desigual,Retail,ES,,3
+Tous,Retail,ES,,3
+Camper,Retail,ES,,2
+Pronovias,Retail,ES,,2
+Hawkers,Retail,ES,,1
+Pikolinos,Retail,ES,,2
+Silbon,Retail,ES,,1
+Blue Banana,Retail,ES,,1
+Nude Project,Retail,ES,,1
+Ecoalf,Retail,ES,,1
+Adolfo Domínguez,Retail,ES,,2
+Kave Home,Retail,ES,,2
+Tendam,Retail,ES,,3
+Mayoral,Retail,ES,,2
+Bimani,Retail,ES,,1
+Singularu,Retail,ES,,1
+PDPAOLA,Retail,ES,,1
+Aristocrazy,Retail,ES,,1
+UNOde50,Retail,ES,,1
+Muroexe,Retail,ES,,1
+Flamingos Life,Retail,ES,,1
+Druni,Retail,ES,,2
+Primor,Retail,ES,,2
+Kiwoko,Retail,ES,,2
+Tiendanimal,Retail,ES,,2
+Casa del Libro,Retail,ES,,1
+Mr. Wonderful,Retail,ES,,1
+Ale-Hop,Retail,ES,,2
+Misako,Retail,ES,,1
+Aedas Homes,Real Estate,ES,,2
+Neinor Homes,Real Estate,ES,,2
+Vía Célere,Real Estate,ES,,2
+Metrovacesa,Real Estate,ES,,2
+Habitat Inmobiliaria,Real Estate,ES,,2
+Culmia,Real Estate,ES,,1
+Kronos Homes,Real Estate,ES,,1
+Gestilar,Real Estate,ES,,1
+Pryconsa,Real Estate,ES,,1
+Housfy,Real Estate,ES,,1
+Clikalia,Real Estate,ES,,1
+Tiko,Real Estate,ES,,1
+Grupo Avintia,Construction,ES,,2
+Grupo Lobe,Construction,ES,,1
+ACR Grupo,Construction,ES,,1
+Grupo Amenabar,Construction,ES,,2
+Grupo Ortiz,Construction,ES,,2
+Comsa Corporación,Construction,ES,,3
+Copcisa,Construction,ES,,1
+Rover Grupo,Construction,ES,,1
+Grupo Puentes,Construction,ES,,1
+Porcelanosa,Construction,ES,,3
+Cosentino,Construction,ES,,3
+Roca,Construction,ES,,3
+Pamesa Cerámica,Construction,ES,,2
+Simon,Industrial,ES,,2
+Fluidra,Industrial,ES,,3
+Irizar,Industrial,ES,,2
+Talgo,Industrial,ES,,2
+Danobat,Industrial,ES,,1
+Fagor Arrasate,Industrial,ES,,1
+ULMA,Industrial,ES,,2
+Orona,Industrial,ES,,2
+Ingeteam,Industrial,ES,,2
+Ormazabal,Industrial,ES,,2
+Tubacex,Industrial,ES,,2
+Vidrala,Industrial,ES,,2
+Viscofan,Industrial,ES,,2
+Ercros,Industrial,ES,,2
+Azkoyen,Industrial,ES,,1
+Hinojosa Packaging,Industrial,ES,,2
+Saica,Industrial,ES,,3
+Miquel y Costas,Industrial,ES,,1
+Grupo Calvo,Food & Beverage,ES,,2
+Nueva Pescanova,Food & Beverage,ES,,3
+Borges,Food & Beverage,ES,,2
+Vichy Catalan,Food & Beverage,ES,,1
+Idilia Foods,Food & Beverage,ES,,1
+Grefusa,Food & Beverage,ES,,1
+Casa Tarradellas,Food & Beverage,ES,,2
+Noel Alimentaria,Food & Beverage,ES,,2
+ElPozo,Food & Beverage,ES,,3
+Grupo Palacios,Food & Beverage,ES,,1
+Angulas Aguinaga,Food & Beverage,ES,,1
+Hijos de Rivera,Food & Beverage,ES,,2
+Damm,Food & Beverage,ES,,3
+Pastas Gallo,Food & Beverage,ES,,1
+Europastry,Food & Beverage,ES,,3
+Vicky Foods,Food & Beverage,ES,,2
+GBfoods,Food & Beverage,ES,,3
+Frit Ravich,Food & Beverage,ES,,1
+Familia Torres,Food & Beverage,ES,,2
+Raventós Codorníu,Food & Beverage,ES,,2
+García Carrión,Food & Beverage,ES,,2
+Osborne,Food & Beverage,ES,,2
+Heura Foods,Food & Beverage,ES,,1
+Cacaolat,Food & Beverage,ES,,1
+Florette Ibérica,Food & Beverage,ES,,1
+Adamo,Telecom & Technology,ES,,2
+Avatel,Telecom & Technology,ES,,2
+Finetwork,Telecom & Technology,ES,,2
+Aire Networks,Telecom & Technology,ES,,1
+Lyntia,Telecom & Technology,ES,,2
+Onivia,Telecom & Technology,ES,,1
+Gigas,Telecom & Technology,ES,,1
+Red Points,Telecom & Technology,ES,,1
+CARTO,Telecom & Technology,ES,,1
+Packlink,Telecom & Technology,ES,,1
+Tiendeo,Telecom & Technology,ES,,1
+Amenitiz,Telecom & Technology,ES,,1
+Exoticca,Travel,ES,,1
+Civitatis,Travel,ES,,1
+Hotelbeds,Travel,ES,,3
+eDreams ODIGEO,Travel,ES,,3
+Destinia,Travel,ES,,1
+Logitravel,Travel,ES,,2
+Atrápalo,Travel,ES,,1
+Payflow,Payments,ES,,1
+seQura,Payments,ES,,1
+Aplazame,Payments,ES,,1
+PAYCOMET,Payments,ES,,1
+Sipay,Payments,ES,,1
+MONEI,Payments,ES,,1
+ID Finance,Payments,ES,,1
+Alsa,Transport & Mobility,ES,,3
+Avanza,Transport & Mobility,ES,,2
+Moventia,Transport & Mobility,ES,,2
+Sagalés,Transport & Mobility,ES,,1
+Zity,Transport & Mobility,ES,,1
+Yego,Transport & Mobility,ES,,1
+Bipi,Transport & Mobility,ES,,1
+SEUR,Logistics,ES,,3
+MRW,Logistics,ES,,2
+Nacex,Logistics,ES,,2
+Tipsa,Logistics,ES,,1
+Primafrio,Logistics,ES,,2
+Grupo Sesé,Logistics,ES,,3
+Marcotran,Logistics,ES,,1
+Carreras Grupo Logístico,Logistics,ES,,2
+Moldtrans,Logistics,ES,,1
+Noatum,Logistics,ES,,2
+Bergé,Logistics,ES,,2
+TIBA,Logistics,ES,,1
+Trucksters,Logistics,ES,,1
+ISDI,Education,ES,,1
+ESIC,Education,ES,,1
+Ironhack,Education,ES,,1
+Lingokids,Education,ES,,1
+Odilo,Education,ES,,1
+Smartick,Education,ES,,1
+Innovamat,Education,ES,,1
+MasterD,Education,ES,,1
+Proeduca,Education,ES,,2
+Universidad Europea,Education,ES,,2
+Kids&Us,Education,ES,,1
+Brains International Schools,Education,ES,,1
+Vithas,Health & Wellness,ES,,3
+Ribera Salud,Health & Wellness,ES,,2
+HM Hospitales,Health & Wellness,ES,,3
+Hospiten,Health & Wellness,ES,,2
+Clínica Baviera,Health & Wellness,ES,,2
+Vitaldent,Health & Wellness,ES,,2
+Donte Group,Health & Wellness,ES,,2
+Instituto Bernabeu,Health & Wellness,ES,,1
+IVI,Health & Wellness,ES,,2
+Eugin,Health & Wellness,ES,,1
+Atrys Health,Health & Wellness,ES,,1
+Top Doctors,Health & Wellness,ES,,1
+DiR,Health & Wellness,ES,,1
+Metropolitan,Health & Wellness,ES,,1
+VivaGym,Health & Wellness,ES,,2
+GO fit,Health & Wellness,ES,,1
+Synergym,Health & Wellness,ES,,1
+Good Rebels,Marketing & Advertising,ES,,1
+Making Science,Marketing & Advertising,ES,,2
+LLYC,Marketing & Advertising,ES,,2
+Atrevia,Marketing & Advertising,ES,,1
+Adsmurai,Marketing & Advertising,ES,,1
+Elogia,Marketing & Advertising,ES,,1
+Cyberclick,Marketing & Advertising,ES,,1
+Grupo Eulen,Facilities Services,ES,,3
+Clece,Facilities Services,ES,,3
+Ilunion,Facilities Services,ES,,3
+Serveo,Facilities Services,ES,,2
+Grupo Sifu,Facilities Services,ES,,2
+Optima Facility,Facilities Services,ES,,1
+Grupo Norte,Facilities Services,ES,,2
+Eurofirms,Facilities Services,ES,,2
+Nortempo,Facilities Services,ES,,1
+Signaturit,Legaltech / Regtech,ES,,1
+Lefebvre,Legaltech / Regtech,ES,,2
+vLex,Legaltech / Regtech,ES,,1
+Bigle Legal,Legaltech / Regtech,ES,,1
+Docuten,Legaltech / Regtech,ES,,1
+Validated ID,Legaltech / Regtech,ES,,1
+Camerfirma,Legaltech / Regtech,ES,,1
+Holaluz,Energy,ES,,2
+Factorenergia,Energy,ES,,1
+Audax Renovables,Energy,ES,,2
+SotySolar,Energy,ES,,1
+Samara,Energy,ES,,1
+Ecoener,Energy,ES,,1
+Grenergy,Energy,ES,,2
+Soltec,Energy,ES,,2
+Powen,Energy,ES,,1
+Flix,Transport & Mobility,DE,,3
+Personio,Telecom & Technology,DE,,2
+Celonis,Telecom & Technology,DE,,2
+sennder,Logistics,DE,,2
+Forto,Logistics,DE,,1
+Enpal,Energy,DE,,2
+About You,Retail,DE,,3
+Westwing,Retail,DE,,2
+Urban Sports Club,Health & Wellness,DE,,1
+Freeletics,Health & Wellness,DE,,1
+McFIT,Health & Wellness,DE,,2
+Gymshark,Retail,GB,,2
+SumUp,Payments,GB,,3
+Huel,Food & Beverage,GB,,1
+Gousto,Food & Beverage,GB,,1
+Rituals,Retail,NL,,3
+Hunkemöller,Retail,NL,,2
+Basic-Fit,Health & Wellness,NL,,3
+Mollie,Payments,NL,,2
+Picnic,Retail,NL,,2
+Swapfiets,Transport & Mobility,NL,,1
+Parfois,Retail,PT,,2
+Salsa Jeans,Retail,PT,,1
+Pestana Hotel Group,Hospitality,PT,,3
+Vila Galé,Hospitality,PT,,2
+Delta Cafés,Food & Beverage,PT,,2
+Vista Alegre,Industrial,PT,,1
+Sézane,Retail,FR,,1
+Veepee,Retail,FR,,3
+ID Logistics,Logistics,FR,,3
+Samsic,Facilities Services,FR,,3
+BlaBlaCar,Transport & Mobility,FR,,2
+ManoMano,Retail,FR,,2
+Casavo,Real Estate,IT,,1
+Satispay,Payments,IT,,1
+Scalapay,Payments,IT,,1
+Eataly,Food & Beverage,IT,,2
+Deliverect,Telecom & Technology,BE,,1
+Showpad,Telecom & Technology,BE,,1
+Lotus Bakeries,Food & Beverage,BE,,2
+Flywire,Payments,US,,2
+Toast,Payments,US,,3
+Kry,Health & Wellness,SE,,1
+Bitpanda,Payments,AT,,1
+Docplanner,Health & Wellness,PL,,2
+Carsome,Transport & Mobility,MY,,2

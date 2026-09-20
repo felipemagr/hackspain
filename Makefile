@@ -29,7 +29,7 @@ install: ## Install dependencies and the notebook output stripper
 inspect: ## Print shape and dtypes of every CSV in data/raw
 	uv run python -m xray.pipeline.data
 
-$(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/pipeline/clean.py
+$(CLEAN_STAMP): $(wildcard $(RAW_DIR)/*.csv) src/xray/pipeline/clean.py src/xray/pipeline/names.py src/xray/pipeline/names_roster.csv
 	@test -n "$(wildcard $(RAW_DIR)/*.csv)" || { \
 		echo "No CSVs in $(RAW_DIR). Drop the nine challenge files there, or pass RAW_DIR=path/to/csvs"; exit 1; }
 	XRAY_DATA_DIR=$(RAW_DIR) uv run python -m xray.pipeline.clean

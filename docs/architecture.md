@@ -277,6 +277,15 @@ account's own currency (`amount_local`, `balance_local`) and converted month by 
 rolling euros would mix the snapshot year's rate with the flows'. Effect on the score: 200 of 230
 groups move under half a point, 18 move three points or more, holdout AUC 0.903 to 0.906.
 
+**Groups and companies are ids, nothing else.** A demo of `GROUP_0227` does not read. The clean
+stage ends by labelling them (`xray.pipeline.names`): trading names and sectors from a roster in
+git, `names_roster.csv`, Embat's published customers first (embat.io/success-stories), then real
+companies in the industries it serves. A name goes to a group with the same ERP and country where
+the dump states them, bigger names to groups with more entities, and subsidiaries read as legal
+entities (`Cooltra Holding`, `HOFF Portugal`). It reads only what never changes between extracts,
+so a group keeps its name through a replay, and a dump that already carries names is left alone.
+Cosmetic: no feature, score or prediction reads a name, and every figure under one is synthetic.
+
 Smaller: 90.2% of transactions have no `counterparty_id`; `category` is `-` on 25% and is
 normalised to `uncategorized`; the `exchange_rate` on transactions is not used, the account currency is.
 

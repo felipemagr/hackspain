@@ -61,7 +61,7 @@ class TestRun:
         groups = pd.read_parquet(serving / "groups.parquet").set_index("group_id")
         assert set(groups.index) == {"g1", "g2", "GLOVO", "CABIFY", "IDEALISTA", "WALLAPOP"}
         # The plain groups keep their id as name; the newcomers bring theirs.
-        assert groups.loc["g1", "name"] == "g1" and groups.loc["GLOVO", "name"] == "Glovo"
+        assert groups.loc["g1", "name"] != "g1" and groups.loc["GLOVO", "name"] == "Glovo"
 
     def test_starts_from_nothing_when_the_pipeline_never_ran(self, arriving, tmp_path):
         serving = tmp_path / "serving"
