@@ -78,14 +78,14 @@ with sync_playwright() as playwright:
     page.locator(".pick").first.click()
     checks["upstream_market"] = page.locator(".chart__line--macro").count() == 1
     page.get_by_role("heading", name="Health score, August 2026").click()
-    page.get_by_role("button", name="AI", exact=True).click()
+    page.get_by_role("button", name="Ask Lighthouse", exact=True).click()
     checks["button_bottom_right"] = page.locator(".view-ai-button").bounding_box()["x"] > 1300
-    checks["minimal_chat_header"] = (
-        page.locator(".view-ai__head").count() == 0
+    checks["titled_chat_header"] = (
+        page.get_by_role("heading", name="Ask Lighthouse").is_visible()
         and "GROUP_0080" not in page.get_by_role("dialog").inner_text()
         and page.get_by_role("button", name="Close AI").is_visible()
     )
-    checks["empty_chat_compact"] = page.get_by_role("dialog").bounding_box()["height"] < 180
+    checks["empty_chat_compact"] = page.get_by_role("dialog").bounding_box()["height"] < 340
 
     def ask(text):
         page.get_by_label("Ask AI about this view").fill(text)
@@ -155,7 +155,7 @@ with sync_playwright() as playwright:
     page.get_by_role("button", name="Close AI").click()
     page.get_by_role("dialog").wait_for(state="hidden")
     page.screenshot(path=str(OUT / "view-agent-refined-chart.png"))
-    page.get_by_role("button", name="AI", exact=True).click()
+    page.get_by_role("button", name="Ask Lighthouse", exact=True).click()
     page.get_by_role("button", name="Reset AI changes").click()
     page.wait_for_timeout(550)
     checks["reset_restores"] = (
@@ -163,12 +163,12 @@ with sync_playwright() as playwright:
         and page.locator(BAR_SELECTOR).count() == 0
     )
     page.keyboard.press("Escape")
-    page.get_by_role("dialog", name="AI view assistant").wait_for(state="hidden")
-    checks["escape_closes"] = page.get_by_role("dialog", name="AI view assistant").count() == 0
+    page.get_by_role("dialog", name="Ask Lighthouse").wait_for(state="hidden")
+    checks["escape_closes"] = page.get_by_role("dialog", name="Ask Lighthouse").count() == 0
     page.set_viewport_size({"width": 390, "height": 844})
     page.wait_for_timeout(300)
-    page.get_by_role("button", name="AI", exact=True).click()
-    box = page.get_by_role("dialog", name="AI view assistant").bounding_box()
+    page.get_by_role("button", name="Ask Lighthouse", exact=True).click()
+    box = page.get_by_role("dialog", name="Ask Lighthouse").bounding_box()
     checks["mobile_panel_fits"] = box["x"] >= 0 and box["x"] + box["width"] <= 390 and box["y"] >= 0
     page.screenshot(path=str(OUT / "view-agent-refined-mobile.png"))
     browser.close()

@@ -335,6 +335,7 @@ export default function App({ localScoring = false }: { localScoring?: boolean }
       {tab !== "agents" && (!localScoring || Boolean(store.localScoring)) && <ViewAgent
         key={`${viewEntityId}-${month}`}
         entityId={viewEntityId}
+        entityName={store.companyById.get(viewEntityId)?.name ?? store.groupById.get(viewEntityId)?.name ?? viewEntityId}
         parentGroupId={!localScoring && selectedCompanyId ? selectedId : undefined}
         month={month}
         onRecord={chat.recordViewTurn}
