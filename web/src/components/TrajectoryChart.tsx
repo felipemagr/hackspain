@@ -19,6 +19,12 @@ interface TrajectoryChartProps {
   /** Market health levels behind the score, on the same 0-100 axis. Empty when none is picked. */
   macros: MacroSeries[];
   compare?: (ChartSeries | null)[];
+  /** The group's own companies, drawn as quiet context lines behind the score. */
+  members?: ChartSeries[];
+  /** Name of the member to lift out of the context lines. */
+  hotMember?: string;
+  /** Called with the member nearest the pointer, or undefined when none is close. */
+  onHotMember?: (name: string | undefined) => void;
   alerts: AlertRow[];
   config?: ChartConfig;
 }
@@ -28,6 +34,8 @@ const M = { top: 16, right: 44, bottom: 28, left: 96 };
 const THRESHOLDS: Record<number, string> = { 70: "Healthy", 40: "Vulnerable" };
 // Narrowest zoom, in months between the two ends of the axis.
 const MIN_SPAN = 2;
+// How close, in pixels, the pointer must be to a member line to pick it.
+const PICK_RADIUS = 8;
 export const MACRO_COLORS = ["var(--series-3)", "var(--series-5)", "var(--series-4)", "var(--series-2)"];
 
 function align(months: string[], history: ScoreRow[]): number[] {
@@ -42,6 +50,9 @@ export function TrajectoryChart({
   primary,
   macros,
   compare = [],
+  members = [],
+  hotMember,
+  onHotMember,
   alerts,
   config = DEFAULT_CHART,
 }: TrajectoryChartProps) {
@@ -88,11 +99,14 @@ export function TrajectoryChart({
     series ? [{ ...series, color: SERIES_COLORS[index], vals: flat.slice(index * n, (index + 1) * n) }] : [],
   );
 
+  const memberLines = members.map(series => ({ ...series, vals: align(months, series.history) }));
+  const hot = memberLines.find(series => series.name === hotMember);
+
   const zi = zoom ? [months.indexOf(zoom[0]), months.indexOf(zoom[1])] : [];
   const [i0, i1] = zi[0] >= 0 && zi[1] > zi[0] ? zi : [0, Math.max(n - 1, 0)];
   const zoomed = i0 > 0 || i1 < n - 1;
   // Zoomed in, the score axis closes on what is drawn; the full window keeps the fixed 0 to 100.
-  const seen = [target, ...macroLines.map((line) => line.vals), ...compareTargets]
+  const seen = [target, ...macroLines.map((line) => line.vals), ...compareTargets, ...memberLines.map((line) => line.vals)]
     .flatMap((vals) => vals.slice(i0, i1 + 1))
     .filter(Number.isFinite);
   const yLo =
@@ -207,6 +221,29 @@ export function TrajectoryChart({
         onPointerMove={(e) => {
           const i = indexAt(e.clientX);
           setHover(i);
+          if (onHotMember) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const px = e.clientX - rect.left;
+            const py = e.clientY - rect.top;
+            // Distance to the drawn segments around the pointer, not to the snapped month.
+            const at = Math.floor(v0 + ((px - M.left) / Math.max(plotW, 1)) * (v1 - v0));
+            const gapTo = (vals: number[]) => {
+              let best = Infinity;
+              for (let k = Math.max(at - 1, 0); k <= Math.min(at + 1, cursor - 1); k++) {
+                if (!Number.isFinite(vals[k]) || !Number.isFinite(vals[k + 1])) continue;
+                const [ax, ay, bx, by] = [x(k), y(vals[k]), x(k + 1), y(vals[k + 1])];
+                const t = Math.max(0, Math.min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / ((bx - ax) ** 2 + (by - ay) ** 2)));
+                best = Math.min(best, Math.hypot(px - ax - t * (bx - ax), py - ay - t * (by - ay)));
+              }
+              return best;
+            };
+            // Only a line within reach of the pointer is picked, so the group's own line stays readable.
+            const near = memberLines
+              .map(series => ({ name: series.name, gap: gapTo(series.vals) }))
+              .filter(pick => pick.gap <= PICK_RADIUS)
+              .sort((p, q) => p.gap - q.gap)[0];
+            onHotMember(near?.name);
+          }
           const p = press.current;
           if (p && (drag || Math.abs(e.clientX - p.clientX) > 4))
             setDrag({ from: p.index, to: i });
@@ -226,7 +263,10 @@ export function TrajectoryChart({
           press.current = null;
           setDrag(null);
         }}
-        onPointerLeave={() => setHover(null)}
+        onPointerLeave={() => {
+          setHover(null);
+          onHotMember?.(undefined);
+        }}
         onDoubleClick={() => setZoom(null)}
       >
         <defs>
@@ -320,6 +360,11 @@ export function TrajectoryChart({
             {/* One comparison reads better with a wash under it; several washes overlap into mud. */}
             {others.length === 1 && <path d={areaPath(others[0].vals)} fill={others[0].color} opacity={.06} />}
           </>}
+
+          {config.type !== "bar" && memberLines.map(series => series !== hot && (
+            <path key={series.name} d={path(series.vals, 0, cursor)} className="chart__line chart__line--member" />
+          ))}
+          {config.type !== "bar" && hot && <path d={path(hot.vals, 0, cursor)} className="chart__line chart__line--member is-hot" />}
 
           {config.type !== "bar" && <>
             {/* months after the selected one stay visible, but recede */}
@@ -416,6 +461,13 @@ export function TrajectoryChart({
                 <span>{s.name}</span>
               </div>
             ),
+          )}
+          {hot && Number.isFinite(hot.vals[activeHover]) && (
+            <div className="tooltip__row">
+              <span className="key key--member" />
+              <strong>{hot.vals[activeHover].toFixed(0)}</strong>
+              <span>{hot.name}</span>
+            </div>
           )}
           {macroLines.map((line) => Number.isFinite(line.vals[activeHover]) && (
             <div className="tooltip__row" key={line.series.id}>
