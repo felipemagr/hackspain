@@ -13,8 +13,6 @@ import type {
   GroupRow,
   OfferRow,
   Pillar,
-  PromptPayCustomerRow,
-  PromptPayRow,
   ScoreRow,
   State,
 } from "./types";
@@ -59,8 +57,6 @@ export interface Store {
   companyImpactAt: (companyId: string, month: string) => CompanyImpactRow | undefined;
   companyAlerts: CompanyAlertRow[];
   driversAt: (groupId: string, month: string) => DriverRow[];
-  promptPayAt: (groupId: string, month: string, windowDays: number) => PromptPayRow | undefined;
-  promptPayCustomers: (groupId: string, month: string) => PromptPayCustomerRow[];
 }
 
 /** The live build, or null when the API is not reachable. Cheap: the front end polls it. */
@@ -113,8 +109,6 @@ function fetchTables(live: boolean) {
     fetchTable<CompanyDriverRow>("company_drivers", live),
     fetchTable<CompanyImpactRow>("company_impact", live),
     fetchTable<CompanyAlertRow>("company_alerts", live),
-    fetchTable<PromptPayRow>("promptpay", live),
-    fetchTable<PromptPayCustomerRow>("promptpay_customers", live),
   ]);
 }
 
@@ -127,7 +121,7 @@ export async function loadStore(version?: Version | null): Promise<Store> {
         return fetchTables(false);
       })
     : fetchTables(false));
-  const [groups, scores, alerts, offers, actions, companies, drivers, companyScores, companyDrivers, companyImpact, companyAlerts, promptPay, promptPayCustomers] = tables;
+  const [groups, scores, alerts, offers, actions, companies, drivers, companyScores, companyDrivers, companyImpact, companyAlerts] = tables;
 
   const norm = (m: string) => m.slice(0, 10);
   const normState = (s: string): State => (s in STATE_META ? (s as State) : "not_enough_data");
@@ -143,8 +137,6 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     ...companyDrivers,
     ...companyImpact,
     ...companyAlerts,
-    ...promptPay,
-    ...promptPayCustomers,
   ]) {
     row.month = norm(row.month);
   }
@@ -247,19 +239,6 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     driversKeyed.set(key, list);
   }
 
-  const promptPayKeyed = new Map<string, PromptPayRow>();
-  for (const r of promptPay) {
-    promptPayKeyed.set(`${r.group_id}|${r.month}|${r.window_days}`, r);
-  }
-
-  const promptPayCustomersKeyed = new Map<string, PromptPayCustomerRow[]>();
-  for (const r of promptPayCustomers) {
-    const key = `${r.group_id}|${r.month}`;
-    const list = promptPayCustomersKeyed.get(key) ?? [];
-    list.push(r);
-    promptPayCustomersKeyed.set(key, list);
-  }
-
   const alertsSorted = [...alerts].sort((a, b) => b.month.localeCompare(a.month));
 
   return {
@@ -287,7 +266,5 @@ export async function loadStore(version?: Version | null): Promise<Store> {
     companyImpactAt: (id, month) => companyImpactKeyed.get(`${id}|${month}`),
     companyAlerts,
     driversAt: (gid, month) => driversKeyed.get(`${gid}|${month}`) ?? [],
-    promptPayAt: (gid, month, windowDays) => promptPayKeyed.get(`${gid}|${month}|${windowDays}`),
-    promptPayCustomers: (gid, month) => promptPayCustomersKeyed.get(`${gid}|${month}`) ?? [],
   };
 }

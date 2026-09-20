@@ -22,7 +22,7 @@ import { LowDataNote } from "./LowData";
 import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
-import { PromptPay } from "./PromptPay";
+import { InvestableCash } from "./InvestableCash";
 import { Star } from "./Star";
 import { StateTag } from "./StateTag";
 import { MACRO_COLORS, TrajectoryChart } from "./TrajectoryChart";
@@ -508,7 +508,7 @@ export function GroupDetail({
 
       {store.localScoring && score && <OwnHistory history={history} month={month} />}
       {store.localScoring && score && <WhatIf score={score} weights={activeWeights} onWeights={onWeights} evaluating={evaluating} />}
-      {score && <PromptPay store={store} groupId={groupId} month={month} />}
+      {score && <InvestableCash store={store} groupId={groupId} month={month} />}
     </article>
   );
 }

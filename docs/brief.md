@@ -171,7 +171,7 @@ origination fee when a working-capital offer is taken up through a partner lende
 **Pitch in one line:** *"What will my bank think of me in three months, and what do I do about it
 this week?"*
 
-Six layers, each one mapped to a scoring block so nothing is built that the rubric does not pay
+Seven layers, each one mapped to a scoring block so nothing is built that the rubric does not pay
 for:
 
 | Layer | What the CFO sees | Rubric it covers |
@@ -181,6 +181,7 @@ for:
 | **Monitor** | An alert when the score *really* moves, silence on a one-month dip | Monitor, stability |
 | **Offer** | A working-capital limit and price recalculated monthly from the score: up when improving, tightening early when bending | Product, buyer, both directions |
 | **Actions** | Three ranked moves, each tied to a driver, each with its expected score impact | Product, buyer |
+| **Cash deployment** | An estimated amount the CFO can invest for 30, 60 or 90 days while holding a safety reserve | Product, buyer |
 | **Backtest** | "Detected N months before it showed in the level", replayed over the 24 months | Anticipation, measured |
 
 ### The demo, five minutes
@@ -247,6 +248,7 @@ Pipeline shape, the panel contract and the reasoning behind both: `docs/architec
 | Alert delivery to Slack or email | `src/xray/scoring/notify.py`, `src/xray/integrations/` |
 | Who is told, where, from which urgency or score line: the rule book, written in plain words through the chat, switched, edited and deleted in the Alerts rail | `src/xray/scoring/rules.py` (`data/serving/alert_rules.json`), `src/xray/agents/notifier.py` (the `notifier` fleet member), `api/routers/alert_rules.py` (list, create, patch, delete, test), `web/src/components/Alarms.tsx`, `make replay CHANNEL=rules` |
 | Limit, price, ranked actions | `src/xray/scoring/offer.py` |
+| Investable-cash estimate and its group view | Cash-flow inputs in `src/xray/scoring/serve.py`; calculation and controls in `web/src/components/InvestableCash.tsx` |
 | Context around the score: public research, macro, narrative of weak pillars | `src/xray/agents/`, see `docs/agents.md` |
 | Natural-language view controls and local evidence | `src/xray/agents/view.py`, `api/routers/view_chat.py`, `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts` |
 | Floating AI chat in the main group view | `web/src/components/ViewAgent.tsx`, `web/src/lib/viewAgent.ts`, `api/routers/chat.py`, `src/xray/agents/fleet.py` |

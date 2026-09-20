@@ -20,7 +20,20 @@ WEB_DATA_DIR = PROJECT_ROOT / "web" / "public" / "data"
 
 REQUIRED_COLUMNS: dict[str, set[str]] = {
     "groups": {"group_id", "name", "sector", "country", "n_companies", "has_erp"},
-    "scores": {"group_id", "month", "level", "trend", "compound", "state", "tier"},
+    "scores": {
+        "group_id",
+        "month",
+        "level",
+        "trend",
+        "compound",
+        "state",
+        "tier",
+        "cash_eur",
+        "cash_is_extrapolated",
+        "monthly_outflow_eur",
+        "monthly_debt_service_eur",
+        "net_flow_volatility_eur",
+    },
     "alerts": {"group_id", "month", "state_from", "state_to", "onset_month"},
     "offers": {"group_id", "month", "eligible", "limit_eur"},
     "actions": {"group_id", "month", "rank", "pillar", "action"},

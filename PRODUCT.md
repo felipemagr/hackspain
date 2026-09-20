@@ -53,6 +53,7 @@ both directions, and decomposes every number into named drivers.
 - Five pillars, named and weighted: liquidity 25, cash generation 25, payment discipline 20,
   collections 15, debt burden 15. `coverage` says how much weight was available.
 - Alerts fire on entering bending/falling/improving, with `anticipation_months` measured.
+- The group view estimates cash that can remain invested for 30, 60 or 90 days from month-end cash, recent operating flows, observed debt service and a user-set safety margin. The margin is not a missed-payment probability.
 - No user accounts, no multi-tenant, no live ingestion, no mobile. Anything outside the
   five-minute demo does not get built.
 - UI copy is in English (user decision; repo and docs are English).

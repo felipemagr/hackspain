@@ -139,6 +139,13 @@ the group's own receivable invoices as of each month: open and overdue are rebui
 | `days_late`, `days_late_change` | amount-weighted days beyond terms over six months, and against the six before |
 | `payer_score` | 100, minus 1.5 per day late (capped at 60 days), minus up to 10 for overdue exposure |
 
+The `scores` table also carries `cash_eur`, `cash_is_extrapolated`,
+`monthly_outflow_eur`, `monthly_debt_service_eur` and `net_flow_volatility_eur` for the group
+cash-deployment estimate. The last field is the trailing six-covered-month standard deviation
+of monthly operating inflow minus operating outflow and observed debt service, available from
+the third covered month. The front end uses these with `monthly_inflow_eur` and a user-set
+safety margin; the result is an estimate, not a missed-payment probability.
+
 ### `promptpay`
 
 One row per group, month and collection window (30, 60, 90 days), written by

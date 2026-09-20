@@ -2486,19 +2486,18 @@ select:hover {
   }
 }
 
-/* Early payment: what falls due in the window, and which supplier bills it can pay early. */
-.promptpay {
+.investable {
   margin-top: 48px;
 }
 
-.promptpay__windows {
+.investable__windows {
   display: flex;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   overflow: hidden;
 }
 
-.promptpay__windows button {
+.investable__windows button {
   padding: 5px 12px;
   border: 0;
   background: none;
@@ -2508,99 +2507,115 @@ select:hover {
   transition: background 0.18s var(--ease);
 }
 
-.promptpay__windows button + button {
+.investable__windows button + button {
   border-left: 1px solid var(--line-strong);
 }
 
-.promptpay__windows button:hover {
+.investable__windows button:hover {
   background: var(--hover);
 }
 
-.promptpay__windows button[aria-pressed="true"] {
+.investable__windows button[aria-pressed="true"] {
   background: var(--ink);
   color: var(--surface);
 }
 
-.promptpay__stats {
+.investable__windows button:disabled {
+  color: var(--ink-3);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.investable__windows button:disabled:hover {
+  background: none;
+}
+
+.investable__stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 40px;
   margin-top: 20px;
 }
 
-.promptpay__label {
+.investable__label {
   display: block;
   font-size: 12.5px;
   color: var(--ink-3);
 }
 
-.promptpay__figure {
+.investable__figure {
   margin: 2px 0 4px;
   font-size: 30px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
 
-.promptpay__bar {
+.investable__primary {
+  padding-left: 20px;
+  border-left: 2px solid var(--ink);
+}
+
+.investable__control {
+  max-width: 420px;
+  margin-top: 28px;
+}
+
+.investable__control-head,
+.investable__endpoints {
   display: flex;
-  gap: 2px;
-  height: 10px;
-  margin-top: 24px;
+  justify-content: space-between;
 }
 
-.promptpay__seg {
-  border-radius: 2px;
-  transition: flex-grow 0.5s var(--ease);
+.investable__control-head {
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.promptpay__seg--reliable {
-  background: var(--ink);
+.investable__control input {
+  width: 100%;
+  margin: 12px 0 4px;
+  accent-color: var(--ink);
+  cursor: pointer;
 }
 
-.promptpay__seg--cushion {
-  background: var(--neutral);
+.investable__control input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
 }
 
-.promptpay__seg--risk {
-  background: var(--line-strong);
+.investable__control input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.promptpay__seg--thin {
-  background: var(--line);
-}
-
-.promptpay__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
+.investable__endpoints,
+.investable__method {
   font-size: 12.5px;
   color: var(--ink-3);
 }
 
-.promptpay__legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.promptpay__legend strong {
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.promptpay__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+.investable__method {
+  max-width: 72ch;
+  margin: 20px 0 0;
 }
 
 @media (max-width: 900px) {
-  .promptpay__stats {
+  .investable {
+    max-width: calc(100vw - 32px);
+  }
+
+  .investable .section-head {
+    justify-content: flex-start;
+  }
+
+  .investable__stats {
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
+  }
+
+  .investable__primary {
+    padding-left: 0;
+    border-left: 0;
   }
 }
 

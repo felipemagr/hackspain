@@ -61,7 +61,7 @@ export async function loadLocalStore(kind: "group" | "company", signal?: AbortSi
     actionsByGroup: new Map(), companiesByGroup: new Map(),
     companyById: new Map(), scoresByCompany: new Map(), companyScoreAt: () => undefined,
     companyDriversAt: () => [], companyImpactAt: () => undefined, companyAlerts: [],
-    driversAt: () => [], promptPayAt: () => undefined, promptPayCustomers: () => [],
+    driversAt: () => [],
   });
 }
 

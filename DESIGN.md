@@ -109,6 +109,7 @@ One family, Geist Variable, tabular figures everywhere. Fixed scale: 12.5 (hints
 - **Company drill-down** (`GroupDetail.tsx`, `CompanyDetail.tsx`): group rows show each company's
   inflow share, own score and signed pressure on the group; selecting one opens its trajectory
   against the group, pillars and pressure explanation. A back link returns to the group.
+- **Investable cash** (`InvestableCash.tsx`): a section beneath the group detail has three aligned figures: month-end cash, estimated investable cash for the selected 30, 60 or 90 day term, and cash kept for payments and reserve. The middle figure has an ink rule for emphasis. Each 30 days of term requires three observed months of cash flow; unavailable terms are disabled and the selection falls back to an available shorter term. A risk-appetite range control changes the stress and reserve; the copy makes clear that its percentage is a preference, not a probability.
 - **Own-range gauge (optional local scorecard)** (`OwnHistory.tsx`): a half dial that runs from the group's own worst month
   to its own best. A 6px arc in thirds (low, mid, high); only the third the needle sits in takes
   its state color, the rest stay hairline grey. Every scored month is a tick outside the arc,

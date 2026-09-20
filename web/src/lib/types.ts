@@ -57,6 +57,11 @@ export interface ScoreRow {
   compound: number;
   tier: Tier;
   monthly_inflow_eur: number;
+  cash_eur?: number | null;
+  cash_is_extrapolated?: boolean;
+  monthly_outflow_eur?: number | null;
+  monthly_debt_service_eur?: number | null;
+  net_flow_volatility_eur?: number | null;
 }
 
 export interface AlertRow {
@@ -122,44 +127,6 @@ export interface CompanyAlertRow extends AlertRow {
   company_id: string;
 }
 
-/** One row per group, month and window: what falls due, and what can be paid early with it. */
-export interface PromptPayRow {
-  group_id: string;
-  month: string;
-  window_days: number;
-  due_eur: number;
-  expected_eur: number;
-  /** Euros squared: the page takes the square root to price the 5th percentile. */
-  variance: number;
-  thin_eur: number;
-  n_customers: number;
-  n_thin: number;
-  /** Open but already past due: reported so the page can say so, never counted as cash. */
-  overdue_eur: number;
-  overdue_n: number;
-  payable_n: number;
-  payable_eur: number;
-  payable_days: number | null;
-}
-
-export interface PromptPayCustomerRow {
-  group_id: string;
-  month: string;
-  counterparty_id: string;
-  name: string;
-  n_paid: number;
-  median_late: number | null;
-  solid: boolean;
-  due_30_eur: number;
-  exp_30_eur: number;
-  var_30: number;
-  due_60_eur: number;
-  exp_60_eur: number;
-  var_60: number;
-  due_90_eur: number;
-  exp_90_eur: number;
-  var_90: number;
-}
 
 export interface DriverRow {
   group_id: string;

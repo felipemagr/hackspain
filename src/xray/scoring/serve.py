@@ -51,24 +51,63 @@ SCORE_COLUMNS = {
     "months_observed": "months_observed",
     "tier": "tier",
     "monthly_inflow_eur": "monthly_inflow_eur",
+    "cash_eur": "cash_eur",
+    "cash_is_extrapolated": "cash_is_extrapolated",
+    "monthly_outflow_eur": "monthly_outflow_eur",
+    "monthly_debt_service_eur": "monthly_debt_service_eur",
+    "net_flow_volatility_eur": "net_flow_volatility_eur",
     "level_smooth": "level_smooth",
     "trend": "trend",
     "compound": "compound",
     "state": "state",
 }
+INVESTABLE_SCORE_COLUMNS = {
+    "cash_eur",
+    "cash_is_extrapolated",
+    "monthly_outflow_eur",
+    "monthly_debt_service_eur",
+    "net_flow_volatility_eur",
+}
 
 
 def _with_panel(scores: pd.DataFrame, panel: pd.DataFrame, key: str = "group_id") -> pd.DataFrame:
     """Size and headline columns the score table does not carry itself."""
-    cols = ["opin_3m", "opin_12m", "opout_12m", "debt_service_12m"]
-    out = scores.merge(panel[[key, "month"] + cols], on=[key, "month"], how="left")
+    cols = [
+        "cash",
+        "cash_is_extrapolated",
+        "opin_3m",
+        "opout_3m",
+        "opin_12m",
+        "opout_12m",
+        "debt_service_12m",
+        "inflow_op",
+        "outflow_op",
+        "debt_repayment_outflow",
+        "interest_outflow",
+    ]
+    history = (
+        panel.loc[panel["is_covered"], [key, "month"] + cols].sort_values([key, "month"]).copy()
+    )
+    history["net_flow"] = (
+        history["inflow_op"]
+        - history["outflow_op"]
+        - history["debt_repayment_outflow"]
+        - history["interest_outflow"]
+    )
+    history["net_flow_volatility_eur"] = history.groupby(key, sort=False)["net_flow"].transform(
+        lambda s: s.rolling(6, min_periods=3).std()
+    )
+    out = scores.merge(history, on=[key, "month"], how="left")
     out["monthly_inflow_eur"] = out["opin_3m"] / MONTHS_PER_QUARTER
+    out["cash_eur"] = out["cash"]
+    out["monthly_outflow_eur"] = out["opout_3m"] / MONTHS_PER_QUARTER
+    out["monthly_debt_service_eur"] = out["debt_service_12m"] / 12
     out["dscr"] = np.where(
         out["debt_service_12m"] > 0,
         (out["opin_12m"] - out["opout_12m"]) / out["debt_service_12m"],
         np.nan,
     )
-    return out.drop(columns=cols)
+    return out.drop(columns=[c for c in cols if c != "cash_is_extrapolated"] + ["net_flow"])
 
 
 def _label(table: pd.DataFrame | None, key: str, column: str, ids: pd.Series) -> np.ndarray:
@@ -174,7 +213,9 @@ def assemble(
     )
 
     serving_scores = scores[list(SCORE_COLUMNS.values())].set_axis(list(SCORE_COLUMNS), axis=1)
-    company_columns = ["company_id"] + list(SCORE_COLUMNS.values())
+    company_columns = ["company_id"] + [
+        name for name in SCORE_COLUMNS.values() if name not in INVESTABLE_SCORE_COLUMNS
+    ]
     return {
         "groups": _groups(scores, companies, groups),
         "companies": _companies(panel_company, scores, company_scores, companies),
