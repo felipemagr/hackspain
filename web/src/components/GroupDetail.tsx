@@ -13,12 +13,12 @@ import {
   defaultMacro,
 } from "../lib/macro";
 import type { MacroSeries } from "../lib/macro";
-import { PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
+import { PILLARS, PILLAR_LABEL, SERIES_COLORS, thinHistory } from "../lib/meta";
 import type { Store } from "../lib/load";
 import type { ScoreRow } from "../lib/types";
 import type { Weights } from "../lib/scoring";
 import { useTween } from "../lib/useTween";
-import { LowDataNote } from "./LowData";
+import { LowDataNote, PartialDataNote } from "./LowData";
 import { Check, Menu } from "./Menu";
 import { OwnHistory } from "./OwnHistory";
 import { Pillars } from "./Pillars";
@@ -256,7 +256,8 @@ export function GroupDetail({
                   </>
                 )}
               </p>
-              {thin && <LowDataNote months={score.months_observed} />}
+              {thin ? <LowDataNote months={score.months_observed} />
+                : !store.localScoring && score.coverage < 0.75 && <PartialDataNote missing={PILLARS.filter((p) => score[p.key] == null).length} total={PILLARS.length} />}
             </div>
           </div>
         )}
