@@ -9,14 +9,16 @@ from xray.agents.fleet import (
     AgentContext,
     Call,
     ChatRequest,
+    ChatTurn,
     direct,
     level_of,
     limit_factor,
+    pending_request,
     run_chat,
     untraced_figures,
 )
 from xray.scoring import offer
-from xray.scoring.rules import RULES_FILE, load_rules
+from xray.scoring.rules import RULES_FILE, load_rules, update_rule
 from xray.settings import Settings
 
 MONTH = "2026-03-01 00:00:00"
@@ -86,21 +88,27 @@ def db():
     return con
 
 
-def no_keys(tmp_path) -> Settings:
+def no_keys(tmp_path, smtp_host: str | None = "smtp.example.com") -> Settings:
     return Settings(
         _env_file=None,
         serving_dir=tmp_path,
         helmcode_api_key=None,
         exa_api_key=None,
         tavily_api_key=None,
+        smtp_host=smtp_host,
     )
 
 
 def run(
-    db, tmp_path, message: str, currency: str = "EUR", history: list[dict] | None = None
+    db,
+    tmp_path,
+    message: str,
+    currency: str = "EUR",
+    history: list[dict] | None = None,
+    settings: Settings | None = None,
 ) -> list[dict]:
     request = ChatRequest(message=message, month=MONTH, currency=currency, history=history or [])
-    return list(run_chat(request, db, no_keys(tmp_path)))
+    return list(run_chat(request, db, settings or no_keys(tmp_path)))
 
 
 def answer(events: list[dict]) -> str:
@@ -207,7 +215,8 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
     events = run(
         db,
         tmp_path,
-        "Email me when g1 starts falling, severity 20 or more, and slack me every move",
+        "Email cfo@example.com when g1 starts falling, severity 20 or more, and slack me "
+        "every move",
     )
 
     assert [a["id"] for a in events[1]["agents"]] == ["scorecard", "notifier"]
@@ -219,13 +228,13 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
         "rules.add",
     ]
     assert done(events)["notifier"]["summary"] == (
-        "Saved rule 1: Email gets critical alerts on g1, severity 20 or more. "
+        "Saved rule 1: Email to cfo@example.com gets critical alerts on g1, severity 20 or more. "
         "Saved rule 2: Slack gets every alert on any group. 2 rules in force."
     )
     saved = load_rules(tmp_path / RULES_FILE)
-    assert [(r.channel, r.min_urgency, r.min_severity, r.groups) for r in saved] == [
-        ("email", "critical", 20.0, ["g1"]),
-        ("slack", "info", None, []),
+    assert [(r.channel, r.email_to, r.min_urgency, r.min_severity, r.groups) for r in saved] == [
+        ("email", "cfo@example.com", "critical", 20.0, ["g1"]),
+        ("slack", None, "info", None, []),
     ]
 
     # Asking what is set lists the book and adds nothing.
@@ -241,6 +250,36 @@ def test_a_request_to_be_told_becomes_rules_in_the_book(db, tmp_path):
     )
     assert len(load_rules(tmp_path / RULES_FILE)) == 2
 
+    # Asking for a rule that was switched off in the alarms panel switches it back on.
+    update_rule(tmp_path / RULES_FILE, 2, {"enabled": False})
+    events = run(db, tmp_path, "slack me every move")
+    assert done(events)["notifier"]["summary"].startswith(
+        "Rule 2 was off and is back on: Slack gets every alert on any group."
+    )
+    assert [r.enabled for r in load_rules(tmp_path / RULES_FILE)] == [True, True]
+
+    # An email rule on a server with no mail set up is saved, and the gap is named.
+    events = run(db, tmp_path, "which alert rules are in place?", settings=no_keys(tmp_path, None))
+    assert done(events)["notifier"]["summary"] == (
+        "2 rules in force. Email is not set up on this server: nothing will arrive until "
+        "make email-setup is run."
+    )
+
+
+def test_the_pending_request_stops_at_the_last_answer_that_was_not_a_question():
+    turns = [
+        ("user", "how is g1 doing?"),
+        ("assistant", "g1 is bending."),
+        ("user", "alert me when it falls"),
+        ("assistant", "It would watch g1 falling. Slack or email? For email, say the address too."),
+        ("user", "email"),
+        ("assistant", "Which email address?"),
+    ]
+    history = [ChatTurn(role=role, content=content) for role, content in turns]
+
+    assert pending_request(history) == "alert me when it falls email"
+    assert pending_request(history[:2]) == ""
+
 
 def test_a_request_without_a_channel_waits_for_the_user_to_say_where(db, tmp_path):
     db.sql("insert into groups values ('GROUP_0130', 'GROUP_0130', 'ES', null, false, 1, 0)")
@@ -253,20 +292,33 @@ def test_a_request_without_a_channel_waits_for_the_user_to_say_where(db, tmp_pat
     events = run(db, tmp_path, asked)
 
     assert done(events)["notifier"]["summary"] == (
-        "Nothing saved yet: a message when GROUP_0130 goes above 80. Slack or email? "
-        "No alert rules yet: nothing leaves the monitor until one is set."
+        "Nothing saved yet: a message when GROUP_0130 goes above 80. Slack or email? For email, "
+        "say the address too."
     )
     assert load_rules(tmp_path / RULES_FILE) == []
     assert "Slack or email?" in answer(events)
 
-    # The one-word answer completes the request from the turn before.
+    # The one-word answer picks the channel; email still needs an address.
     history = [{"role": "user", "content": asked}, {"role": "assistant", "content": answer(events)}]
     events = run(db, tmp_path, "email", history=history)
 
+    assert done(events)["notifier"]["summary"] == (
+        "Nothing saved yet: a message when GROUP_0130 goes above 80. Which email address?"
+    )
+    assert load_rules(tmp_path / RULES_FILE) == []
+
+    # The address completes the request from the two turns before.
+    history += [
+        {"role": "user", "content": "email"},
+        {"role": "assistant", "content": answer(events)},
+    ]
+    events = run(db, tmp_path, "ugarte.p711@gmail.com", history=history)
+
     (rule,) = load_rules(tmp_path / RULES_FILE)
-    assert (rule.channel, rule.level_above, rule.groups) == ("email", 80, ["GROUP_0130"])
+    assert (rule.channel, rule.email_to) == ("email", "ugarte.p711@gmail.com")
+    assert (rule.level_above, rule.groups) == (80, ["GROUP_0130"])
     assert done(events)["notifier"]["summary"].startswith(
-        "Saved rule 1: Email gets a message when GROUP_0130 goes above 80."
+        "Saved rule 1: Email to ugarte.p711@gmail.com gets a message when GROUP_0130 goes above 80."
     )
 
 

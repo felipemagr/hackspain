@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: fx help install inspect clean-data cash panel pipeline mock sql notebook docker-build docker-pipeline \
         events score score-baseline validate monitor alerts notify serve submit replay demo demo-data \
-        lighthouse lighthouse-down api api-up api-down slack-test email-test \
+        lighthouse lighthouse-down api api-up api-down slack-test email-test email-setup \
         context peers test test-quick lint format quality ci clean macro web-install web-data web \
         web-build publish
 
@@ -175,6 +175,9 @@ slack-test: ## Send a test alert to the Slack webhook in .env
 
 email-test: ## Send a test alert to the SMTP host in .env
 	uv run python -m xray.integrations.email
+
+email-setup: ## Configure email alerts: asks for the address and its password, writes .env, sends a test
+	uv run python -m xray.integrations.email_setup
 
 # Web demo
 $(WEB_DEPS): web/package.json web/package-lock.json

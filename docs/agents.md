@@ -94,9 +94,11 @@ compared, and a question that names no group reads the portfolio by state. The a
 the raw results.
 
 The notifier keeps one copy of a rule: a request identical to one in force is reported as such
-and nothing is added. A request that names no channel saves nothing: the report asks "Slack or
-email?", the writer ends its answer with those words, and the next message that names a channel
-is read together with the request before it. A bare group number (`the 0130`) is respelled as
+and nothing is added. A request that names no channel, or email and no address, saves nothing:
+the report asks "Slack or email?" or "Which email address?", the writer ends its answer with
+those words, and the next message that names a channel or an address goes straight to the
+notifier (no director round) and is read together with the turns of the request before it. An
+email rule carries its address; `notify` sends there. A bare group number (`the 0130`) is respelled as
 `GROUP_0130` against the tables. Text that asks to be told nothing (a question about the rules,
 a request to email this answer, pasted text) makes no rule.
 

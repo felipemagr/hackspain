@@ -104,11 +104,13 @@ class TestMessages:
 
 class TestRules:
     @pytest.fixture
-    def outbox(self, monkeypatch) -> dict[str, list[str]]:
-        """What each channel would have sent, subjects only. Slack and SMTP are external."""
-        box: dict[str, list[str]] = {"slack": [], "email": []}
+    def outbox(self, monkeypatch) -> dict[str, list]:
+        """What each channel would have sent: Slack the text, email (recipient, subject)."""
+        box: dict[str, list] = {"slack": [], "email": []}
         monkeypatch.setattr(notify, "send_slack", lambda text: box["slack"].append(text))
-        monkeypatch.setattr(notify, "send_email", lambda s, b: box["email"].append(s))
+        monkeypatch.setattr(
+            notify, "send_email", lambda s, b, to=None: box["email"].append((to, s))
+        )
         return box
 
     def test_each_message_goes_to_the_channels_whose_rules_want_it(self, alerts, tmp_path, outbox):
@@ -121,8 +123,27 @@ class TestRules:
 
         assert out["channels"].tolist() == [["email", "slack"], ["email", "slack"], ["email"]]
         assert len(outbox["slack"]) == 2
-        assert len(outbox["email"]) == 3
-        assert "reverted" in outbox["email"][-1]
+        assert [to for to, _ in outbox["email"]] == [None, None, None]
+        assert "reverted" in outbox["email"][-1][1]
+
+    def test_a_rule_switched_off_sends_nothing(self, alerts, tmp_path, outbox):
+        rules = [Rule(text="", channel="slack", enabled=False)]
+
+        out = dispatch(alerts, channel="rules", rules=rules, ledger_path=tmp_path / "sent.json")
+
+        assert out.empty
+        assert outbox["slack"] == []
+
+    def test_an_email_rule_with_an_address_is_its_own_target(self, alerts, tmp_path, outbox):
+        rules = [
+            Rule(text="", channel="email", min_urgency="warning", email_to="cfo@example.com"),
+            Rule(text="", channel="email", min_urgency="warning"),
+        ]
+
+        out = dispatch(alerts, channel="rules", rules=rules, ledger_path=tmp_path / "sent.json")
+
+        assert out["channels"].tolist() == [["email", "email:cfo@example.com"]] * 2
+        assert [to for to, _ in outbox["email"]] == [None, "cfo@example.com"] * 2
 
     def test_what_no_rule_wants_stays_unsent_and_out_of_the_ledger(self, alerts, tmp_path, outbox):
         ledger = tmp_path / "sent.json"

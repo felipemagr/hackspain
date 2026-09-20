@@ -42,6 +42,18 @@ class TestPatterns:
         assert parsed.groups == groups
         assert (parsed.min_urgency, parsed.min_severity) == ("info", None)
 
+    def test_an_address_means_email_there_and_is_not_a_group(self):
+        (parsed,) = parse_by_patterns("alert me at ugarte.p711@gmail.com when g1 falls")
+
+        assert (parsed.channel, parsed.email_to) == ("email", "ugarte.p711@gmail.com")
+        assert parsed.groups == ["g1"]
+        assert parsed.question() is None
+
+    def test_email_without_an_address_still_has_a_question(self):
+        (parsed,) = parse_by_patterns("email me when g1 falls")
+
+        assert parsed.question() == "Which email address?"
+
     def test_two_channels_in_one_sentence_each_read_their_own_words(self):
         first, second = parse_by_patterns(
             "Slack me when any group starts falling, and email me everything on GROUP_0220"
